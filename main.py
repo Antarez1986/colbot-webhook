@@ -1,18 +1,13 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
-import google.generativeai as genai
-import os, json, re
-from pathlib import Path
+import httpx, os, json, re
 
 app = FastAPI()
 
-# ── Configuración ──
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyDjngbOYgoaq-Ijg30LcWfoXwg8VPmmMBQ")
 SCHOOL_NAME = os.getenv("SCHOOL_NAME", "ColBolívar")
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-2.5-flash")
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
 
-# ── Catálogo de documentos con enlaces directos ──
 CATALOGO = {
     "pei": ("PEI – Proyecto Educativo Institucional", "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_a9f081d3d6da48eebcdbfde82e4ab0af.pdf"),
     "siee": ("SIEE – Sistema de Evaluación", "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_f245afe526dd49d097d9417251ec1adc.pdf"),
@@ -34,206 +29,162 @@ ALIAS = {
     "yukpa": "propuesta intercultural", "intercultural": "propuesta intercultural",
     "informatica": "salas de informatica", "tecnologia": "salas de informatica",
     "inscripcion": "matricula", "proceso matricula": "matricula",
-    "contrato": "contratacion",
-    "sena": "practicas empresariales", "empresariales": "practicas empresariales",
+    "contrato": "contratacion", "sena": "practicas empresariales",
     "laboratorio": "practicas de laboratorio",
     "sanitarias": "baterias sanitarias", "banos": "baterias sanitarias",
     "funciones": "manual de funciones",
 }
 
-# ── Historial por usuario (en memoria) ──
 historiales = {}
 
-def normalizar(t):
+def n(t):
     t = t.lower()
-    t = re.sub(r'[áàä]','a', t)
-    t = re.sub(r'[éèë]','e', t)
-    t = re.sub(r'[íìï]','i', t)
-    t = re.sub(r'[óòö]','o', t)
-    t = re.sub(r'[úùü]','u', t)
-    t = re.sub(r'ñ','n', t)
+    for a, b in [('á','a'),('é','e'),('í','i'),('ó','o'),('ú','u'),('ñ','n')]:
+        t = t.replace(a, b)
     return t.strip()
 
-def buscar_documento(texto):
-    s = normalizar(texto)
-    # Buscar por nombre directo
+def buscar_doc(texto):
+    s = n(texto)
     for clave, (nombre, url) in CATALOGO.items():
-        if normalizar(clave) in s:
+        if n(clave) in s:
             return nombre, url
-    # Buscar por alias
     for alias, clave in ALIAS.items():
-        if normalizar(alias) in s:
-            if clave in CATALOGO:
-                return CATALOGO[clave]
+        if n(alias) in s and clave in CATALOGO:
+            return CATALOGO[clave]
     return None, None
 
-def es_pedido_descarga(texto):
-    palabras = ["dame", "descarga", "descargar", "enviar", "enviame", "mandame",
-                "quiero el", "necesito el", "link de", "enlace de", "donde descargo"]
-    s = normalizar(texto)
-    return any(p in s for p in palabras)
+def es_descarga(texto):
+    return any(p in n(texto) for p in ["dame","descarga","descargar","enviame","mandame","quiero el","necesito el","link de","enlace de"])
 
-def es_pregunta_lista():
-    pass
-
-def lista_documentos():
-    lineas = ["📚 *Documentos disponibles del ColBolívar:*\n"]
-    for i, (clave, (nombre, _)) in enumerate(CATALOGO.items(), 1):
+def lista_docs():
+    lineas = [f"📚 *Documentos disponibles del {SCHOOL_NAME}:*\n"]
+    for i,(clave,(nombre,_)) in enumerate(CATALOGO.items(),1):
         lineas.append(f"  {i}. {nombre}")
-    lineas.append("\n_Escribe: 'dame el [nombre]' para recibir el enlace de descarga_ 📎")
+    lineas.append("\n_Escribe: 'dame el [nombre]' para recibir el enlace_ 📎")
     return "\n".join(lineas)
 
-def obtener_historial(telefono):
-    return historiales.get(telefono, [])
-
-def guardar_historial(telefono, rol, mensaje):
-    if telefono not in historiales:
-        historiales[telefono] = []
-    historiales[telefono].append({"role": rol, "content": mensaje})
-    # Mantener solo los últimos 8 mensajes
-    if len(historiales[telefono]) > 8:
-        historiales[telefono] = historiales[telefono][-8:]
-
-async def consultar_ia(pregunta, telefono, nombre):
-    historial = obtener_historial(telefono)
+async def gemini(pregunta, telefono, nombre_usuario):
+    historial = historiales.get(telefono, [])
+    hist_txt = "\n".join([f"{'Usuario' if h['r']=='u' else 'ColBot'}: {h['m']}" for h in historial])
     
-    historial_texto = "\n".join([
-        f"{'Usuario' if h['role']=='user' else 'ColBot'}: {h['content']}"
-        for h in historial
-    ])
+    prompt = f"""Eres ColBot, asistente virtual académico oficial del {SCHOOL_NAME} en Cúcuta, Colombia.
+Personalidad: orientador escolar cercano, empático y académico. Hablas con calidez y naturalidad.
 
-    prompt = f"""Eres *ColBot*, el asistente virtual académico oficial de la Institución Educativa {SCHOOL_NAME} en Cúcuta, Colombia.
-
-Tu personalidad: orientador escolar cercano, empático y académico. Hablas con calidez y naturalidad, como un colega bien informado. Nunca suenas robótico.
-
-INFORMACIÓN INSTITUCIONAL CLAVE:
+INFORMACIÓN INSTITUCIONAL:
 - Rector: M.G. Jesús Maldonado Serrano
 - Fundación: 30 de septiembre de 2002
 - Lema: "Educamos para construir proyectos de vida con éxito"
 - Sedes: Central Simón Bolívar, San Martín, Hernando Acevedo
-- Estudiantes: 2,133 en total (91% de Cúcuta)
-- Docentes: 88
+- Estudiantes: 2,133 | Docentes: 88
 - Niveles: Preescolar, Básica, Media Académica y Media Técnica
 - Misión: Formación integral desde el saber ser, saber hacer y saber saber
-- Visión 2027: Reconocida regional y nacionalmente por calidad, TICs e inclusión
+- Visión 2027: Reconocida por calidad, TICs e inclusión
 - Modelo pedagógico: Crítico-social, aprendizaje significativo
 - Valores: Honestidad, Amor, Esfuerzo, Fe (Estrella ColBolívar)
 - Convenios: SENA, Universidad de Pamplona, UFPS
 
-SOBRE CONVIVENCIA:
+CONVIVENCIA:
 - Faltas leves: llegar tarde, salir sin permiso, no usar uniforme, comer en clase
-- Faltas graves: irrespeto a docentes, plagio, agresiones físicas leves, incumplimiento reiterado
-- Faltas gravísimas: porte de armas/drogas, violencia sexual, vandalismo, actos delictivos
-- Proceso disciplinario: observación → diálogo → compromiso → citación padres → sanción → seguimiento
-- Ruta de atención: se activa en faltas graves/gravísimas con apoyo psicosocial y entidades externas
+- Faltas graves: irrespeto, plagio, agresiones leves, incumplimiento reiterado
+- Faltas gravísimas: armas/drogas, violencia sexual, vandalismo, delitos
+- Proceso: observación → diálogo → compromiso → citación padres → sanción → seguimiento
 
-SOBRE EVALUACIÓN (SIEE):
-- Evaluación continua, sistemática, flexible e integral
-- Promoción si alcanza el 80% de las áreas
-- Reprueba con 3 o más áreas en nivel mínimo
+EVALUACIÓN (SIEE):
+- Continua, sistemática, flexible e integral
+- Promoción: alcanzar el 80% de áreas
+- Reprueba: 3 o más áreas en nivel mínimo
 - Desempeños: Superior, Alto, Básico, Bajo
 
-SOBRE GOBIERNO ESCOLAR:
-- Consejo Directivo, Consejo Académico, Rector, Personero, Representantes, Comité de Convivencia
+DOCUMENTOS PARA DESCARGA:
+{chr(10).join([f"- {nom}: {url}" for _,(nom,url) in CATALOGO.items()])}
 
-DOCUMENTOS DISPONIBLES PARA DESCARGA:
-{chr(10).join([f"- {nombre}: {url}" for clave,(nombre,url) in CATALOGO.items()])}
-
-HISTORIAL DE CONVERSACIÓN:
-{historial_texto if historial_texto else "(primera interacción)"}
+HISTORIAL:
+{hist_txt if hist_txt else "(primera interacción)"}
 
 INSTRUCCIONES:
-1. Responde en español, de forma natural, cálida y académica
+1. Responde en español natural, cálido y académico
 2. Busca por CONCEPTO, no solo palabras exactas
-3. Si alguien pregunta por un documento, da el enlace directamente
-4. Si no tienes información específica: "Esa información no la tengo disponible. Te recomiendo comunicarte con la secretaría del colegio."
-5. Máximo 4 párrafos concisos
-6. Nunca inventes normas o datos que no estén en este prompt
-7. Usa emojis con moderación
+3. Si piden un documento, da el enlace directamente
+4. Si no tienes info: recomienda contactar a la secretaría
+5. Máximo 4 párrafos. Nunca inventes datos.
 
-PREGUNTA DE {nombre or 'el usuario'}: {pregunta}"""
+PREGUNTA DE {nombre_usuario or 'el usuario'}: {pregunta}"""
 
     try:
-        respuesta = model.generate_content(prompt)
-        return respuesta.text
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(GEMINI_URL, json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.6, "maxOutputTokens": 800}
+            })
+            data = resp.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
         print(f"Error Gemini: {e}")
-        return "😕 Tuve un inconveniente técnico. Por favor intenta de nuevo en un momento."
+        return "😕 Tuve un inconveniente técnico. Por favor intenta de nuevo."
 
-# ── Endpoint principal del webhook ──
+def guardar_hist(telefono, rol, msg):
+    if telefono not in historiales:
+        historiales[telefono] = []
+    historiales[telefono].append({"r": rol, "m": msg[:500]})
+    if len(historiales[telefono]) > 8:
+        historiales[telefono] = historiales[telefono][-8:]
+
 @app.post("/webhook")
 async def webhook(request: Request):
     try:
-        body = await request.body()
-        
-        # AutoResponder envía form data
-        try:
+        # Intentar form data primero (AutoResponder)
+        ct = request.headers.get("content-type", "")
+        if "form" in ct:
             form = await request.form()
-            mensaje = str(form.get("message", ""))
+            mensaje = str(form.get("message", "")).strip()
             telefono = str(form.get("sender", "unknown"))
             nombre = str(form.get("senderName", ""))
-        except:
-            # Si envía JSON
-            data = json.loads(body)
-            mensaje = data.get("message", "")
+        else:
+            body = await request.body()
+            data = json.loads(body) if body else {}
+            mensaje = data.get("message", "").strip()
             telefono = data.get("sender", "unknown")
             nombre = data.get("senderName", "")
 
         if not mensaje:
             return PlainTextResponse("")
 
-        mensaje = mensaje.strip()
-        s = normalizar(mensaje)
-        print(f"📨 [{nombre}|{telefono}] {mensaje[:80]}")
+        s = n(mensaje)
+        print(f"📨 [{nombre}] {mensaje[:80]}")
 
-        # ── Menú ──
-        if s in ["menu", "hola", "inicio", "ayuda", "help", "hello", "buenas"]:
-            respuesta = f"""👋 ¡Hola{f', *{nombre}*' if nombre else ''}! Soy *ColBot*, la inteligencia artificial del *{SCHOOL_NAME}* 🏫
+        # Menú
+        if s in ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes"]:
+            r = f"👋 ¡Hola{f', *{nombre}*' if nombre else ''}! Soy *ColBot*, la IA del *{SCHOOL_NAME}* 🏫\n\nEstoy aquí para resolver tus dudas sobre el colegio — reglamentos, evaluación, convivencia, documentos y más.\n\n💡 *Puedes preguntarme:*\n• ¿Qué dice el manual de convivencia sobre el celular?\n• ¿Qué pasa si pierdo 3 materias?\n• ¿Cuáles son mis derechos como estudiante?\n• Dame el PEI\n• ¿Quién es el rector?\n\nEscribe *MENU* para volver aquí 📋"
+            guardar_hist(telefono, "a", r)
+            return PlainTextResponse(r)
 
-Fui creado para resolver tus dudas sobre el colegio — reglamentos, evaluación, convivencia, documentos institucionales y más.
+        # Lista de documentos
+        if any(p in s for p in ["que documentos","documentos disponibles","que puedo descargar","lista de documentos","que manuales hay","documentos tienes"]):
+            r = lista_docs()
+            guardar_hist(telefono, "a", r)
+            return PlainTextResponse(r)
 
-💡 *Puedes preguntarme cosas como:*
-• ¿Qué dice el manual de convivencia sobre el celular?
-• ¿Qué pasa si pierdo 3 materias?
-• ¿Cuáles son mis derechos como estudiante?
-• Dame el PEI
-• ¿Quién es el rector?
-
-Escribe *MENU* para volver aquí 📋"""
-            guardar_historial(telefono, "assistant", respuesta)
-            return PlainTextResponse(respuesta)
-
-        # ── Lista de documentos ──
-        if any(p in s for p in ["que documentos", "documentos disponibles", "que puedo descargar", "lista de documentos", "que manuales"]):
-            respuesta = lista_documentos()
-            guardar_historial(telefono, "assistant", respuesta)
-            return PlainTextResponse(respuesta)
-
-        # ── Solicitud de descarga ──
-        if es_pedido_descarga(mensaje):
-            nombre_doc, url = buscar_documento(mensaje)
-            if nombre_doc:
-                respuesta = f"📎 *{nombre_doc}*\n\n🔗 Enlace de descarga directa:\n{url}\n\n_Documento oficial del {SCHOOL_NAME}_"
+        # Descarga
+        if es_descarga(mensaje):
+            nom, url = buscar_doc(mensaje)
+            if nom:
+                r = f"📎 *{nom}*\n\n🔗 Enlace de descarga directa:\n{url}\n\n_Documento oficial del {SCHOOL_NAME}_"
             else:
-                respuesta = f"🔍 No encontré ese documento específicamente.\n\n{lista_documentos()}"
-            guardar_historial(telefono, "assistant", respuesta)
-            return PlainTextResponse(respuesta)
+                r = f"🔍 No encontré ese documento.\n\n{lista_docs()}"
+            guardar_hist(telefono, "a", r)
+            return PlainTextResponse(r)
 
-        # ── Consulta a la IA ──
-        guardar_historial(telefono, "user", mensaje)
-        respuesta = await consultar_ia(mensaje, telefono, nombre)
-        guardar_historial(telefono, "assistant", respuesta)
-        print(f"✅ Respuesta enviada a {nombre or telefono}")
+        # IA
+        guardar_hist(telefono, "u", mensaje)
+        respuesta = await gemini(mensaje, telefono, nombre)
+        guardar_hist(telefono, "a", respuesta)
+        print(f"✅ → {nombre or telefono}")
         return PlainTextResponse(respuesta)
 
     except Exception as e:
-        print(f"❌ Error webhook: {e}")
+        print(f"❌ Error: {e}")
         return PlainTextResponse("😕 Error interno. Intenta de nuevo.")
 
 @app.get("/")
 async def root():
-    return {"status": "ColBot activo", "colegio": SCHOOL_NAME}
-
-@app.get("/health")
-async def health():
-    return {"ok": True}
+    return {"status": "ColBot activo ✅", "colegio": SCHOOL_NAME}
