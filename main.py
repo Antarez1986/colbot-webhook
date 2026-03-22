@@ -3,10 +3,13 @@ from fastapi.responses import PlainTextResponse, JSONResponse
 import httpx, os, json, asyncio
 from contextlib import asynccontextmanager
 
-# ✅ API key SOLO desde variable de entorno — nunca hardcodeada
+# ✅ API key SOLO desde variable de entorno — nunca en el codigo
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# ✅ Modelo configurable via variable de entorno para cambiar sin tocar el codigo
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
 SCHOOL_NAME = os.getenv("SCHOOL_NAME", "ColBolivar")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY
 
 CATALOGO = {
     "pei": ("PEI - Proyecto Educativo Institucional", "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_a9f081d3d6da48eebcdbfde82e4ab0af.pdf"),
@@ -49,9 +52,10 @@ historiales = {}
 
 def norm(t):
     t = t.lower()
-    for orig, rep in [("a","a"),("e","e"),("i","i"),("o","o"),("u","u"),
-                      ("\xe1","a"),("\xe9","e"),("\xed","i"),
-                      ("\xf3","o"),("\xfa","u"),("\xf1","n")]:
+    for orig, rep in [
+        ("\xe1", "a"), ("\xe9", "e"), ("\xed", "i"),
+        ("\xf3", "o"), ("\xfa", "u"), ("\xf1", "n"),
+    ]:
         t = t.replace(orig, rep)
     return t.strip()
 
@@ -68,8 +72,8 @@ def buscar_doc(texto):
 
 
 def es_descarga(texto):
-    palabras = ["dame","descarga","descargar","enviame","mandame",
-                "quiero el","necesito el","link de","enlace de"]
+    palabras = ["dame", "descarga", "descargar", "enviame", "mandame",
+                "quiero el", "necesito el", "link de", "enlace de"]
     return any(p in norm(texto) for p in palabras)
 
 
@@ -82,12 +86,14 @@ def lista_docs():
 
 
 async def llamar_gemini(pregunta, telefono, nombre_usuario):
-    # ✅ Verificar que la API key existe antes de llamar
     api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
-        raise Exception("GEMINI_API_KEY no configurada en variables de entorno")
+    modelo = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + api_key
+    if not api_key:
+        raise Exception("GEMINI_API_KEY no configurada")
+
+    url = ("https://generativelanguage.googleapis.com/v1beta/models/"
+           + modelo + ":generateContent?key=" + api_key)
 
     historial = historiales.get(telefono, [])
     hist_txt = "\n".join([
@@ -126,10 +132,11 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario):
         data = resp.json()
 
     if "candidates" not in data:
-        msg = data.get("error", {}).get("message", "sin candidatos")
-        print("GEMINI ERROR: " + msg)
-        print("GEMINI FULL: " + json.dumps(data)[:500])
-        raise Exception("Gemini: " + msg)
+        err = data.get("error", {})
+        msg = err.get("message", "sin candidatos")
+        code = err.get("code", 0)
+        print("GEMINI ERROR [" + str(code) + "]: " + msg)
+        raise Exception("Gemini [" + str(code) + "]: " + msg)
 
     return data["candidates"][0]["content"]["parts"][0]["text"]
 
@@ -146,8 +153,8 @@ async def procesar(mensaje, telefono, nombre):
     s = norm(mensaje)
     print("MSG [" + (nombre or telefono) + "]: " + mensaje[:80])
 
-    saludos = ["menu","hola","inicio","ayuda","help","hello",
-               "buenas","buenos dias","buenas tardes","buenas noches"]
+    saludos = ["menu", "hola", "inicio", "ayuda", "help", "hello",
+               "buenas", "buenos dias", "buenas tardes", "buenas noches"]
     if s in saludos:
         return (
             "Hola" + (", " + nombre if nombre else "") + "! "
@@ -161,8 +168,8 @@ async def procesar(mensaje, telefono, nombre):
             "Escribe MENU para volver aqui"
         )
 
-    if any(p in s for p in ["que documentos","documentos disponibles",
-                             "lista de documentos","que manuales"]):
+    if any(p in s for p in ["que documentos", "documentos disponibles",
+                             "lista de documentos", "que manuales"]):
         return lista_docs()
 
     if es_descarga(mensaje):
@@ -189,7 +196,7 @@ async def keep_alive():
     await asyncio.sleep(60)
     while True:
         try:
-            url = os.getenv("RENDER_EXTERNAL_URL", "https://colbot-webhook.onrender.com")
+            url = os.getenv("RENDER_EXTERNAL_URL", "https://autoresponder-ai.onrender.com")
             async with httpx.AsyncClient(timeout=10) as client:
                 await client.get(url + "/ping")
                 print("keep-alive ok")
@@ -214,7 +221,8 @@ async def ping():
 
 @app.get("/")
 async def root():
-    return {"status": "ColBot activo", "colegio": SCHOOL_NAME}
+    modelo = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    return {"status": "ColBot activo", "colegio": SCHOOL_NAME, "modelo": modelo}
 
 
 @app.get("/webhook")
