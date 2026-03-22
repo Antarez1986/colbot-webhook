@@ -166,10 +166,8 @@ async def webhook_get(request: Request):
     if not mensaje:
         return PlainTextResponse("ColBot activo")
     respuesta = await procesar(mensaje, telefono, nombre)
-    # AutoResponder acepta tanto texto plano como JSON
     from fastapi.responses import JSONResponse
-    # Intentar responder en formato que AutoResponder entiende
-    return JSONResponse({"response": respuesta, "text": respuesta, "reply": respuesta})
+    return JSONResponse({"replies": [{"message": respuesta}]})
 
 # ── POST endpoint ──
 @app.post("/webhook")
@@ -190,7 +188,9 @@ async def webhook_post(request: Request):
         if not mensaje:
             return PlainTextResponse("")
         respuesta = await procesar(mensaje, telefono, nombre)
-        return PlainTextResponse(respuesta)
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"replies": [{"message": respuesta}]})
     except Exception as e:
         print(f"❌ Error: {e}")
-        return PlainTextResponse("😕 Error interno. Intenta de nuevo.")
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"replies": [{"message": "😕 Error interno. Intenta de nuevo."}]})
