@@ -164,9 +164,12 @@ async def webhook_get(request: Request):
     telefono = params.get("sender") or params.get("from") or "unknown"
     nombre = params.get("senderName") or params.get("name") or ""
     if not mensaje:
-        return PlainTextResponse("ColBot activo ✅")
+        return PlainTextResponse("ColBot activo")
     respuesta = await procesar(mensaje, telefono, nombre)
-    return PlainTextResponse(respuesta)
+    # AutoResponder acepta tanto texto plano como JSON
+    from fastapi.responses import JSONResponse
+    # Intentar responder en formato que AutoResponder entiende
+    return JSONResponse({"response": respuesta, "text": respuesta, "reply": respuesta})
 
 # ── POST endpoint ──
 @app.post("/webhook")
