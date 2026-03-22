@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, JSONResponse
 import httpx, os, json, asyncio
 from contextlib import asynccontextmanager
 
@@ -57,7 +57,7 @@ def es_descarga(texto):
 
 def lista_docs():
     lineas = [f"📚 *Documentos disponibles del {SCHOOL_NAME}:*\n"]
-    for i,(clave,(nombre,_)) in enumerate(CATALOGO.items(),1):
+    for i, (clave, (nombre, _)) in enumerate(CATALOGO.items(), 1):
         lineas.append(f"  {i}. {nombre}")
     lineas.append("\n_Escribe: 'dame el [nombre]' para recibir el enlace_ 📎")
     return "\n".join(lineas)
@@ -83,7 +83,7 @@ INFORMACIÓN INSTITUCIONAL:
 - Evaluación: continua, promueve con 80% áreas, reprueba con 3+ áreas en mínimo
 
 DOCUMENTOS:
-{chr(10).join([f"- {nom}: {url}" for _,(nom,url) in CATALOGO.items()])}
+{chr(10).join([f"- {nom}: {url}" for _, (nom, url) in CATALOGO.items()])}
 
 HISTORIAL: {hist_txt if hist_txt else "(primera vez)"}
 
@@ -108,7 +108,7 @@ def guardar_hist(telefono, rol, msg):
 
 async def procesar(mensaje, telefono, nombre):
     s = n(mensaje)
-    print(f"📨 [{nombre}] {mensaje[:80]}")
+    print(f"📨 [{nombre or telefono}] {mensaje[:80]}")
 
     if s in ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes"]:
         return f"👋 ¡Hola{f', *{nombre}*' if nombre else ''}! Soy *ColBot*, la IA del *{SCHOOL_NAME}* 🏫\n\nEstoy aquí para resolver tus dudas sobre el colegio.\n\n💡 *Ejemplos:*\n• ¿Qué dice el manual de convivencia?\n• ¿Qué pasa si pierdo 3 materias?\n• Dame el PEI\n• ¿Quién es el rector?\n\nEscribe *MENU* para volver aquí 📋"
@@ -125,7 +125,8 @@ async def procesar(mensaje, telefono, nombre):
     guardar_hist(telefono, "u", mensaje)
     try:
         respuesta = await asyncio.wait_for(gemini(mensaje, telefono, nombre), timeout=20)
-    except:
+    except Exception as e:
+        print(f"⚠️ Gemini error: {e}")
         respuesta = "😕 Tuve un inconveniente. Por favor intenta de nuevo en un momento."
     guardar_hist(telefono, "a", respuesta)
     print(f"✅ → {nombre or telefono}")
@@ -138,7 +139,8 @@ async def keep_alive():
             url = os.getenv("RENDER_EXTERNAL_URL", "https://colbot-webhook.onrender.com")
             async with httpx.AsyncClient(timeout=10) as client:
                 await client.get(f"{url}/ping")
-        except: pass
+        except:
+            pass
         await asyncio.sleep(540)
 
 @asynccontextmanager
@@ -156,7 +158,7 @@ async def ping():
 async def root():
     return {"status": "ColBot activo ✅", "colegio": SCHOOL_NAME}
 
-# ── GET endpoint para AutoResponder ──
+# ── GET endpoint para AutoResponder (fallback) ──
 @app.get("/webhook")
 async def webhook_get(request: Request):
     params = dict(request.query_params)
@@ -166,31 +168,46 @@ async def webhook_get(request: Request):
     if not mensaje:
         return PlainTextResponse("ColBot activo")
     respuesta = await procesar(mensaje, telefono, nombre)
-    from fastapi.responses import JSONResponse
     return JSONResponse({"replies": [{"message": respuesta}]})
 
-# ── POST endpoint ──
+# ── POST endpoint principal (AutoResponder for WA) ──
 @app.post("/webhook")
 async def webhook_post(request: Request):
     try:
         ct = request.headers.get("content-type", "")
+
         if "form" in ct:
+            # Form-encoded
             form = await request.form()
             mensaje = str(form.get("message", "")).strip()
             telefono = str(form.get("sender", "unknown"))
             nombre = str(form.get("senderName", ""))
+
         else:
+            # JSON — AutoResponder manda los datos dentro de "query"
             body = await request.body()
-            data = json.loads(body) if body else {}
-            mensaje = data.get("message", "").strip()
-            telefono = data.get("sender", "unknown")
-            nombre = data.get("senderName", "")
+            if not body:
+                return PlainTextResponse("")
+
+            data = json.loads(body)
+
+            # ✅ FIX: AutoResponder envía { "query": { "message": ..., "sender": ... } }
+            query = data.get("query", data)  # si no hay "query", usa el root (compatibilidad)
+
+            mensaje  = str(query.get("message", "")).strip()
+            telefono = str(query.get("sender", "unknown"))
+            nombre   = str(query.get("senderName", "") or query.get("sender", ""))
+
+            # Log para debug
+            print(f"📦 Body recibido: {json.dumps(data)[:200]}")
+
         if not mensaje:
-            return PlainTextResponse("")
+            print("⚠️ Mensaje vacío recibido")
+            return JSONResponse({"replies": [{"message": ""}]})
+
         respuesta = await procesar(mensaje, telefono, nombre)
-        from fastapi.responses import JSONResponse
         return JSONResponse({"replies": [{"message": respuesta}]})
+
     except Exception as e:
-        print(f"❌ Error: {e}")
-        from fastapi.responses import JSONResponse
+        print(f"❌ Error en webhook_post: {e}")
         return JSONResponse({"replies": [{"message": "😕 Error interno. Intenta de nuevo."}]})
