@@ -1,8 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
-import httpx, os, json, re
-
-app = FastAPI()
+import httpx, os, json, asyncio
+from contextlib import asynccontextmanager
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyDjngbOYgoaq-Ijg30LcWfoXwg8VPmmMBQ")
 SCHOOL_NAME = os.getenv("SCHOOL_NAME", "ColBolívar")
@@ -66,7 +65,6 @@ def lista_docs():
 async def gemini(pregunta, telefono, nombre_usuario):
     historial = historiales.get(telefono, [])
     hist_txt = "\n".join([f"{'Usuario' if h['r']=='u' else 'ColBot'}: {h['m']}" for h in historial])
-    
     prompt = f"""Eres ColBot, asistente virtual académico oficial del {SCHOOL_NAME} en Cúcuta, Colombia.
 Personalidad: orientador escolar cercano, empático y académico. Hablas con calidez y naturalidad.
 
@@ -77,62 +75,103 @@ INFORMACIÓN INSTITUCIONAL:
 - Sedes: Central Simón Bolívar, San Martín, Hernando Acevedo
 - Estudiantes: 2,133 | Docentes: 88
 - Niveles: Preescolar, Básica, Media Académica y Media Técnica
-- Misión: Formación integral desde el saber ser, saber hacer y saber saber
-- Visión 2027: Reconocida por calidad, TICs e inclusión
-- Modelo pedagógico: Crítico-social, aprendizaje significativo
-- Valores: Honestidad, Amor, Esfuerzo, Fe (Estrella ColBolívar)
+- Valores: Honestidad, Amor, Esfuerzo, Fe
 - Convenios: SENA, Universidad de Pamplona, UFPS
-
-CONVIVENCIA:
 - Faltas leves: llegar tarde, salir sin permiso, no usar uniforme, comer en clase
-- Faltas graves: irrespeto, plagio, agresiones leves, incumplimiento reiterado
-- Faltas gravísimas: armas/drogas, violencia sexual, vandalismo, delitos
-- Proceso: observación → diálogo → compromiso → citación padres → sanción → seguimiento
+- Faltas graves: irrespeto, plagio, agresiones leves
+- Faltas gravísimas: armas/drogas, violencia sexual, vandalismo
+- Evaluación: continua, promueve con 80% áreas, reprueba con 3+ áreas en mínimo
 
-EVALUACIÓN (SIEE):
-- Continua, sistemática, flexible e integral
-- Promoción: alcanzar el 80% de áreas
-- Reprueba: 3 o más áreas en nivel mínimo
-- Desempeños: Superior, Alto, Básico, Bajo
-
-DOCUMENTOS PARA DESCARGA:
+DOCUMENTOS:
 {chr(10).join([f"- {nom}: {url}" for _,(nom,url) in CATALOGO.items()])}
 
-HISTORIAL:
-{hist_txt if hist_txt else "(primera interacción)"}
+HISTORIAL: {hist_txt if hist_txt else "(primera vez)"}
 
-INSTRUCCIONES:
-1. Responde en español natural, cálido y académico
-2. Busca por CONCEPTO, no solo palabras exactas
-3. Si piden un documento, da el enlace directamente
-4. Si no tienes info: recomienda contactar a la secretaría
-5. Máximo 4 párrafos. Nunca inventes datos.
+INSTRUCCIONES: Responde en español natural y académico. Máx 3 párrafos. Nunca inventes datos.
 
-PREGUNTA DE {nombre_usuario or 'el usuario'}: {pregunta}"""
+PREGUNTA DE {nombre_usuario or 'usuario'}: {pregunta}"""
 
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(GEMINI_URL, json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.6, "maxOutputTokens": 800}
-            })
-            data = resp.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        print(f"Error Gemini: {e}")
-        return "😕 Tuve un inconveniente técnico. Por favor intenta de nuevo."
+    async with httpx.AsyncClient(timeout=25) as client:
+        resp = await client.post(GEMINI_URL, json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.6, "maxOutputTokens": 700}
+        })
+        data = resp.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"]
 
 def guardar_hist(telefono, rol, msg):
     if telefono not in historiales:
         historiales[telefono] = []
-    historiales[telefono].append({"r": rol, "m": msg[:500]})
-    if len(historiales[telefono]) > 8:
-        historiales[telefono] = historiales[telefono][-8:]
+    historiales[telefono].append({"r": rol, "m": msg[:400]})
+    if len(historiales[telefono]) > 6:
+        historiales[telefono] = historiales[telefono][-6:]
 
-@app.post("/webhook")
-async def webhook(request: Request):
+async def procesar(mensaje, telefono, nombre):
+    s = n(mensaje)
+    print(f"📨 [{nombre}] {mensaje[:80]}")
+
+    if s in ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes"]:
+        return f"👋 ¡Hola{f', *{nombre}*' if nombre else ''}! Soy *ColBot*, la IA del *{SCHOOL_NAME}* 🏫\n\nEstoy aquí para resolver tus dudas sobre el colegio.\n\n💡 *Ejemplos:*\n• ¿Qué dice el manual de convivencia?\n• ¿Qué pasa si pierdo 3 materias?\n• Dame el PEI\n• ¿Quién es el rector?\n\nEscribe *MENU* para volver aquí 📋"
+
+    if any(p in s for p in ["que documentos","documentos disponibles","que puedo descargar","lista de documentos","que manuales"]):
+        return lista_docs()
+
+    if es_descarga(mensaje):
+        nom, url = buscar_doc(mensaje)
+        if nom:
+            return f"📎 *{nom}*\n\n🔗 Enlace de descarga:\n{url}\n\n_Documento oficial del {SCHOOL_NAME}_"
+        return f"🔍 No encontré ese documento.\n\n{lista_docs()}"
+
+    guardar_hist(telefono, "u", mensaje)
     try:
-        # Intentar form data primero (AutoResponder)
+        respuesta = await asyncio.wait_for(gemini(mensaje, telefono, nombre), timeout=20)
+    except:
+        respuesta = "😕 Tuve un inconveniente. Por favor intenta de nuevo en un momento."
+    guardar_hist(telefono, "a", respuesta)
+    print(f"✅ → {nombre or telefono}")
+    return respuesta
+
+async def keep_alive():
+    await asyncio.sleep(60)
+    while True:
+        try:
+            url = os.getenv("RENDER_EXTERNAL_URL", "https://colbot-webhook.onrender.com")
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.get(f"{url}/ping")
+        except: pass
+        await asyncio.sleep(540)
+
+@asynccontextmanager
+async def lifespan(app):
+    asyncio.create_task(keep_alive())
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/ping")
+async def ping():
+    return PlainTextResponse("ok")
+
+@app.get("/")
+async def root():
+    return {"status": "ColBot activo ✅", "colegio": SCHOOL_NAME}
+
+# ── GET endpoint para AutoResponder ──
+@app.get("/webhook")
+async def webhook_get(request: Request):
+    params = dict(request.query_params)
+    mensaje = (params.get("message") or params.get("msg") or params.get("texto") or "").strip()
+    telefono = params.get("sender") or params.get("from") or "unknown"
+    nombre = params.get("senderName") or params.get("name") or ""
+    if not mensaje:
+        return PlainTextResponse("ColBot activo ✅")
+    respuesta = await procesar(mensaje, telefono, nombre)
+    return PlainTextResponse(respuesta)
+
+# ── POST endpoint ──
+@app.post("/webhook")
+async def webhook_post(request: Request):
+    try:
         ct = request.headers.get("content-type", "")
         if "form" in ct:
             form = await request.form()
@@ -145,46 +184,10 @@ async def webhook(request: Request):
             mensaje = data.get("message", "").strip()
             telefono = data.get("sender", "unknown")
             nombre = data.get("senderName", "")
-
         if not mensaje:
             return PlainTextResponse("")
-
-        s = n(mensaje)
-        print(f"📨 [{nombre}] {mensaje[:80]}")
-
-        # Menú
-        if s in ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes"]:
-            r = f"👋 ¡Hola{f', *{nombre}*' if nombre else ''}! Soy *ColBot*, la IA del *{SCHOOL_NAME}* 🏫\n\nEstoy aquí para resolver tus dudas sobre el colegio — reglamentos, evaluación, convivencia, documentos y más.\n\n💡 *Puedes preguntarme:*\n• ¿Qué dice el manual de convivencia sobre el celular?\n• ¿Qué pasa si pierdo 3 materias?\n• ¿Cuáles son mis derechos como estudiante?\n• Dame el PEI\n• ¿Quién es el rector?\n\nEscribe *MENU* para volver aquí 📋"
-            guardar_hist(telefono, "a", r)
-            return PlainTextResponse(r)
-
-        # Lista de documentos
-        if any(p in s for p in ["que documentos","documentos disponibles","que puedo descargar","lista de documentos","que manuales hay","documentos tienes"]):
-            r = lista_docs()
-            guardar_hist(telefono, "a", r)
-            return PlainTextResponse(r)
-
-        # Descarga
-        if es_descarga(mensaje):
-            nom, url = buscar_doc(mensaje)
-            if nom:
-                r = f"📎 *{nom}*\n\n🔗 Enlace de descarga directa:\n{url}\n\n_Documento oficial del {SCHOOL_NAME}_"
-            else:
-                r = f"🔍 No encontré ese documento.\n\n{lista_docs()}"
-            guardar_hist(telefono, "a", r)
-            return PlainTextResponse(r)
-
-        # IA
-        guardar_hist(telefono, "u", mensaje)
-        respuesta = await gemini(mensaje, telefono, nombre)
-        guardar_hist(telefono, "a", respuesta)
-        print(f"✅ → {nombre or telefono}")
+        respuesta = await procesar(mensaje, telefono, nombre)
         return PlainTextResponse(respuesta)
-
     except Exception as e:
         print(f"❌ Error: {e}")
         return PlainTextResponse("😕 Error interno. Intenta de nuevo.")
-
-@app.get("/")
-async def root():
-    return {"status": "ColBot activo ✅", "colegio": SCHOOL_NAME}
