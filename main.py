@@ -3,7 +3,8 @@ from fastapi.responses import PlainTextResponse, JSONResponse
 import httpx, os, json, asyncio
 from contextlib import asynccontextmanager
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyDjngbOYgoaq-Ijg30LcWfoXwg8VPmmMBQ")
+# ✅ API key SOLO desde variable de entorno — nunca hardcodeada
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 SCHOOL_NAME = os.getenv("SCHOOL_NAME", "ColBolivar")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY
 
@@ -48,12 +49,9 @@ historiales = {}
 
 def norm(t):
     t = t.lower()
-    reemplazos = [
-        ("a", "a"), ("e", "e"), ("i", "i"), ("o", "o"), ("u", "u"),
-        ("\u00e1", "a"), ("\u00e9", "e"), ("\u00ed", "i"),
-        ("\u00f3", "o"), ("\u00fa", "u"), ("\u00f1", "n"),
-    ]
-    for orig, rep in reemplazos:
+    for orig, rep in [("a","a"),("e","e"),("i","i"),("o","o"),("u","u"),
+                      ("\xe1","a"),("\xe9","e"),("\xed","i"),
+                      ("\xf3","o"),("\xfa","u"),("\xf1","n")]:
         t = t.replace(orig, rep)
     return t.strip()
 
@@ -70,8 +68,8 @@ def buscar_doc(texto):
 
 
 def es_descarga(texto):
-    palabras = ["dame", "descarga", "descargar", "enviame", "mandame",
-                "quiero el", "necesito el", "link de", "enlace de"]
+    palabras = ["dame","descarga","descargar","enviame","mandame",
+                "quiero el","necesito el","link de","enlace de"]
     return any(p in norm(texto) for p in palabras)
 
 
@@ -84,6 +82,13 @@ def lista_docs():
 
 
 async def llamar_gemini(pregunta, telefono, nombre_usuario):
+    # ✅ Verificar que la API key existe antes de llamar
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        raise Exception("GEMINI_API_KEY no configurada en variables de entorno")
+
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + api_key
+
     historial = historiales.get(telefono, [])
     hist_txt = "\n".join([
         ("Usuario" if h["r"] == "u" else "ColBot") + ": " + h["m"]
@@ -117,7 +122,7 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario):
     }
 
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(GEMINI_URL, json=payload)
+        resp = await client.post(url, json=payload)
         data = resp.json()
 
     if "candidates" not in data:
@@ -141,8 +146,8 @@ async def procesar(mensaje, telefono, nombre):
     s = norm(mensaje)
     print("MSG [" + (nombre or telefono) + "]: " + mensaje[:80])
 
-    saludos = ["menu", "hola", "inicio", "ayuda", "help", "hello",
-               "buenas", "buenos dias", "buenas tardes", "buenas noches"]
+    saludos = ["menu","hola","inicio","ayuda","help","hello",
+               "buenas","buenos dias","buenas tardes","buenas noches"]
     if s in saludos:
         return (
             "Hola" + (", " + nombre if nombre else "") + "! "
@@ -156,8 +161,8 @@ async def procesar(mensaje, telefono, nombre):
             "Escribe MENU para volver aqui"
         )
 
-    if any(p in s for p in ["que documentos", "documentos disponibles",
-                             "lista de documentos", "que manuales"]):
+    if any(p in s for p in ["que documentos","documentos disponibles",
+                             "lista de documentos","que manuales"]):
         return lista_docs()
 
     if es_descarga(mensaje):
