@@ -259,6 +259,12 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario):
         ("Como es la primera vez, presentate brevemente y responde la pregunta.\n"
          if es_primera else
          "Ya conoces al usuario, NO te presentes de nuevo. Responde directamente.\n") +
+        "\nFORMATO OBLIGATORIO:\n"
+        "- Escribe los enlaces URL en texto plano, SIN formato Markdown\n"
+        "- MAL: [texto](https://url.com) — BIEN: https://url.com\n"
+        "- MAL: [enlace](url) — BIEN: solo la URL directa\n"
+        "- No uses asteriscos para negritas, escribe texto normal\n"
+        "- No uses guiones como listas, escribe en parrafos\n\n"
         "\nPREGUNTA DE " + (nombre_usuario or "el usuario") + ": " + pregunta
     )
 
@@ -282,7 +288,15 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario):
         print("GEMINI ERROR [" + str(code) + "]: " + msg)
         raise Exception("Gemini [" + str(code) + "]: " + msg)
 
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    texto = data["candidates"][0]["content"]["parts"][0]["text"]
+    # ✅ Limpiar formato Markdown que WhatsApp no entiende
+    # Convierte [texto](url) → url
+    texto = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\2', texto)
+    # Elimina negritas **texto** → texto
+    texto = re.sub(r'\*\*(.+?)\*\*', r'\1', texto)
+    # Elimina cursivas _texto_ → texto (pero no guiones de lista)
+    texto = re.sub(r'(?<!\w)_(.+?)_(?!\w)', r'\1', texto)
+    return texto
 
 
 # ══════════════════════════════════════════════
