@@ -4,9 +4,9 @@ import httpx, os, json, asyncio, re, base64
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 #  CONFIGURACION
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 SCHOOL_NAME    = os.getenv("SCHOOL_NAME", "ColBolivar")
@@ -28,9 +28,106 @@ SHEETS_CREDS = {
     "token_uri": "https://oauth2.googleapis.com/token",
 }
 
-# ══════════════════════════════════════════════
-#  BASE DE CONOCIMIENTO
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
+#  SEDES Y JORNADAS
+# ════════════════════════════════════════════
+SEDES = {
+    "1": {"nombre": "Simón Bolívar", "jornada": "Mañana", "label": "Simón Bolívar - Jornada Mañana"},
+    "2": {"nombre": "Simón Bolívar", "jornada": "Tarde",  "label": "Simón Bolívar - Jornada Tarde"},
+    "3": {"nombre": "San Martín",    "jornada": "",        "label": "Sede San Martín"},
+    "4": {"nombre": "Hernando Acevedo", "jornada": "Mañana", "label": "Hernando Acevedo - Jornada Mañana"},
+    "5": {"nombre": "Hernando Acevedo", "jornada": "Tarde",  "label": "Hernando Acevedo - Jornada Tarde"},
+}
+
+MENU_SEDES = (
+    "🏫 *¿A qué sede/jornada perteneces?*\n\n"
+    "1️⃣  Simón Bolívar – Jornada Mañana\n"
+    "2️⃣  Simón Bolívar – Jornada Tarde\n"
+    "3️⃣  Sede San Martín\n"
+    "4️⃣  Hernando Acevedo – Jornada Mañana\n"
+    "5️⃣  Hernando Acevedo – Jornada Tarde\n\n"
+    "Escribe el número de tu sede:"
+)
+
+# ════════════════════════════════════════════
+#  FALTAS SEGÚN MANUAL DE CONVIVENCIA
+# ════════════════════════════════════════════
+
+# Faltas Leves (Art. 161 Manual de Convivencia)
+FALTAS_LEVES = [
+    "Salir del salón sin permiso durante clase",
+    "Impuntualidad / llegada tarde a la jornada",
+    "Ingerir alimentos durante clase o formación",
+    "Inasistencia sin justificación a clase",
+    "Fomentar el desaseo en instalaciones",
+    "No portar correctamente el uniforme",
+    "Otra falta leve",
+]
+
+# Faltas Graves (Art. 162 Manual de Convivencia)
+FALTAS_GRAVES = [
+    "Presentarse reiteradamente con uniforme inadecuado",
+    "No comunicar citaciones a padres de familia",
+    "Perturbar el normal desarrollo de las clases",
+    "Uso de celular/audífonos interrumpiendo clases",
+    "Fraude comprobado en evaluaciones o trabajos",
+    "Daño a muebles, enseres o bienes del colegio",
+    "Manifestaciones erótico-sexuales en uniforme",
+    "Ingresar/salir por lugares no autorizados",
+    "Escándalo público o agresión verbal leve",
+    "Otra falta grave",
+]
+
+# Faltas Gravísimas (Art. 163 Manual de Convivencia)
+FALTAS_GRAVISIMAS = [
+    "Agresión física a compañero, docente o directivo",
+    "Porte o consumo de sustancias psicoactivas",
+    "Porte de armas blancas o de fuego",
+    "Acoso escolar / matoneo (Situación Tipo II-III)",
+    "Actos sexuales abusivos o acoso sexual",
+    "Vandalismo / daño grave a propiedad",
+    "Conducta punible / infracción de ley penal",
+    "Evasión de la institución durante jornada",
+    "Distribución de material pornográfico",
+    "Otra falta gravísima",
+]
+
+MENU_TIPO_FALTA = (
+    "📋 *Tipo de incidente según el Manual de Convivencia:*\n\n"
+    "1️⃣  *LEVE* – Primera vez: anotación en observador,\n"
+    "     compromiso escrito, trabajo de reflexión.\n\n"
+    "2️⃣  *GRAVE* – Citación inmediata a padres,\n"
+    "     matrícula en observación si es reiterativa.\n\n"
+    "3️⃣  *GRAVÍSIMA* – Suspensión y/o cancelación\n"
+    "     de matrícula. Puede requerir denuncia ante\n"
+    "     autoridades (Situación Tipo III – Ley 1620).\n\n"
+    "Escribe el número (1, 2 o 3):"
+)
+
+def menu_faltas_leves():
+    lineas = ["📝 *Selecciona la falta leve:*\n"]
+    for i, f in enumerate(FALTAS_LEVES, 1):
+        lineas.append(f"{i}. {f}")
+    lineas.append("\nEscribe el número o describe la situación:")
+    return "\n".join(lineas)
+
+def menu_faltas_graves():
+    lineas = ["⚠️ *Selecciona la falta grave:*\n"]
+    for i, f in enumerate(FALTAS_GRAVES, 1):
+        lineas.append(f"{i}. {f}")
+    lineas.append("\nEscribe el número o describe la situación:")
+    return "\n".join(lineas)
+
+def menu_faltas_gravisimas():
+    lineas = ["🚨 *Selecciona la falta gravísima:*\n"]
+    for i, f in enumerate(FALTAS_GRAVISIMAS, 1):
+        lineas.append(f"{i}. {f}")
+    lineas.append("\nEscribe el número o describe la situación:")
+    return "\n".join(lineas)
+
+# ════════════════════════════════════════════
+#  INFORMACION INSTITUCIONAL
+# ════════════════════════════════════════════
 INFO_INSTITUCIONAL = """
 INSTITUCION EDUCATIVA SIMON BOLIVAR - COLBOLIVAR - CUCUTA
 DANE: 154001008266-01 | NIT: 800.181.183-7
@@ -40,8 +137,6 @@ Web colegios: https://www.webcolegios.com/simon/
 Sitio web: https://gestionacademicaco.wixsite.com/colbolivar1
 Facebook: https://www.facebook.com/share/1NM1mkhhcc/
 YouTube: https://www.youtube.com/@colbolivar
-Calendario: https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t
-
 DATOS GENERALES:
 - Rector: Jesus Maldonado Serrano
 - Fundacion: 30 septiembre 2002
@@ -52,44 +147,8 @@ DATOS GENERALES:
 - Niveles: Preescolar, Basica Primaria, Secundaria, Media Academica y Tecnica
 - Jornadas: Manana 6:30am-12:30pm | Tarde 12:30pm-6pm
 - Convenios: SENA, Universidad de Pamplona, UFPS
-
-DIRECTIVOS:
-- Rector: Jesus Maldonado Serrano
-- Sandra Lisbeth Parra Toscano | Maria Rosalba Acosta Ramirez
-- Carolina Bochaga Silva | Homero Cuevas Penaranda
-- Yully Andreina Gaona Gelvez | Yovanna Granados Jurado
-- Julio Cesar Infante Bautista | Beatriz Xiomara Jaimes Parada
-- Rosa Elena Lopez Palacios | Maria Fernanda Mendoza Angarita
-- Maria Eugenia Mora Hernandez | Irma Maria Ortega Gonzalez
-- Gabriela Pena Caceres | Salvador Pena Contreras
-- Carmen Yaneth Sanchez Diaz | Marisol Solarte Rodriguez
-- Claudia Elena Tamayo Tamayo
-
-EVALUACION:
-- Escala 1.0-5.0, aprueba con 3.0, reprueba con 3+ areas perdidas
-- 4 periodos academicos por ano
-
-CONVIVENCIA:
-- Leves: llegar tarde, salir sin permiso, no usar uniforme, comer en clase
-- Graves: irrespeto, plagio, agresiones leves
-- Gravisimas: armas/drogas, violencia sexual, vandalismo
-
-PLANES DE AREA 2026:
-- Matematicas: https://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny
-- Humanidades: https://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv
-- Ciencias Naturales: https://drive.google.com/drive/folders/1WH5qeW4g61gM99BWlL4nBFfqZGr03HFr
-- Ed. Religiosa: https://drive.google.com/drive/folders/1l9U76HFES6_0fnouGKpm9IzbzNVYzgMC
-- Etica y Valores: https://drive.google.com/drive/folders/1HXYKdGnGN1hFz7s5w9yeEzecgRhjSyCx
-- Ed. Fisica: https://drive.google.com/drive/folders/1_pq0T7-VgXrtQJlF6Pmmuj9TqBBvo0DE
-- Tecnologia e Informatica: https://drive.google.com/drive/folders/1w0wnlXesGdF6lgQ0lstZWgen5hOLWxw7
-- Ed. Artistica: https://drive.google.com/drive/folders/1AeLZdegTlSRam2xE3eNsjz3Aaz9N4Mud
-- Ciencias Economicas: https://drive.google.com/drive/folders/19u5e-xJ_aypoKxXc1UXzekOYIGZLBRy
-- Filosofia: https://drive.google.com/drive/folders/1Rz1wJsFIRXbn8YKpbbKeJFdIp_x66re
 """
 
-# ══════════════════════════════════════════════
-#  ENLACES WEB
-# ══════════════════════════════════════════════
 WEB_BASE = "https://gestionacademicaco.wixsite.com/colbolivar1"
 WEB_LINKS = {
     "inicio":                    (WEB_BASE, "Pagina principal"),
@@ -106,9 +165,6 @@ WEB_LINKS = {
     "calendario":                ("https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t", "Calendario escolar"),
 }
 
-# ══════════════════════════════════════════════
-#  DOCUMENTOS PDF
-# ══════════════════════════════════════════════
 BASE_PDF = "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_"
 CATALOGO = {
     "pei":                     ("PEI - Proyecto Educativo Institucional",   BASE_PDF + "a9f081d3d6da48eebcdbfde82e4ab0af.pdf"),
@@ -138,7 +194,7 @@ ALIAS_DOC = {
 PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido"]
 PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf"]
 PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay","actividades","bimestral","receso","periodo","semana","mes","hoy","manana","proximo","vacaciones","boletin","dia civico","reunion","padres","clausura","graduacion"]
-PALABRAS_REPORTE = ["reportar","reporte","incidente","queja","denuncia","problema de convivencia","agresion","bullying","conflicto","falta","reportar un caso","hacer un reporte"]
+PALABRAS_REPORTE = ["reportar","reporte","incidente","queja","denuncia","problema de convivencia","agresion","bullying","conflicto","falta","reportar un caso","hacer un reporte","nuevo reporte"]
 
 pdf_cache       = {}
 historiales     = {}
@@ -146,17 +202,17 @@ conocimiento_extra = []
 docentes_admin  = []
 
 # Estados del formulario de reporte por telefono
-# { telefono: { "paso": 1, "datos": {} } }
+# { telefono: { "etapa": str, "paso": int, "datos": {}, "reportante": str } }
+# etapas: "sede" → "tipo" → "subtipo" → "datos" → "confirmacion"
 formularios_activos = {}
 contador_reportes   = 0
 
-
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 #  UTILIDADES
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 def norm(t):
     t = t.lower()
-    for a, b in [("\xe1","a"),("\xe9","e"),("\xed","i"),("\xf3","o"),("\xfa","u"),("\xf1","n")]:
+    for a, b in [("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ñ","n")]:
         t = t.replace(a, b)
     return t.strip()
 
@@ -217,10 +273,9 @@ def formatear_fecha(fecha_str):
     except:
         return fecha_str
 
-
-# ══════════════════════════════════════════════
-#  GOOGLE SHEETS — TOKEN JWT
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
+#  GOOGLE SHEETS → TOKEN JWT
+# ════════════════════════════════════════════
 def base64url(data):
     if isinstance(data, str):
         data = data.encode()
@@ -231,7 +286,6 @@ async def obtener_token_sheets():
     import time
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import padding
-
     now   = int(time.time())
     claim = {
         "iss":   SHEETS_CREDS["client_email"],
@@ -243,11 +297,9 @@ async def obtener_token_sheets():
     header  = base64url(json_mod.dumps({"alg":"RS256","typ":"JWT"}))
     payload = base64url(json_mod.dumps(claim))
     msg     = (header + "." + payload).encode()
-
     key = serialization.load_pem_private_key(SHEETS_CREDS["private_key"].encode(), password=None)
     sig = base64url(key.sign(msg, padding.PKCS1v15(), hashes.SHA256()))
     jwt = header + "." + payload + "." + sig
-
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(SHEETS_CREDS["token_uri"], data={
             "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
@@ -261,14 +313,11 @@ async def agregar_fila_sheets(fila):
         if not token:
             print("ERROR: No se obtuvo token de Sheets")
             return False
-
         url = ("https://sheets.googleapis.com/v4/spreadsheets/"
-               + SHEETS_ID + "/values/A1:H1:append"
+               + SHEETS_ID + "/values/A1:J1:append"
                "?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
-
         headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
         body    = {"values": [fila]}
-
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(url, headers=headers, json=body)
             ok   = resp.status_code == 200
@@ -278,117 +327,254 @@ async def agregar_fila_sheets(fila):
         print("SHEETS EXCEPTION: " + str(e))
         return False
 
-
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 #  SISTEMA DE REPORTES DE CONVIVENCIA
-# ══════════════════════════════════════════════
-PASOS_REPORTE = [
-    ("estudiante",   "Nombre completo del estudiante involucrado:"),
-    ("grado",        "Grado y grupo (ejemplo: 7B, 10A):"),
-    ("tipo",         "Tipo de incidente:\n1. Leve\n2. Grave\n3. Gravisima\n\nEscribe el numero o el tipo:"),
-    ("descripcion",  "Describe detalladamente lo que ocurrio:"),
-    ("testigo",      "Nombre del docente o testigo (escribe 'ninguno' si no hay):"),
+#  Flujo: sede → tipo → subtipo → datos (estudiante,
+#          grado, descripcion, testigo) → confirmacion
+# ════════════════════════════════════════════
+
+PASOS_DATOS = [
+    ("estudiante",  "👤 *Paso {n}/4* – Nombre completo del estudiante involucrado:"),
+    ("grado",       "🏷 *Paso {n}/4* – Grado y grupo\n(Ejemplo: 7B, 10A, 5°):"),
+    ("descripcion", "📝 *Paso {n}/4* – Describe detalladamente lo que ocurrió:\n(Cuándo, dónde, qué pasó, quiénes estuvieron involucrados)"),
+    ("testigo",     "👁 *Paso {n}/4* – Nombre del docente o testigo\n(Escribe *ninguno* si no hay):"),
 ]
 
 def normalizar_tipo(texto):
     s = norm(texto)
-    if s in ["1","leve"]:
-        return "Leve"
-    if s in ["2","grave"]:
-        return "Grave"
-    if s in ["3","gravisima","gravisimo"]:
-        return "Gravisima"
-    return texto.strip()
+    if s in ["1", "leve"]:      return "Leve"
+    if s in ["2", "grave"]:     return "Grave"
+    if s in ["3", "gravisima", "gravisimo", "muy grave"]: return "Gravisima"
+    return None
+
+def get_subtipo_label(tipo, idx_str):
+    lista = {"Leve": FALTAS_LEVES, "Grave": FALTAS_GRAVES, "Gravisima": FALTAS_GRAVISIMAS}.get(tipo, [])
+    try:
+        idx = int(idx_str) - 1
+        if 0 <= idx < len(lista):
+            return lista[idx]
+    except:
+        pass
+    return None
+
+def icono_tipo(tipo):
+    return {"Leve": "📋", "Grave": "⚠️", "Gravisima": "🚨"}.get(tipo, "📋")
 
 async def procesar_reporte(mensaje, telefono, nombre):
     global contador_reportes
-
     s = norm(mensaje)
 
-    # Cancelar reporte
-    if s in ["cancelar","salir","cancel","no","menu"]:
+    # Cancelar reporte en cualquier momento
+    if s in ["cancelar", "salir", "cancel", "no", "menu"]:
         if telefono in formularios_activos:
             del formularios_activos[telefono]
-        return "Reporte cancelado. En que mas te puedo ayudar?"
+        return (
+            "✅ Reporte cancelado.\n\n"
+            "Puedes escribir *menu* para volver al menú principal\n"
+            "o *reportar* cuando quieras registrar un caso."
+        )
 
-    # Iniciar nuevo reporte
+    # ── ETAPA 1: Selección de SEDE ──────────────────────────────
     if telefono not in formularios_activos:
-        formularios_activos[telefono] = {"paso": 0, "datos": {}, "reportante": nombre or telefono}
-        return ("Vamos a registrar el reporte de convivencia.\n\n"
-                "Puedes escribir CANCELAR en cualquier momento para salir.\n\n"
-                "Paso 1 de 5\n"
-                + PASOS_REPORTE[0][1])
+        formularios_activos[telefono] = {
+            "etapa": "sede",
+            "datos": {},
+            "paso_datos": 0,
+            "reportante": nombre or telefono
+        }
+        return MENU_SEDES
 
     form  = formularios_activos[telefono]
-    paso  = form["paso"]
-    campo = PASOS_REPORTE[paso][0]
+    etapa = form["etapa"]
 
-    # Validaciones
-    if campo == "tipo":
-        valor = normalizar_tipo(mensaje)
-        if valor not in ["Leve","Grave","Gravisima"]:
-            return "Por favor escribe 1 (Leve), 2 (Grave) o 3 (Gravisima):"
-    else:
-        valor = mensaje.strip()
-        if len(valor) < 2:
-            return "Por favor escribe una respuesta valida:"
+    # ── ETAPA: sede ─────────────────────────────────────────────
+    if etapa == "sede":
+        sede_info = SEDES.get(mensaje.strip())
+        if not sede_info:
+            return (
+                "❌ Opción no válida. Por favor escribe el número de tu sede:\n\n"
+                + MENU_SEDES
+            )
+        form["datos"]["sede"]   = sede_info["nombre"]
+        form["datos"]["jornada"]= sede_info["jornada"]
+        form["datos"]["sede_label"] = sede_info["label"]
+        form["etapa"] = "tipo"
+        return (
+            f"✅ Sede seleccionada: *{sede_info['label']}*\n\n"
+            + MENU_TIPO_FALTA
+        )
 
-    form["datos"][campo] = valor
-    form["paso"] += 1
+    # ── ETAPA: tipo de falta ────────────────────────────────────
+    if etapa == "tipo":
+        tipo = normalizar_tipo(mensaje.strip())
+        if not tipo:
+            return "❌ Escribe *1* (Leve), *2* (Grave) o *3* (Gravísima):\n\n" + MENU_TIPO_FALTA
+        form["datos"]["tipo"] = tipo
+        form["etapa"] = "subtipo"
+        menus = {
+            "Leve":      menu_faltas_leves(),
+            "Grave":     menu_faltas_graves(),
+            "Gravisima": menu_faltas_gravisimas(),
+        }
+        return menus[tipo]
 
-    # Si hay mas pasos
-    if form["paso"] < len(PASOS_REPORTE):
-        siguiente = PASOS_REPORTE[form["paso"]]
-        return ("Paso " + str(form["paso"]+1) + " de " + str(len(PASOS_REPORTE)) + "\n\n"
-                + siguiente[1])
+    # ── ETAPA: subtipo (falta específica) ───────────────────────
+    if etapa == "subtipo":
+        tipo  = form["datos"]["tipo"]
+        label = get_subtipo_label(tipo, mensaje.strip())
+        if label:
+            subtipo_text = label
+        else:
+            # Texto libre también es válido
+            subtipo_text = mensaje.strip() if len(mensaje.strip()) >= 3 else None
+        if not subtipo_text:
+            return "❌ Por favor escribe el número de la opción o describe brevemente la falta:"
+        form["datos"]["subtipo"] = subtipo_text
+        form["etapa"] = "datos"
+        form["paso_datos"] = 0
+        # Primer paso de datos
+        return PASOS_DATOS[0][1].replace("{n}", "1")
 
-    # Reporte completo — guardar
-    contador_reportes += 1
-    ahora     = datetime.now(COL_TZ)
-    num_caso  = "RPT-" + ahora.strftime("%Y%m%d") + "-" + str(contador_reportes).zfill(3)
-    fecha_str = ahora.strftime("%d/%m/%Y")
-    hora_str  = ahora.strftime("%I:%M %p")
-    datos     = form["datos"]
-    reportante= form.get("reportante", telefono)
+    # ── ETAPA: recolección de datos ─────────────────────────────
+    if etapa == "datos":
+        paso  = form["paso_datos"]
+        campo = PASOS_DATOS[paso][0]
 
-    # Fila para Google Sheets
-    fila = [
-        num_caso,
-        fecha_str,
-        hora_str,
-        datos.get("estudiante",""),
-        datos.get("grado",""),
-        datos.get("tipo",""),
-        datos.get("descripcion",""),
-        datos.get("testigo",""),
-        reportante,
-        limpiar_tel(telefono),
-    ]
+        # Validación mínima
+        if len(mensaje.strip()) < 2:
+            return "❌ Por favor escribe una respuesta válida:"
 
-    asyncio.create_task(agregar_fila_sheets(fila))
+        form["datos"][campo] = mensaje.strip()
+        form["paso_datos"] += 1
 
-    # Limpiar formulario
+        # Aún quedan pasos
+        if form["paso_datos"] < len(PASOS_DATOS):
+            siguiente = PASOS_DATOS[form["paso_datos"]]
+            return siguiente[1].replace("{n}", str(form["paso_datos"] + 1))
+
+        # ── Todos los datos recolectados → mostrar confirmación ─
+        form["etapa"] = "confirmacion"
+        datos = form["datos"]
+        tipo  = datos.get("tipo", "")
+        icono = icono_tipo(tipo)
+        resumen = (
+            f"📋 *RESUMEN DEL REPORTE*\n"
+            f"{'─'*30}\n"
+            f"🏫 *Sede/Jornada:* {datos.get('sede_label', datos.get('sede',''))}\n"
+            f"{icono} *Tipo de falta:* {tipo}\n"
+            f"📌 *Conducta:* {datos.get('subtipo','')}\n"
+            f"👤 *Estudiante:* {datos.get('estudiante','')}\n"
+            f"🏷 *Grado:* {datos.get('grado','')}\n"
+            f"📝 *Descripción:*\n{datos.get('descripcion','')}\n"
+            f"👁 *Testigo:* {datos.get('testigo','')}\n"
+            f"{'─'*30}\n\n"
+            f"¿Confirmas el reporte?\n"
+            f"✅ Escribe *SI* para guardar\n"
+            f"✏️ Escribe *CANCELAR* para descartar"
+        )
+        return resumen
+
+    # ── ETAPA: confirmación ─────────────────────────────────────
+    if etapa == "confirmacion":
+        if s in ["si", "sí", "confirmar", "ok", "yes", "guardar"]:
+            contador_reportes += 1
+            ahora     = datetime.now(COL_TZ)
+            num_caso  = "RPT-" + ahora.strftime("%Y%m%d") + "-" + str(contador_reportes).zfill(3)
+            fecha_str = ahora.strftime("%d/%m/%Y")
+            hora_str  = ahora.strftime("%I:%M %p")
+            datos     = form["datos"]
+            reportante= form.get("reportante", telefono)
+            tipo      = datos.get("tipo", "")
+            icono     = icono_tipo(tipo)
+
+            # Fila para Google Sheets (columnas A-J)
+            fila = [
+                num_caso,
+                fecha_str,
+                hora_str,
+                datos.get("sede_label", datos.get("sede","")),
+                datos.get("estudiante",""),
+                datos.get("grado",""),
+                tipo,
+                datos.get("subtipo",""),
+                datos.get("descripcion",""),
+                datos.get("testigo",""),
+                reportante,
+                limpiar_tel(telefono),
+            ]
+
+            ok = await agregar_fila_sheets(fila)
+
+            # Nota sobre protocolo según tipo de falta
+            protocolo = ""
+            if tipo == "Leve":
+                protocolo = (
+                    "\n\n📌 *Protocolo a seguir (Art. 161):*\n"
+                    "• Anotación en el observador del estudiante\n"
+                    "• Compromiso escrito del educando\n"
+                    "• 3 faltas leves consecutivas = ingreso a falta grave"
+                )
+            elif tipo == "Grave":
+                protocolo = (
+                    "\n\n📌 *Protocolo a seguir (Art. 162):*\n"
+                    "• Citación inmediata a padre/acudiente\n"
+                    "• Anotación en observador del estudiante\n"
+                    "• 3 faltas graves = matrícula en observación"
+                )
+            elif tipo == "Gravisima":
+                protocolo = (
+                    "\n\n🚨 *Protocolo Situación Tipo III (Ley 1620):*\n"
+                    "• Activar ruta de atención integral\n"
+                    "• Remitir al Comité de Convivencia Escolar\n"
+                    "• Notificar al rector y comité directivo\n"
+                    "• Puede requerir denuncia ante autoridades"
+                )
+
+            del formularios_activos[telefono]
+
+            if ok:
+                resumen_final = (
+                    f"✅ *REPORTE REGISTRADO EXITOSAMENTE*\n"
+                    f"{'─'*30}\n"
+                    f"📄 *N° de caso:* `{num_caso}`\n"
+                    f"📅 *Fecha:* {fecha_str}  🕐 {hora_str}\n"
+                    f"🏫 *Sede:* {datos.get('sede_label', datos.get('sede',''))}\n"
+                    f"{icono} *Tipo:* {tipo} – {datos.get('subtipo','')}\n"
+                    f"👤 *Estudiante:* {datos.get('estudiante','')} ({datos.get('grado','')})\n"
+                    f"{'─'*30}"
+                    + protocolo +
+                    f"\n\n📊 *Registro completo:*\n"
+                    f"https://docs.google.com/spreadsheets/d/{SHEETS_ID}\n\n"
+                    f"💾 Guarda tu número de caso: *{num_caso}*"
+                )
+            else:
+                resumen_final = (
+                    f"⚠️ Reporte generado pero hubo un problema al guardar en la hoja.\n\n"
+                    f"📄 *N° de caso:* `{num_caso}`\n"
+                    f"🏫 Sede: {datos.get('sede_label','')}\n"
+                    f"{icono} Tipo: {tipo}\n"
+                    f"👤 Estudiante: {datos.get('estudiante','')}\n\n"
+                    f"Por favor contáctate con el administrador.\n"
+                    f"📞 {ADMIN_PHONE}"
+                    + protocolo
+                )
+
+            print("REPORTE GUARDADO: " + num_caso + " | " + datos.get("estudiante","") + " | " + tipo)
+            return resumen_final
+
+        elif s in ["cancelar", "no", "salir"]:
+            del formularios_activos[telefono]
+            return "✅ Reporte descartado. Escribe *reportar* cuando quieras registrar un nuevo caso."
+        else:
+            return "Por favor escribe *SI* para confirmar o *CANCELAR* para descartar el reporte."
+
+    # Fallback
     del formularios_activos[telefono]
+    return "Ocurrió un error en el formulario. Escribe *reportar* para intentar de nuevo."
 
-    resumen = (
-        "Reporte registrado exitosamente!\n\n"
-        "Numero de caso: " + num_caso + "\n"
-        "Fecha: " + fecha_str + " " + hora_str + "\n"
-        "Estudiante: " + datos.get("estudiante","") + "\n"
-        "Grado: " + datos.get("grado","") + "\n"
-        "Tipo: " + datos.get("tipo","") + "\n"
-        "Testigo: " + datos.get("testigo","") + "\n\n"
-        "El caso ha sido registrado y las directivas seran notificadas.\n"
-        "Guarda tu numero de caso: " + num_caso
-    )
-
-    print("REPORTE GUARDADO: " + num_caso + " | " + datos.get("estudiante","") + " | " + datos.get("tipo",""))
-    return resumen
-
-
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 #  RESPUESTAS RAPIDAS
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 def respuesta_rapida(mensaje):
     s = norm(mensaje)
     if any(p in s for p in ["quien es el rector","rector del colegio"]):
@@ -405,10 +591,9 @@ def respuesta_rapida(mensaje):
         return "Siguenos en Facebook:\nhttps://www.facebook.com/share/1NM1mkhhcc/"
     return None
 
-
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 #  GOOGLE CALENDAR
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 async def obtener_eventos(dias=60):
     key = os.getenv("GOOGLE_API_KEY","")
     if not key:
@@ -450,10 +635,9 @@ def formatear_eventos(eventos):
     lines.append("\nCalendario completo:\nhttps://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t")
     return "\n".join(lines)
 
-
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 #  DESCARGA PDF
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 async def descargar_pdf_b64(url):
     if url in pdf_cache:
         return pdf_cache[url]
@@ -465,10 +649,9 @@ async def descargar_pdf_b64(url):
             return b64
         raise Exception("HTTP " + str(r.status_code))
 
-
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 #  GEMINI
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
     api_key = os.getenv("GEMINI_API_KEY","")
     modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
@@ -515,58 +698,47 @@ async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usua
         raise Exception("Gemini PDF: "+d.get("error",{}).get("message","error"))
     return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
 
-
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 #  ADMIN
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 def procesar_admin(mensaje):
     global conocimiento_extra, docentes_admin
     s = norm(mensaje)
-
     if s.startswith("aprende:"):
         dato = mensaje[8:].strip()
         if dato:
             conocimiento_extra.append(dato)
             return "Aprendi: \""+dato+"\"\nTotal: "+str(len(conocimiento_extra))
         return "Uso: aprende: [info]"
-
     if s in ["que sabes","que recuerdas"]:
         return ("Datos aprendidos:\n"+"\n".join([str(i+1)+". "+d for i,d in enumerate(conocimiento_extra)])
                 if conocimiento_extra else "Sin datos extra aun.")
-
     if s == "olvida todo":
         n = len(conocimiento_extra); conocimiento_extra = []
         return "Olvide "+str(n)+" dato(s)."
-
     if s.startswith("olvida:"):
         try:
             idx = int(mensaje[7:].strip())-1
             return "Eliminado: \""+conocimiento_extra.pop(idx)+"\"" if 0<=idx<len(conocimiento_extra) else "Numero invalido."
         except: return "Uso: olvida: [numero]"
-
     if s.startswith("agregar docente:"):
         tel = re.sub(r"[^0-9]","",mensaje[16:].strip())
         if tel and tel not in docentes_admin:
             docentes_admin.append(tel); return "Docente "+tel+" autorizado."
         return "Invalido o ya existe."
-
     if s.startswith("quitar docente:"):
         tel = re.sub(r"[^0-9]","",mensaje[15:].strip())
         if tel in docentes_admin:
             docentes_admin.remove(tel); return "Docente "+tel+" removido."
         return "No estaba en la lista."
-
     if s == "ver docentes":
         return "Autorizados:\n"+("\n".join(docentes_admin) if docentes_admin else "Ninguno")
-
     if s == "ver reportes":
         return ("Reportes registrados: "+str(contador_reportes)+"\n"
                 "Ver en Google Sheets:\nhttps://docs.google.com/spreadsheets/d/"+SHEETS_ID)
-
     if s == "limpiar cache":
         n = len(pdf_cache); pdf_cache.clear()
         return "Cache: "+str(n)+" PDF(s) eliminados."
-
     if s in ["comandos","admin ayuda"]:
         return ("Comandos admin:\n\n"
                 "aprende: [dato]\nque sabes\nolvida: [num]\nolvida todo\n"
@@ -574,18 +746,16 @@ def procesar_admin(mensaje):
                 "ver reportes\nlimpiar cache\ncomandos\n\n"
                 "Datos: "+str(len(conocimiento_extra))+" | PDFs: "+str(len(pdf_cache))+
                 " | Docentes: "+str(len(docentes_admin))+" | Reportes: "+str(contador_reportes))
-
     return None
 
-
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 #  PROCESADOR PRINCIPAL
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 async def procesar(mensaje, telefono, nombre):
     s = norm(mensaje)
     print("MSG [" + (nombre or telefono) + "]: " + mensaje[:100])
 
-    # FORMULARIO ACTIVO — prioridad maxima
+    # FORMULARIO ACTIVO → prioridad máxima
     if telefono in formularios_activos or any(p in s for p in PALABRAS_REPORTE):
         return await procesar_reporte(mensaje, telefono, nombre)
 
@@ -595,20 +765,22 @@ async def procesar(mensaje, telefono, nombre):
         if resp_admin is not None:
             return resp_admin
 
-    # SALUDO
+    # SALUDO / MENU
     saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start"]
     if s in saludos:
         tiene_hist = bool(historiales.get(telefono))
         if tiene_hist:
-            return "Hola de nuevo"+(", "+nombre if nombre else "")+"! En que te puedo ayudar?"
-        return ("Hola"+(", "+nombre if nombre else "")+"! Soy ColBot del "+SCHOOL_NAME+".\n\n"
-                "Puedo ayudarte con:\n"
-                "- Informacion del colegio y docentes\n"
-                "- Calendario escolar y eventos\n"
-                "- Documentos y planes de area\n"
-                "- Notas (portal Webcolegios)\n"
-                "- Reportar incidentes de convivencia\n\n"
-                "Escribe tu pregunta!")
+            return "Hola de nuevo" + (", "+nombre if nombre else "") + "! ¿En qué te puedo ayudar? 😊"
+        return (
+            "¡Hola" + (", "+nombre if nombre else "") + "! 👋 Soy *ColBot* del "+SCHOOL_NAME+".\n\n"
+            "Puedo ayudarte con:\n"
+            "📅 Calendario escolar y eventos\n"
+            "📄 Documentos y planes de área\n"
+            "📊 Notas (portal Webcolegios)\n"
+            "ℹ️ Información institucional\n"
+            "🚨 Reportar incidentes de convivencia\n\n"
+            "Escribe tu pregunta o *reportar* para registrar un caso."
+        )
 
     # RESPUESTA RAPIDA
     rapida = respuesta_rapida(mensaje)
@@ -618,10 +790,10 @@ async def procesar(mensaje, telefono, nombre):
 
     # LISTA DOCUMENTOS
     if any(p in s for p in ["que documentos","lista documentos","que manuales"]):
-        lines = ["Documentos oficiales:\n"]
+        lines = ["📚 Documentos oficiales:\n"]
         for i,(k,(n,_)) in enumerate(CATALOGO.items(),1):
             lines.append("  "+str(i)+". "+n)
-        lines.append("\nPideme cualquiera: dame el [nombre]")
+        lines.append("\nPídeme cualquiera: *dame el [nombre]*")
         return "\n".join(lines)
 
     # CALENDARIO
@@ -667,17 +839,16 @@ async def procesar(mensaje, telefono, nombre):
     try:
         resp = await asyncio.wait_for(llamar_gemini(mensaje,telefono,nombre), timeout=25)
     except asyncio.TimeoutError:
-        resp = "La consulta tardo demasiado. Intentalo de nuevo."
+        resp = "La consulta tardó demasiado. Inténtalo de nuevo."
     except Exception as e:
-        print("ERROR GEMINI: "+str(e)); resp = "Tuve un problema. Intentalo de nuevo."
+        print("ERROR GEMINI: "+str(e)); resp = "Tuve un problema. Inténtalo de nuevo."
     guardar_hist(telefono,"a",resp)
     print("OK -> "+(nombre or telefono))
     return resp
 
-
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 #  KEEP-ALIVE
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 async def keep_alive():
     await asyncio.sleep(60)
     while True:
@@ -688,10 +859,9 @@ async def keep_alive():
             print("keep-alive error: "+str(e))
         await asyncio.sleep(540)
 
-
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 #  APP
-# ══════════════════════════════════════════════
+# ════════════════════════════════════════════
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     asyncio.create_task(keep_alive())
@@ -704,8 +874,12 @@ async def ping(): return PlainTextResponse("ok")
 
 @app.get("/")
 async def root():
-    return {"status":"ColBot activo","modelo":os.getenv("GEMINI_MODEL","gemini-2.5-flash"),
-            "reportes":contador_reportes,"conversaciones":len(historiales)}
+    return {
+        "status": "ColBot activo",
+        "modelo": os.getenv("GEMINI_MODEL","gemini-2.5-flash"),
+        "reportes": contador_reportes,
+        "conversaciones": len(historiales),
+    }
 
 @app.get("/webhook")
 async def webhook_get(request: Request):
@@ -737,4 +911,4 @@ async def webhook_post(request: Request):
         return JSONResponse({"replies":[{"message": await procesar(mensaje,telefono,nombre)}]})
     except Exception as e:
         print("ERROR: "+str(e))
-        return JSONResponse({"replies":[{"message":"Ups, algo salio mal. Intenta de nuevo."}]})
+        return JSONResponse({"replies":[{"message":"Ups, algo salió mal. Intenta de nuevo."}]})
