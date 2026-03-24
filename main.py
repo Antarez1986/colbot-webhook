@@ -14,194 +14,77 @@ ADMIN_PHONE    = os.getenv("ADMIN_PHONE", "573003261503")
 RENDER_URL     = os.getenv("RENDER_EXTERNAL_URL", "https://autoresponder-ai.onrender.com")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 CALENDAR_ID    = "f4ff65197ae712df6cd26ab18dc878dc5eac8248c178dc7a67f855cb89b0deea@group.calendar.google.com"
+SHEETS_ID      = "1VTImBJaeAYGRTIeEMawam9eaoyaReMwW1fMikbqilcs"
 COL_TZ         = timezone(timedelta(hours=-5))
 
+# Credenciales Google Sheets (cuenta de servicio)
+SHEETS_CREDS = {
+    "type": "service_account",
+    "project_id": "colbot-491101",
+    "private_key_id": "7309399368a5792db6e2a06902094777364019af",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCxBzv1oInNB3yP\nx2aequt6Ibaf9mAPPlIoTv/7VMG97AJkf0uVouMaCjgJsfqVg2TsLjgzsjc6dW3j\nretOCZPq9nDn7hgqe05K00pKr+IHx+0ekAUMFY4l4MgBC353r1vjF8pzVIxlAu9K\nqRN3El8mVt8zAsxSNFc/Wo33QpjCogg+GAW4LdNwmSQNUpO7cJ/zTta6aFwyflsY\n5lb/g3UfOGvSzi/8vjkE31fxSn2PSxtKFsPedxFYkRjTME0e3UjrdcGccchGaBTE\nTq4oIRYDPw8m7HpR7Vrzmq2PpI8uX9io1hdEWiZoF2KnBCEZJf42AJS5vujtPDW1\ncQFwTCUXAgMBAAECggEACAiKAgV8+17hmiy0TXL4KJyrCutFRKvRUp7zItafzByP\npzvXlDzGDYJ1NIttEafaxpT6W+40b2SwzeowiWQJ4Fm6mevGEPdzgBXCg00j9rJt\n4jsq33eC8dkXemSpIolEpDOKLl2h2VuevEab6YVd6AF9M3VnDDvv0aIsWxIcmIhq\nf0N17eIPcTidkuQOTL8z1ZWyjt5If5gRwlQB7F2u2mC2lKKQEm/4aWiNuFugQXeH\nUcCZu24UEiAhUg5a4AUs8QNrC2nQsF6vZj53mZVpIY/vZTGBf+/w7iPFZ+X1/IaS\nrHFDzbPpmxgJuEyACKUzLARCUQpJtp4JXU1yvlWaYQKBgQDa0Pb7+qKovF8fVzbi\nARBnGvGYpyMUvLpoVJJRr6z3tK0VqToEwuqfqTZGzgYo5iEK+mC38mT2R0Ky2zVO\nyNX/fDehNzVoFAARIv3U65rWZQZgMFNjQanZbt1omBSJvJJ/57qpV0xbAnHG1rYJ\nw+20DrM1FCMtKCma6vC+2lRPWQKBgQDPHGPntaAOXBOO/065D8824jezGDDYxcU1\nh7+ZKf8vxHLOushFpvi2VY1Akznyx9O+mQ7Ar6jJnnWGqa0Y/QSfJz/X2FYEw8Mb\nIspn851BmadMkEIXHIj7voY3vUFayxq3Aohieu/l/roGhendu7hkN4i9XI+eFKGr\njBwPTR157wKBgQCjqYwyJ+Klhk83Z8oa/GTCWXq+jLRGfGqIQkk2Y8lhdHfJLcvB\nZ/CI/s0j5FDjIk0wotjYfKpbMi2HDUIv7TNyZfxNzrdZYywxpRRpvtcO6Hz+UObt\n5F0fzjY4Vxd1dd+1XyNUKYFoyMlEya9aWnteI2iSmL8+tT15K6Rpe2938QKBgApx\nyxP/U9AFkrLuayDoDDIfXGG6wZPc/WICs4Xc2VKmXIfSYZEpp3dCfzoXcp+sth/x\nhg3vjdqFFDYzTlhpQhdomk6fSU86NBelPIHbhj2tqwMwbzTNKpdPd2NONwKGJZW/\nGfOlcX2ux+DWVgHpmpXrOwkZpuB49+I30Z5v7CGfAoGATzyD+C+vwnrJ7OJiPLo1\n1z0KRXCMVKyVLCWbEMdz/rj+gLCFiC20rGl4NtOpO9/2xESX5yzBLYRg2Kii2Xig\nLvTz1orjq4hVWoTuPahWnZLv533Cgc4wDNEX/exM2NNXSJdYQbV/CgzXjZD/1CBn\nFqfyMH7zMrpEf3JDKgAf12A=\n-----END PRIVATE KEY-----\n",
+    "client_email": "colbot-sheets@colbot-491101.iam.gserviceaccount.com",
+    "client_id": "101652966771623260617",
+    "token_uri": "https://oauth2.googleapis.com/token",
+}
+
 # ══════════════════════════════════════════════
-#  BASE DE CONOCIMIENTO INSTITUCIONAL COMPLETA
+#  BASE DE CONOCIMIENTO
 # ══════════════════════════════════════════════
 INFO_INSTITUCIONAL = """
-INSTITUCION EDUCATIVA SIMON BOLIVAR - COLBOLIVAR - CUCUTA, COLOMBIA
+INSTITUCION EDUCATIVA SIMON BOLIVAR - COLBOLIVAR - CUCUTA
 DANE: 154001008266-01 | NIT: 800.181.183-7
-Resolucion: 01879 del 25 de noviembre de 2021
-Licencia de Funcionamiento: 00734 del 9-11-2004 y 0911 del 16-09-2015
-Modelo de Educacion: Ser Humano
-Direccion Sede Central: Calle 4 No.11A-26 San Martin, Cucuta
-Telefono: 5943344
+Direccion: Calle 4 No.11A-26 San Martin, Cucuta | Tel: 5943344
 Correo: colintsimonbolivar@semcucuta.gov.co
-Web colegios (portal de notas y comunicados): https://www.webcolegios.com/simon/
-Sitio web institucional: https://gestionacademicaco.wixsite.com/colbolivar1
-Facebook oficial: https://www.facebook.com/share/1NM1mkhhcc/
+Web colegios: https://www.webcolegios.com/simon/
+Sitio web: https://gestionacademicaco.wixsite.com/colbolivar1
+Facebook: https://www.facebook.com/share/1NM1mkhhcc/
 YouTube: https://www.youtube.com/@colbolivar
-Calendario escolar: https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t
+Calendario: https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t
 
-FUNDACION Y DATOS GENERALES:
-- Fundacion: 30 de septiembre de 2002
+DATOS GENERALES:
+- Rector: Jesus Maldonado Serrano
+- Fundacion: 30 septiembre 2002
 - Lema: Educamos para construir proyectos de vida con exito
 - Valores: Honestidad, Amor, Esfuerzo, Fe
 - Sedes: Central Simon Bolivar, San Martin, Hernando Acevedo
 - Estudiantes: 2133 | Docentes: 95
-- Niveles: Preescolar, Basica Primaria, Basica Secundaria, Media Academica y Media Tecnica
+- Niveles: Preescolar, Basica Primaria, Secundaria, Media Academica y Tecnica
 - Jornadas: Manana 6:30am-12:30pm | Tarde 12:30pm-6pm
 - Convenios: SENA, Universidad de Pamplona, UFPS
 
-PERSONAL DIRECTIVO Y ADMINISTRATIVO:
-- Rector: Jesus Maldonado Serrano (CC 13170849)
-- Sandra Lisbeth Parra Toscano (CC 1090375155)
-- Maria Rosalba Acosta Ramirez (CC 60306189)
-- Carolina Bochaga Silva (CC 60364021)
-- Homero Cuevas Penaranda (CC 13173072)
-- Yully Andreina Gaona Gelvez (CC 60398840)
-- Yovanna Albertina Granados Jurado (CC 37276842)
-- Julio Cesar Infante Bautista (CC 79794566)
-- Beatriz Xiomara Jaimes Parada (CC 60397419)
-- Rosa Elena Lopez Palacios (CC 60335084)
-- Maria Fernanda Mendoza Angarita (CC 1090451513)
-- Maria Eugenia Mora Hernandez (CC 60354561)
-- Irma Maria Ortega Gonzalez (CC 60357981)
-- Gabriela Pena Caceres (CC 63393422)
-- Salvador Pena Contreras (CC 5483294)
-- Carmen Yaneth Sanchez Diaz (CC 60365866)
-- Marisol Solarte Rodriguez (CC 27592283)
-- Claudia Elena Tamayo Tamayo (CC 46663365)
+DIRECTIVOS:
+- Rector: Jesus Maldonado Serrano
+- Sandra Lisbeth Parra Toscano | Maria Rosalba Acosta Ramirez
+- Carolina Bochaga Silva | Homero Cuevas Penaranda
+- Yully Andreina Gaona Gelvez | Yovanna Granados Jurado
+- Julio Cesar Infante Bautista | Beatriz Xiomara Jaimes Parada
+- Rosa Elena Lopez Palacios | Maria Fernanda Mendoza Angarita
+- Maria Eugenia Mora Hernandez | Irma Maria Ortega Gonzalez
+- Gabriela Pena Caceres | Salvador Pena Contreras
+- Carmen Yaneth Sanchez Diaz | Marisol Solarte Rodriguez
+- Claudia Elena Tamayo Tamayo
 
-PERSONAL DOCENTE (95 docentes en total):
-1. Carmen Tatiana Aguilar Becerra
-2. Leidy Trinidad Albarracin Moncada
-3. Edgar Mauricio Ararat Cuberos
-4. Omar Arias Sierra
-5. Luis Alberto Avellaneda Caceres
-6. Carmen Judith Barbosa Contreras
-7. Nahid Antuan Bautista Vega
-8. Ramiro Alfonso Becerra Albarracin
-9. Shneider Alexis Becerra Pabon
-10. Rafael Kamilo Betancourt Buitrago
-11. Karen Julieth Boada Silva
-12. Elizabeth Candy Buendia Mora
-13. Maria Claudia Cardenas
-14. Maria Leonor Cardenas Barrero
-15. Liliana Cristina Castillo Carvajal
-16. Jose Antonio Celin Luna
-17. Ingrith Katheryinne Cely Gamez
-18. Liliana Del Pilar Claro Ascanio
-19. Alix Josefa Conde Sandoval
-20. Sandra Milena Contreras Gonzalez
-21. Maribel Coronel Callejas
-22. Astrid Carolina Correa Blanco
-23. Heriberto Cruz Gallo
-24. Alvaro Antonio Cuadros Abril
-25. Aura Maria Fajardo Valderrama
-26. Carmen Alicia Figueredo Gallo
-27. Juan Pablo Florez Silva
-28. Jesus Gregorio Fuentes Ravelo
-29. Luis Ernesto Gamboa Vera
-30. Jose Gregorio Garcia Rico
-31. Celia Gomez Santander
-32. Carmen Gonzalez Galvis
-33. Emel Grimaldo Camacho
-34. Francy Madeledy Ibanez Rojas
-35. Sandra Jacqueline Izaquita Valderrama
-36. Ana Alida Jaimes Espinel
-37. Ruth Magaly Jaimes Villamizar
-38. Ihovanna Elisa Laguado Contreras
-39. Deisy Yaneth Leal Florez
-40. Andrea Johanna Leguizamon Penaloza
-41. Bertha Lizcano Vera
-42. Nidia Janneth Lozano Hernandez
-43. Fanny Ivone Mantilla Garcia
-44. Luz Marina Martinez Sarmiento
-45. Ludy Amalia Mejia Quintero
-46. Martha Cecilia Meza Rangel
-47. Erika Tatiana Moncada Alvarez
-48. Jesusa Patricia Moncada Lizcano
-49. Wilmer Antonio Moncada Diaz
-50. Ana Josefa Montes Hernandez
-51. Laura Leonilde Mora Basto
-52. Sandra Mora Arevalo
-53. Lucrecia Moreno Rangel
-54. Milagros De Jesus Munoz Lopez
-55. Linda Karime Ordonez Leal
-56. Leidy Consuelo Ortiz Vera
-57. Solvegien Ortiz Diaz
-58. Alix Leonor Osorio Ayala
-59. Fabian Oswaldo Osorio Acevedo
-60. Ramon Alberto Osorio Ayala
-61. Gladys Pabon Carrillo
-62. Elisa Fernanda Pacheco Lopez
-63. Dignery Pallares Perez
-64. Maricela Paredes Pabon
-65. David Perez
-66. Denis Fabiola Prada Cacua
-67. Ana Mercedes Ramirez Rueda
-68. Maria Esmeralda Ramirez
-69. Felix Renoga Botello
-70. Isabel Cristina Rincon
-71. Alix Cristina Rivera Medina
-72. Gisela Janet Rivera Silva
-73. Claudia Yaneth Rodriguez Esteban
-74. Francisco Javier Rodriguez Ortega
-75. Julio Orlando Rodriguez
-76. Gustavo Rojas Garavito
-77. Maria Yulenis Romero Romero
-78. Maria Esmerita Romero Romero
-79. Freddy Alfonso Rubio Waldo
-80. Jhon Edison Ruiz Garcia
-81. Ruby Esmeralda Salinas Abreo
-82. Carmen Yaneth Sanchez Diaz
-83. Jayson Exel Sanguino Gomez
-84. Laura Marcela Sanmiguel Morales
-85. Angela Cristina Santafe Chaustre
-86. Henry Sarabia Tirgos
-87. Aura Yessney Suarez Gelvez
-88. Luisa Fernanda Toro Zapata
-89. Luz Aleida Torres Meza
-90. Luis Miguel Urbina Ortega
-91. Hernan Dario Uribe Jaimes
-92. Martha Cecilia Uscategui Blanco
-93. Mary Edilma Vela Camargo
-94. Maria Fernanda Villamizar Vera
-95. Dorain Enrique Villegas Rincon
+EVALUACION:
+- Escala 1.0-5.0, aprueba con 3.0, reprueba con 3+ areas perdidas
+- 4 periodos academicos por ano
 
-PLANES DE AREA 2026 - ENLACES GOOGLE DRIVE:
-- Matematicas (completo): https://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny
-- Matematicas - Aritmetica: https://drive.google.com/drive/folders/11I9hN18TcObq_NzlH1Ceef31yGm6FDdj
-- Matematicas - Estadistica: https://drive.google.com/drive/folders/1dxKKIlwiTQBYYXuekm0VBxVo4iclXIzY
-- Matematicas - Razonamiento Cuantitativo: https://drive.google.com/drive/folders/1NDZbXjx4LSttFtjSMFx5McakarS40PMR
-- Humanidades (completo): https://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv
-- Humanidades - Lengua Castellana: https://drive.google.com/drive/folders/113FNehsyM7onTkbwhJA_6E9nghLwZFkP
-- Humanidades - LECO: https://drive.google.com/drive/folders/1vSq0XpPSVmaAl3GblRc8zHzN-28zQZvB
-- Humanidades - Laboratorio de Ingles: https://drive.google.com/drive/folders/1hqn60hIs_tQBY_wvez3jEpV6T2-PL3So
-- Humanidades - Ingles Tecnico: https://drive.google.com/drive/folders/1BV9KNnzl-4--g4cyHC6o7J_Mragw-OiL
-- Ciencias Naturales (completo): https://drive.google.com/drive/folders/1WH5qeW4g61gM99BWlL4nBFfqZGr03HFr
-- Ciencias Naturales - Biologia y Ambiental: https://drive.google.com/drive/folders/18ockU2nd4GhXHlpI5SxWNEq-hx67a2v
-- Ciencias Naturales - Quimica: https://drive.google.com/drive/folders/1eSQZtcc5qPU0WHDV0ZkQvqL75xMOrUDr
-- Ciencias Naturales - Fisica: https://drive.google.com/drive/folders/1HqRr3yLYm_g2Dwxcp4XghEJTLWt_hqd
-- Educacion Religiosa (completo): https://drive.google.com/drive/folders/1l9U76HFES6_0fnouGKpm9IzbzNVYzgMC
-- Educacion Religiosa - Religion: https://drive.google.com/drive/folders/1yrusZwteM6zvNV3HuVI4SRZF9KJJIXer
-- Etica y Valores (completo): https://drive.google.com/drive/folders/1HXYKdGnGN1hFz7s5w9yeEzecgRhjSyCx
-- Etica y Valores - Etica: https://drive.google.com/drive/folders/1kqVmYV7R53HmNehDWZ9GIDygerAVcrRe
-- Educacion Fisica (completo): https://drive.google.com/drive/folders/1_pq0T7-VgXrtQJlF6Pmmuj9TqBBvo0DE
-- Educacion Fisica - Ed. Fisica: https://drive.google.com/drive/folders/17L_InNyZTpAfYrtilkOPfbkGnGtCf80
-- Tecnologia e Informatica (completo): https://drive.google.com/drive/folders/1w0wnlXesGdF6lgQ0lstZWgen5hOLWxw7
-- Tecnologia e Informatica - Informatica: https://drive.google.com/drive/folders/1FsFFv0tUdoy9Bh6JO62_3wO_hLryy79
-- Educacion Artistica (completo): https://drive.google.com/drive/folders/1AeLZdegTlSRam2xE3eNsjz3Aaz9N4Mud
-- Educacion Artistica - Artistica: https://drive.google.com/drive/folders/1E8UPvX7rL9xk9BEr7Z2TOOBxa_v7Vmk
-- Ciencias Economicas y Politicas (completo): https://drive.google.com/drive/folders/19u5e-xJ_aypoKxXc1UXzekOYIGZLBRy
-- Ciencias Economicas - Ciencias Economicas: https://drive.google.com/drive/folders/1nMfzw0shGcizpsmtYXSC52kKrYMg5KXH
-- Ciencias Economicas - Geografia e Historia: https://drive.google.com/drive/folders/1VGnxc3mDLgNhIerTpYYXxjh2J2oGN_G
-- Filosofia (completo): https://drive.google.com/drive/folders/1Rz1wJsFIRXbn8YKpbbKeJFdIp_x66re
-- Filosofia - Filosofia: https://drive.google.com/drive/folders/1KYUydpbDQFoZbPLCZW1nJFuDARGG3Q3
+CONVIVENCIA:
+- Leves: llegar tarde, salir sin permiso, no usar uniforme, comer en clase
+- Graves: irrespeto, plagio, agresiones leves
+- Gravisimas: armas/drogas, violencia sexual, vandalismo
 
-SISTEMA DE EVALUACION (SIEE):
-- Escala: 1.0 a 5.0
-- Aprobacion por area: nota minima 3.0
-- Reprobacion de ano: 3 o mas areas perdidas
-- Evaluacion continua y formativa
-- Periodos: 4 periodos academicos por ano
-
-CONVIVENCIA - FALTAS:
-- Leves: llegar tarde, salir sin permiso, no usar uniforme, comer en clase, uso inadecuado del celular
-- Graves: irrespeto a docentes o companeros, plagio, agresiones leves, dano a bienes
-- Gravisimas: portar armas o drogas, violencia sexual, vandalismo, agresion fisica grave
+PLANES DE AREA 2026:
+- Matematicas: https://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny
+- Humanidades: https://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv
+- Ciencias Naturales: https://drive.google.com/drive/folders/1WH5qeW4g61gM99BWlL4nBFfqZGr03HFr
+- Ed. Religiosa: https://drive.google.com/drive/folders/1l9U76HFES6_0fnouGKpm9IzbzNVYzgMC
+- Etica y Valores: https://drive.google.com/drive/folders/1HXYKdGnGN1hFz7s5w9yeEzecgRhjSyCx
+- Ed. Fisica: https://drive.google.com/drive/folders/1_pq0T7-VgXrtQJlF6Pmmuj9TqBBvo0DE
+- Tecnologia e Informatica: https://drive.google.com/drive/folders/1w0wnlXesGdF6lgQ0lstZWgen5hOLWxw7
+- Ed. Artistica: https://drive.google.com/drive/folders/1AeLZdegTlSRam2xE3eNsjz3Aaz9N4Mud
+- Ciencias Economicas: https://drive.google.com/drive/folders/19u5e-xJ_aypoKxXc1UXzekOYIGZLBRy
+- Filosofia: https://drive.google.com/drive/folders/1Rz1wJsFIRXbn8YKpbbKeJFdIp_x66re
 """
 
 # ══════════════════════════════════════════════
@@ -209,20 +92,18 @@ CONVIVENCIA - FALTAS:
 # ══════════════════════════════════════════════
 WEB_BASE = "https://gestionacademicaco.wixsite.com/colbolivar1"
 WEB_LINKS = {
-    "inicio":                    (WEB_BASE,                                           "Pagina principal del colegio"),
-    "planes de area":            (WEB_BASE + "/planesdearea2026",                     "Planes de Area 2026"),
-    "recursos academicos":       (WEB_BASE + "/documentosdocentes2026",               "Recursos Academicos docentes 2026"),
-    "proyectos transversales":   (WEB_BASE + "/proyectostransversales",               "Proyectos Transversales"),
-    "documentos institucionales":(WEB_BASE + "/documentosinstitucionales2026",        "Documentos Institucionales 2026"),
-    "gestiones":                 (WEB_BASE + "/calidad",                              "Gestion de Calidad"),
-    "san martin":                (WEB_BASE + "/sanmart%C3%ADn",                       "Sede San Martin 2026"),
-    "documentos sem":            (WEB_BASE + "/copia-de-documentos-institucionales",  "Documentos SEM"),
-    "biblioteca":                (WEB_BASE + "/biblioteca",                           "Biblioteca"),
-    "facebook":                  ("https://www.facebook.com/share/1NM1mkhhcc/",       "Facebook oficial del colegio"),
-    "youtube":                   ("https://www.youtube.com/@colbolivar",              "Canal YouTube ColBolivar"),
-    "webcolegios":               ("https://www.webcolegios.com/simon/",               "Portal Webcolegios - notas y comunicados"),
-    "sem cucuta":                ("https://semcucuta.gov.co/",                        "Secretaria de Educacion Municipal de Cucuta"),
-    "calendario":                ("https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t", "Calendario escolar ColBolivar 2026"),
+    "inicio":                    (WEB_BASE, "Pagina principal"),
+    "planes de area":            (WEB_BASE + "/planesdearea2026", "Planes de Area 2026"),
+    "recursos academicos":       (WEB_BASE + "/documentosdocentes2026", "Recursos Academicos"),
+    "proyectos transversales":   (WEB_BASE + "/proyectostransversales", "Proyectos Transversales"),
+    "documentos institucionales":(WEB_BASE + "/documentosinstitucionales2026", "Documentos Institucionales"),
+    "gestiones":                 (WEB_BASE + "/calidad", "Gestion de Calidad"),
+    "san martin":                (WEB_BASE + "/sanmart%C3%ADn", "Sede San Martin"),
+    "biblioteca":                (WEB_BASE + "/biblioteca", "Biblioteca"),
+    "facebook":                  ("https://www.facebook.com/share/1NM1mkhhcc/", "Facebook oficial"),
+    "youtube":                   ("https://www.youtube.com/@colbolivar", "Canal YouTube"),
+    "webcolegios":               ("https://www.webcolegios.com/simon/", "Portal Webcolegios - notas"),
+    "calendario":                ("https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t", "Calendario escolar"),
 }
 
 # ══════════════════════════════════════════════
@@ -230,63 +111,44 @@ WEB_LINKS = {
 # ══════════════════════════════════════════════
 BASE_PDF = "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_"
 CATALOGO = {
-    "pei":                     ("PEI - Proyecto Educativo Institucional",    BASE_PDF + "a9f081d3d6da48eebcdbfde82e4ab0af.pdf"),
-    "siee":                    ("SIEE - Sistema de Evaluacion",              BASE_PDF + "f245afe526dd49d097d9417251ec1adc.pdf"),
-    "manual de convivencia":   ("Manual de Convivencia",                     BASE_PDF + "793cfd61ebe14c7cade9feafd6828d3b.pdf"),
-    "manual de funciones":     ("Manual de Funciones",                       BASE_PDF + "711c1ffb30334ea9b10163d87aaed4ba.pdf"),
-    "propuesta intercultural": ("Propuesta Intercultural Yukpa",             BASE_PDF + "a29820f94ee5437abff3787c8f77a79b.pdf"),
-    "salas de informatica":    ("Manual Salas de Informatica",               BASE_PDF + "e6e7265c3d7c4132925b62267253521d.pdf"),
-    "matricula":               ("Manual de Matricula",                       BASE_PDF + "122543af3a0e474eab079ec1038e7c63.pdf"),
-    "contratacion":            ("Manual de Contratacion",                    BASE_PDF + "a9a9bececa6044d4a69978f81484735b.pdf"),
-    "practicas empresariales": ("Manual Practicas Empresariales SENA",      BASE_PDF + "7e73596b192e47f2bbd0b1ea0ad2c049.pdf"),
-    "practicas de laboratorio":("Manual Practicas de Laboratorio",          BASE_PDF + "802a094d6ecd450891f62be4f10f7f01.pdf"),
-    "baterias sanitarias":     ("Manual Baterias Sanitarias",               BASE_PDF + "f30bc178fce5422a847addebb144f696.pdf"),
+    "pei":                     ("PEI - Proyecto Educativo Institucional",   BASE_PDF + "a9f081d3d6da48eebcdbfde82e4ab0af.pdf"),
+    "siee":                    ("SIEE - Sistema de Evaluacion",             BASE_PDF + "f245afe526dd49d097d9417251ec1adc.pdf"),
+    "manual de convivencia":   ("Manual de Convivencia",                    BASE_PDF + "793cfd61ebe14c7cade9feafd6828d3b.pdf"),
+    "manual de funciones":     ("Manual de Funciones",                      BASE_PDF + "711c1ffb30334ea9b10163d87aaed4ba.pdf"),
+    "propuesta intercultural": ("Propuesta Intercultural Yukpa",            BASE_PDF + "a29820f94ee5437abff3787c8f77a79b.pdf"),
+    "salas de informatica":    ("Manual Salas de Informatica",              BASE_PDF + "e6e7265c3d7c4132925b62267253521d.pdf"),
+    "matricula":               ("Manual de Matricula",                      BASE_PDF + "122543af3a0e474eab079ec1038e7c63.pdf"),
+    "contratacion":            ("Manual de Contratacion",                   BASE_PDF + "a9a9bececa6044d4a69978f81484735b.pdf"),
+    "practicas empresariales": ("Manual Practicas Empresariales SENA",     BASE_PDF + "7e73596b192e47f2bbd0b1ea0ad2c049.pdf"),
+    "practicas de laboratorio":("Manual Practicas de Laboratorio",         BASE_PDF + "802a094d6ecd450891f62be4f10f7f01.pdf"),
+    "baterias sanitarias":     ("Manual Baterias Sanitarias",              BASE_PDF + "f30bc178fce5422a847addebb144f696.pdf"),
 }
 
 ALIAS_DOC = {
     "convivencia":"manual de convivencia", "reglamento":"manual de convivencia",
     "proyecto educativo":"pei", "resignificacion":"pei",
-    "evaluacion":"siee", "calificaciones":"siee", "notas":"siee",
+    "evaluacion":"siee", "calificaciones":"siee",
     "yukpa":"propuesta intercultural", "intercultural":"propuesta intercultural",
     "informatica":"salas de informatica", "tecnologia":"salas de informatica",
-    "inscripcion":"matricula", "proceso matricula":"matricula",
-    "contrato":"contratacion", "sena":"practicas empresariales",
-    "laboratorio":"practicas de laboratorio",
-    "sanitarias":"baterias sanitarias", "banos":"baterias sanitarias",
-    "funciones":"manual de funciones",
+    "inscripcion":"matricula", "contrato":"contratacion",
+    "sena":"practicas empresariales", "laboratorio":"practicas de laboratorio",
+    "sanitarias":"baterias sanitarias", "funciones":"manual de funciones",
 }
 
-PALABRAS_LEER = [
-    "que dice","que contiene","que habla","articulo","capitulo","numeral",
-    "segun el","segun la","explica","resume","cuales son","cuantos","cuantas",
-    "como dice","que establece","que indica","norma","regla","procedimiento",
-    "requisito","criterio","define","definicion","menciona","especifica",
-    "detalle","detalla","informacion del","informacion de la","contenido",
-]
+PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido"]
+PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf"]
+PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay","actividades","bimestral","receso","periodo","semana","mes","hoy","manana","proximo","vacaciones","boletin","dia civico","reunion","padres","clausura","graduacion"]
+PALABRAS_REPORTE = ["reportar","reporte","incidente","queja","denuncia","problema de convivencia","agresion","bullying","conflicto","falta","reportar un caso","hacer un reporte"]
 
-PALABRAS_ENLACE = [
-    "dame","descarga","descargar","enviame","mandame","enlace","link",
-    "quiero el","necesito el","donde esta","como descargo","pdf",
-]
-
-PALABRAS_CALENDAR = [
-    "calendario","eventos","evento","fechas","fecha","cuando","que hay",
-    "actividades","actividad","programado","programadas","bimestral","bimestrales",
-    "receso","periodo","periodos","izado","semana","mes","hoy","manana",
-    "proximo","proximos","siguientes","esta semana","este mes","vacaciones",
-    "entrega de notas","boletin","boletines","dia civico","izadas",
-    "reuniones","reunion","padres de familia","clausura","graduacion",
-]
-
-# Palabras clave para respuesta rapida sin llamar a Gemini
-PALABRAS_DOCENTE = ["docente","docentes","profesor","profesores","maestro","maestros","lista de docentes","personal docente"]
-PALABRAS_DIRECTIVO = ["rector","directivo","directivos","coordinador","administrativo","quien dirige","quien es el rector"]
-PALABRAS_PLANES = ["plan de area","planes de area","pensum","asignatura","asignaturas","area","areas","matematicas","humanidades","ciencias","filosofia","fisica","quimica","biologia","artistica","etica","religion","educacion fisica"]
-
-pdf_cache = {}
-historiales = {}
+pdf_cache       = {}
+historiales     = {}
 conocimiento_extra = []
-docentes_admin = []
+docentes_admin  = []
+
+# Estados del formulario de reporte por telefono
+# { telefono: { "paso": 1, "datos": {} } }
+formularios_activos = {}
+contador_reportes   = 0
 
 
 # ══════════════════════════════════════════════
@@ -303,9 +165,7 @@ def limpiar_tel(tel):
 
 def es_admin(telefono):
     tel = limpiar_tel(telefono)
-    if tel == limpiar_tel(ADMIN_PHONE):
-        return True
-    return tel in [limpiar_tel(d) for d in docentes_admin]
+    return tel == limpiar_tel(ADMIN_PHONE) or tel in [limpiar_tel(d) for d in docentes_admin]
 
 def buscar_doc(texto):
     s = norm(texto)
@@ -324,32 +184,12 @@ def buscar_web(texto):
             return url, desc
     return None, None
 
-def es_consulta_calendar(texto):
-    s = norm(texto)
-    return any(p in s for p in PALABRAS_CALENDAR)
-
-def quiere_leer(texto):
-    s = norm(texto)
-    return any(p in s for p in PALABRAS_LEER)
-
-def quiere_enlace(texto):
-    s = norm(texto)
-    return any(p in s for p in PALABRAS_ENLACE)
-
 def limpiar_markdown(texto):
     texto = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\2', texto)
     texto = re.sub(r'\*\*(.+?)\*\*', r'\1', texto)
     texto = re.sub(r'(?<!\w)_(.+?)_(?!\w)', r'\1', texto)
     texto = re.sub(r'#{1,6}\s*', '', texto)
     return texto.strip()
-
-def lista_docs():
-    lines = ["Documentos oficiales del " + SCHOOL_NAME + ":\n"]
-    for i,(k,(n,_)) in enumerate(CATALOGO.items(),1):
-        lines.append("  " + str(i) + ". " + n)
-    lines.append("\nPideme cualquiera: dame el [nombre]")
-    lines.append("O pregunta sobre su contenido: que dice el [nombre]")
-    return "\n".join(lines)
 
 def guardar_hist(telefono, rol, msg):
     if telefono not in historiales:
@@ -360,180 +200,254 @@ def guardar_hist(telefono, rol, msg):
 
 def get_hist_txt(telefono):
     h = historiales.get(telefono, [])
-    if not h:
-        return ""
-    return "\n".join([("Usuario" if x["r"]=="u" else "ColBot") + ": " + x["m"] for x in h])
+    return "\n".join([("Usuario" if x["r"]=="u" else "ColBot") + ": " + x["m"] for x in h]) if h else ""
 
 def formatear_fecha(fecha_str):
     try:
         if "T" in fecha_str:
-            dt = datetime.fromisoformat(fecha_str.replace("Z", "+00:00")).astimezone(COL_TZ)
+            dt = datetime.fromisoformat(fecha_str.replace("Z","+00:00")).astimezone(COL_TZ)
             dias  = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"]
             meses = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"]
-            return dias[dt.weekday()] + " " + str(dt.day) + " de " + meses[dt.month-1] + " a las " + dt.strftime("%I:%M %p")
+            return dias[dt.weekday()]+" "+str(dt.day)+" de "+meses[dt.month-1]+" a las "+dt.strftime("%I:%M %p")
         else:
             d     = datetime.strptime(fecha_str, "%Y-%m-%d")
             dias  = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"]
             meses = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"]
-            return dias[d.weekday()] + " " + str(d.day) + " de " + meses[d.month-1]
+            return dias[d.weekday()]+" "+str(d.day)+" de "+meses[d.month-1]
     except:
         return fecha_str
 
 
 # ══════════════════════════════════════════════
-#  RESPUESTAS RAPIDAS SIN GEMINI
+#  GOOGLE SHEETS — TOKEN JWT
+# ══════════════════════════════════════════════
+def base64url(data):
+    if isinstance(data, str):
+        data = data.encode()
+    return base64.urlsafe_b64encode(data).rstrip(b'=').decode()
+
+async def obtener_token_sheets():
+    import json as json_mod
+    import time
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding
+
+    now   = int(time.time())
+    claim = {
+        "iss":   SHEETS_CREDS["client_email"],
+        "scope": "https://www.googleapis.com/auth/spreadsheets",
+        "aud":   SHEETS_CREDS["token_uri"],
+        "exp":   now + 3600,
+        "iat":   now,
+    }
+    header  = base64url(json_mod.dumps({"alg":"RS256","typ":"JWT"}))
+    payload = base64url(json_mod.dumps(claim))
+    msg     = (header + "." + payload).encode()
+
+    key = serialization.load_pem_private_key(SHEETS_CREDS["private_key"].encode(), password=None)
+    sig = base64url(key.sign(msg, padding.PKCS1v15(), hashes.SHA256()))
+    jwt = header + "." + payload + "." + sig
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(SHEETS_CREDS["token_uri"], data={
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion":  jwt,
+        })
+        return resp.json().get("access_token", "")
+
+async def agregar_fila_sheets(fila):
+    try:
+        token = await obtener_token_sheets()
+        if not token:
+            print("ERROR: No se obtuvo token de Sheets")
+            return False
+
+        url = ("https://sheets.googleapis.com/v4/spreadsheets/"
+               + SHEETS_ID + "/values/A1:H1:append"
+               "?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
+
+        headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+        body    = {"values": [fila]}
+
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(url, headers=headers, json=body)
+            ok   = resp.status_code == 200
+            print("SHEETS " + ("OK" if ok else "ERROR " + str(resp.status_code) + ": " + resp.text[:200]))
+            return ok
+    except Exception as e:
+        print("SHEETS EXCEPTION: " + str(e))
+        return False
+
+
+# ══════════════════════════════════════════════
+#  SISTEMA DE REPORTES DE CONVIVENCIA
+# ══════════════════════════════════════════════
+PASOS_REPORTE = [
+    ("estudiante",   "Nombre completo del estudiante involucrado:"),
+    ("grado",        "Grado y grupo (ejemplo: 7B, 10A):"),
+    ("tipo",         "Tipo de incidente:\n1. Leve\n2. Grave\n3. Gravisima\n\nEscribe el numero o el tipo:"),
+    ("descripcion",  "Describe detalladamente lo que ocurrio:"),
+    ("testigo",      "Nombre del docente o testigo (escribe 'ninguno' si no hay):"),
+]
+
+def normalizar_tipo(texto):
+    s = norm(texto)
+    if s in ["1","leve"]:
+        return "Leve"
+    if s in ["2","grave"]:
+        return "Grave"
+    if s in ["3","gravisima","gravisimo"]:
+        return "Gravisima"
+    return texto.strip()
+
+async def procesar_reporte(mensaje, telefono, nombre):
+    global contador_reportes
+
+    s = norm(mensaje)
+
+    # Cancelar reporte
+    if s in ["cancelar","salir","cancel","no","menu"]:
+        if telefono in formularios_activos:
+            del formularios_activos[telefono]
+        return "Reporte cancelado. En que mas te puedo ayudar?"
+
+    # Iniciar nuevo reporte
+    if telefono not in formularios_activos:
+        formularios_activos[telefono] = {"paso": 0, "datos": {}, "reportante": nombre or telefono}
+        return ("Vamos a registrar el reporte de convivencia.\n\n"
+                "Puedes escribir CANCELAR en cualquier momento para salir.\n\n"
+                "Paso 1 de 5\n"
+                + PASOS_REPORTE[0][1])
+
+    form  = formularios_activos[telefono]
+    paso  = form["paso"]
+    campo = PASOS_REPORTE[paso][0]
+
+    # Validaciones
+    if campo == "tipo":
+        valor = normalizar_tipo(mensaje)
+        if valor not in ["Leve","Grave","Gravisima"]:
+            return "Por favor escribe 1 (Leve), 2 (Grave) o 3 (Gravisima):"
+    else:
+        valor = mensaje.strip()
+        if len(valor) < 2:
+            return "Por favor escribe una respuesta valida:"
+
+    form["datos"][campo] = valor
+    form["paso"] += 1
+
+    # Si hay mas pasos
+    if form["paso"] < len(PASOS_REPORTE):
+        siguiente = PASOS_REPORTE[form["paso"]]
+        return ("Paso " + str(form["paso"]+1) + " de " + str(len(PASOS_REPORTE)) + "\n\n"
+                + siguiente[1])
+
+    # Reporte completo — guardar
+    contador_reportes += 1
+    ahora     = datetime.now(COL_TZ)
+    num_caso  = "RPT-" + ahora.strftime("%Y%m%d") + "-" + str(contador_reportes).zfill(3)
+    fecha_str = ahora.strftime("%d/%m/%Y")
+    hora_str  = ahora.strftime("%I:%M %p")
+    datos     = form["datos"]
+    reportante= form.get("reportante", telefono)
+
+    # Fila para Google Sheets
+    fila = [
+        num_caso,
+        fecha_str,
+        hora_str,
+        datos.get("estudiante",""),
+        datos.get("grado",""),
+        datos.get("tipo",""),
+        datos.get("descripcion",""),
+        datos.get("testigo",""),
+        reportante,
+        limpiar_tel(telefono),
+    ]
+
+    asyncio.create_task(agregar_fila_sheets(fila))
+
+    # Limpiar formulario
+    del formularios_activos[telefono]
+
+    resumen = (
+        "Reporte registrado exitosamente!\n\n"
+        "Numero de caso: " + num_caso + "\n"
+        "Fecha: " + fecha_str + " " + hora_str + "\n"
+        "Estudiante: " + datos.get("estudiante","") + "\n"
+        "Grado: " + datos.get("grado","") + "\n"
+        "Tipo: " + datos.get("tipo","") + "\n"
+        "Testigo: " + datos.get("testigo","") + "\n\n"
+        "El caso ha sido registrado y las directivas seran notificadas.\n"
+        "Guarda tu numero de caso: " + num_caso
+    )
+
+    print("REPORTE GUARDADO: " + num_caso + " | " + datos.get("estudiante","") + " | " + datos.get("tipo",""))
+    return resumen
+
+
+# ══════════════════════════════════════════════
+#  RESPUESTAS RAPIDAS
 # ══════════════════════════════════════════════
 def respuesta_rapida(mensaje):
     s = norm(mensaje)
-
-    # Rector
-    if any(p in s for p in ["quien es el rector","rector","quien dirige el colegio","nombre del rector"]):
-        return "El rector de la Institucion Educativa Simon Bolivar es el Mg. Jesus Maldonado Serrano. Lidera nuestra institucion con compromiso y vision hacia la excelencia educativa."
-
-    # Lista docentes
-    if any(p in s for p in ["lista de docentes","cuantos docentes","cuantos profesores","personal docente completo"]):
-        return ("El ColBolivar cuenta con 95 docentes y un equipo directivo y administrativo de 18 personas.\n\n"
-                "Puedes consultar la lista completa de docentes preguntandome por un nombre especifico, "
-                "o visitar el portal: https://www.webcolegios.com/simon/")
-
-    # Buscar docente por apellido
-    docentes_lista = [
-        "Aguilar Becerra Carmen Tatiana", "Albarracin Moncada Leidy Trinidad",
-        "Ararat Cuberos Edgar Mauricio", "Arias Sierra Omar",
-        "Avellaneda Caceres Luis Alberto", "Barbosa Contreras Carmen Judith",
-        "Bautista Vega Nahid Antuan", "Becerra Albarracin Ramiro Alfonso",
-        "Betancourt Buitrago Rafael Kamilo", "Boada Silva Karen Julieth",
-        "Buendia Mora Elizabeth Candy", "Castillo Carvajal Liliana Cristina",
-        "Celin Luna Jose Antonio", "Cely Gamez Ingrith Katheryinne",
-        "Claro Ascanio Liliana Del Pilar", "Conde Sandoval Alix Josefa",
-        "Contreras Gonzalez Sandra Milena", "Coronel Callejas Maribel",
-        "Correa Blanco Astrid Carolina", "Cruz Gallo Heriberto",
-        "Cuadros Abril Alvaro Antonio", "Fajardo Valderrama Aura Maria",
-        "Figueredo Gallo Carmen Alicia", "Florez Silva Juan Pablo",
-        "Fuentes Ravelo Jesus Gregorio", "Gamboa Vera Luis Ernesto",
-        "Garcia Rico Jose Gregorio", "Gomez Santander Celia",
-        "Gonzalez Galvis Carmen", "Grimaldo Camacho Emel",
-        "Ibanez Rojas Francy Madeledy", "Izaquita Valderrama Sandra Jacqueline",
-        "Jaimes Espinel Ana Alida", "Jaimes Villamizar Ruth Magaly",
-        "Laguado Contreras Ihovanna Elisa", "Leal Florez Deisy Yaneth",
-        "Leguizamon Penaloza Andrea Johanna", "Lizcano Vera Bertha",
-        "Lozano Hernandez Nidia Janneth", "Mantilla Garcia Fanny Ivone",
-        "Martinez Sarmiento Luz Marina", "Mejia Quintero Ludy Amalia",
-        "Meza Rangel Martha Cecilia", "Moncada Alvarez Erika Tatiana",
-        "Moncada Lizcano Jesusa Patricia", "Moncada Diaz Wilmer Antonio",
-        "Montes Hernandez Ana Josefa", "Mora Basto Laura Leonilde",
-        "Moreno Rangel Lucrecia", "Munoz Lopez Milagros De Jesus",
-        "Ordonez Leal Linda Karime", "Ortiz Vera Leidy Consuelo",
-        "Osorio Acevedo Fabian Oswaldo", "Osorio Ayala Ramon Alberto",
-        "Pabon Carrillo Gladys", "Pacheco Lopez Elisa Fernanda",
-        "Pallares Perez Dignery", "Paredes Pabon Maricela",
-        "Prada Cacua Denis Fabiola", "Ramirez Rueda Ana Mercedes",
-        "Renoga Botello Felix", "Rivera Medina Alix Cristina",
-        "Rivera Silva Gisela Janet", "Rodriguez Esteban Claudia Yaneth",
-        "Rodriguez Ortega Francisco Javier", "Rojas Garavito Gustavo",
-        "Rubio Waldo Freddy Alfonso", "Ruiz Garcia Jhon Edison",
-        "Salinas Abreo Ruby Esmeralda", "Sanchez Diaz Carmen Yaneth",
-        "Sanguino Gomez Jayson Exel", "Sanmiguel Morales Laura Marcela",
-        "Santafe Chaustre Angela Cristina", "Sarabia Tirgos Henry",
-        "Suarez Gelvez Aura Yessney", "Toro Zapata Luisa Fernanda",
-        "Torres Meza Luz Aleida", "Urbina Ortega Luis Miguel",
-        "Uribe Jaimes Hernan Dario", "Uscategui Blanco Martha Cecilia",
-        "Vela Camargo Mary Edilma", "Villamizar Vera Maria Fernanda",
-        "Villegas Rincon Dorain Enrique",
-    ]
-
-    # Busqueda de docente por nombre
-    palabras = [p for p in s.split() if len(p) > 3]
-    encontrados = []
-    for d in docentes_lista:
-        dn = norm(d)
-        if any(p in dn for p in palabras):
-            encontrados.append(d)
-    if encontrados and any(p in s for p in ["docente","profesor","profe","quien es","trabaja","pertenece"]):
-        if len(encontrados) == 1:
-            return "Si, " + encontrados[0] + " hace parte del cuerpo docente del " + SCHOOL_NAME + "."
-        return "Encontre estos docentes:\n" + "\n".join(["- " + d for d in encontrados[:5]])
-
-    # Planes de area
+    if any(p in s for p in ["quien es el rector","rector del colegio"]):
+        return "El rector de la Institucion Educativa Simon Bolivar es el Mg. Jesus Maldonado Serrano."
+    if any(p in s for p in ["cuantos docentes","cuantos profesores","lista de docentes"]):
+        return "El ColBolivar cuenta con 95 docentes y 18 directivos y administrativos.\nConsulta el portal: https://www.webcolegios.com/simon/"
     if any(p in s for p in ["plan de area","planes de area","pensum 2026"]):
-        return ("Planes de Area 2026 del " + SCHOOL_NAME + ":\n\n"
-                "Tenemos 10 areas con 20 asignaturas. Algunos enlaces:\n\n"
-                "Matematicas:\nhttps://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny\n\n"
-                "Humanidades:\nhttps://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv\n\n"
-                "Ciencias Naturales:\nhttps://drive.google.com/drive/folders/1WH5qeW4g61gM99BWlL4nBFfqZGr03HFr\n\n"
-                "Ver todos en el sitio web:\n" + WEB_BASE + "/planesdearea2026")
-
-    # Contacto
-    if any(p in s for p in ["telefono","correo","email","direccion","donde queda","ubicacion","contacto"]):
-        return ("Datos de contacto del " + SCHOOL_NAME + ":\n\n"
-                "Sede Central: Calle 4 No.11A-26 San Martin, Cucuta\n"
-                "Telefono: 5943344\n"
-                "Correo: colintsimonbolivar@semcucuta.gov.co\n"
-                "Web: https://www.webcolegios.com/simon/\n"
-                "Facebook: https://www.facebook.com/share/1NM1mkhhcc/")
-
-    # Notas / webcolegios
-    if any(p in s for p in ["notas","calificaciones","boletin","ver notas","mis notas","consultar notas"]):
-        return ("Para consultar notas y boletines entra al portal Webcolegios:\n\n"
-                "https://www.webcolegios.com/simon/\n\n"
-                "Necesitas tu usuario y contrasena asignados por el colegio.")
-
-    # Facebook
-    if any(p in s for p in ["facebook","face","redes sociales","red social"]):
-        return "Siguenos en Facebook para estar al tanto de todas las noticias del colegio:\n\nhttps://www.facebook.com/share/1NM1mkhhcc/"
-
-    return None  # No hay respuesta rapida, usar Gemini
+        return ("Planes de Area 2026:\n\nMatematicas:\nhttps://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny\n\nHumanidades:\nhttps://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv\n\nVer todos:\n" + WEB_BASE + "/planesdearea2026")
+    if any(p in s for p in ["telefono","correo","email","direccion","donde queda","contacto","ubicacion"]):
+        return "Calle 4 No.11A-26 San Martin, Cucuta\nTel: 5943344\nCorreo: colintsimonbolivar@semcucuta.gov.co\nFacebook: https://www.facebook.com/share/1NM1mkhhcc/"
+    if any(p in s for p in ["notas","ver notas","mis notas","consultar notas","boletin"]):
+        return "Consulta tus notas y boletines en:\nhttps://www.webcolegios.com/simon/"
+    if any(p in s for p in ["facebook","face","redes sociales"]):
+        return "Siguenos en Facebook:\nhttps://www.facebook.com/share/1NM1mkhhcc/"
+    return None
 
 
 # ══════════════════════════════════════════════
 #  GOOGLE CALENDAR
 # ══════════════════════════════════════════════
-async def obtener_eventos(dias_adelante=60):
-    google_key = os.getenv("GOOGLE_API_KEY", "")
-    if not google_key:
-        return None, "GOOGLE_API_KEY no configurada"
-
+async def obtener_eventos(dias=60):
+    key = os.getenv("GOOGLE_API_KEY","")
+    if not key:
+        return None, "sin clave"
     ahora    = datetime.now(COL_TZ)
-    time_min = ahora.isoformat().replace("+", "%2B")
-    time_max = (ahora + timedelta(days=dias_adelante)).isoformat().replace("+", "%2B")
-
+    time_min = ahora.isoformat().replace("+","%2B")
+    time_max = (ahora+timedelta(days=dias)).isoformat().replace("+","%2B")
     url = ("https://www.googleapis.com/calendar/v3/calendars/"
-           + CALENDAR_ID.replace("@", "%40")
-           + "/events?key=" + google_key
-           + "&timeMin=" + time_min
-           + "&timeMax=" + time_max
+           + CALENDAR_ID.replace("@","%40")
+           + "/events?key=" + key
+           + "&timeMin=" + time_min + "&timeMax=" + time_max
            + "&maxResults=15&singleEvents=true&orderBy=startTime")
-
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(url)
-            data = resp.json()
-        if "error" in data:
-            return None, data["error"].get("message", "error")
-        return data.get("items", []), None
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(url)
+            d = r.json()
+        if "error" in d:
+            return None, d["error"].get("message","error")
+        return d.get("items",[]), None
     except Exception as e:
         return None, str(e)
 
 def formatear_eventos(eventos):
     if not eventos:
-        return "No hay eventos programados en el calendario por ahora."
-    lines = ["Eventos en el calendario escolar del " + SCHOOL_NAME + ":\n"]
+        return "No hay eventos programados por ahora."
+    lines = ["Eventos en el calendario escolar:\n"]
     for ev in eventos:
-        titulo = ev.get("summary", "Sin titulo")
-        inicio = ev.get("start", {})
-        fin    = ev.get("end", {})
-        desc   = ev.get("description", "")
-        fecha_inicio = inicio.get("date") or inicio.get("dateTime", "")
-        fecha_fin    = fin.get("date") or fin.get("dateTime", "")
-        linea = "- " + titulo
-        if fecha_inicio:
-            linea += "\n  " + formatear_fecha(fecha_inicio)
-        if fecha_fin and fecha_fin != fecha_inicio:
-            linea += " al " + formatear_fecha(fecha_fin)
-        if desc:
-            linea += "\n  " + desc[:80]
+        titulo = ev.get("summary","Sin titulo")
+        inicio = ev.get("start",{})
+        fin    = ev.get("end",{})
+        fi     = inicio.get("date") or inicio.get("dateTime","")
+        ff     = fin.get("date") or fin.get("dateTime","")
+        linea  = "- " + titulo
+        if fi:
+            linea += "\n  " + formatear_fecha(fi)
+        if ff and ff != fi:
+            linea += " al " + formatear_fecha(ff)
         lines.append(linea)
-    lines.append("\nVer calendario completo:\nhttps://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t")
+    lines.append("\nCalendario completo:\nhttps://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t")
     return "\n".join(lines)
 
 
@@ -543,101 +457,63 @@ def formatear_eventos(eventos):
 async def descargar_pdf_b64(url):
     if url in pdf_cache:
         return pdf_cache[url]
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-        resp = await client.get(url)
-        if resp.status_code == 200:
-            b64 = base64.b64encode(resp.content).decode("utf-8")
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as c:
+        r = await c.get(url)
+        if r.status_code == 200:
+            b64 = base64.b64encode(r.content).decode()
             pdf_cache[url] = b64
             return b64
-        raise Exception("HTTP " + str(resp.status_code))
+        raise Exception("HTTP " + str(r.status_code))
 
 
 # ══════════════════════════════════════════════
-#  GEMINI NORMAL
+#  GEMINI
 # ══════════════════════════════════════════════
-async def llamar_gemini(pregunta, telefono, nombre_usuario, contexto_extra=""):
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
+    api_key = os.getenv("GEMINI_API_KEY","")
+    modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
     if not api_key:
         raise Exception("GEMINI_API_KEY no configurada")
-
-    url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelo + ":generateContent?key=" + api_key
-
-    hist_txt   = get_hist_txt(telefono)
-    es_primera = not bool(hist_txt)
-
-    extra_admin = ""
-    if conocimiento_extra:
-        extra_admin = "\nDATOS ADICIONALES (admin):\n" + "\n".join(["- " + d for d in conocimiento_extra]) + "\n"
-
-    prompt = (
-        "Eres ColBot, asistente virtual oficial de la Institucion Educativa Simon Bolivar (ColBolivar) en Cucuta, Colombia.\n\n"
-        "PERSONALIDAD:\n"
-        "- Orientador escolar amigable, calido, cercano y profesional\n"
-        "- Lenguaje natural y humano, nunca robotico\n"
-        "- Si ya te presentaste, NO te vuelvas a presentar\n"
-        "- Maximo 3 parrafos cortos y claros\n"
-        "- 1-2 emojis maximo por mensaje\n"
-        "- Siempre que puedas, da un enlace util\n"
-        "- Si no sabes algo con certeza, dilo honestamente\n\n"
-        + INFO_INSTITUCIONAL
-        + extra_admin
-        + (contexto_extra if contexto_extra else "")
-        + "\nCONVERSACION PREVIA:\n"
-        + ("(primera vez)\n" if es_primera else hist_txt + "\n")
-        + "\nFORMATO: URLs en texto plano, sin Markdown, sin asteriscos.\n"
-        + ("Presentate brevemente.\n" if es_primera else "Responde directamente, sin presentarte.\n")
+    url = "https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+api_key
+    hist    = get_hist_txt(telefono)
+    primera = not bool(hist)
+    extra   = "\nDATOS EXTRA:\n"+"\n".join(["- "+d for d in conocimiento_extra])+"\n" if conocimiento_extra else ""
+    prompt  = (
+        "Eres ColBot, asistente oficial del "+SCHOOL_NAME+" en Cucuta.\n"
+        "Personalidad: amigable, calido, profesional. Maximo 3 parrafos. 1-2 emojis. URLs en texto plano.\n"
+        "Si ya te presentaste, NO te presentes de nuevo.\n\n"
+        + INFO_INSTITUCIONAL + extra + (ctx if ctx else "")
+        + "\nCONVERSACION:\n" + ("(primera vez)\n" if primera else hist+"\n")
+        + ("Presentate brevemente.\n" if primera else "Responde directamente.\n")
         + "\nPREGUNTA: " + pregunta
     )
+    payload = {"contents":[{"parts":[{"text":prompt}]}],
+               "generationConfig":{"temperature":0.6,"maxOutputTokens":500,"topP":0.9}}
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(url, json=payload)
+        d = r.json()
+    if "candidates" not in d:
+        err = d.get("error",{})
+        raise Exception("Gemini ["+str(err.get("code","?"))+"]: "+err.get("message","error"))
+    return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
 
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.6, "maxOutputTokens": 500, "topP": 0.9},
-    }
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(url, json=payload)
-        data = resp.json()
-
-    if "candidates" not in data:
-        err = data.get("error", {})
-        raise Exception("Gemini [" + str(err.get("code","?")) + "]: " + err.get("message","error"))
-
-    return limpiar_markdown(data["candidates"][0]["content"]["parts"][0]["text"])
-
-
-# ══════════════════════════════════════════════
-#  GEMINI CON PDF
-# ══════════════════════════════════════════════
-async def llamar_gemini_con_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usuario):
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelo + ":generateContent?key=" + api_key
-
-    instruccion = (
-        "Eres ColBot del " + SCHOOL_NAME + ". Lee el documento: " + nombre_doc + "\n"
-        "Responde EXCLUSIVAMENTE con info del documento. "
-        "Cita articulos si es relevante. Maximo 4 parrafos. Sin Markdown.\n"
-        "PREGUNTA: " + pregunta
-    )
-
-    payload = {
-        "contents": [{"parts": [
-            {"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}},
-            {"text": instruccion}
-        ]}],
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 700},
-    }
-
-    async with httpx.AsyncClient(timeout=45) as client:
-        resp = await client.post(url, json=payload)
-        data = resp.json()
-
-    if "candidates" not in data:
-        err = data.get("error", {})
-        raise Exception("Gemini PDF: " + err.get("message","error"))
-
-    return limpiar_markdown(data["candidates"][0]["content"]["parts"][0]["text"])
+async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usuario):
+    api_key = os.getenv("GEMINI_API_KEY","")
+    modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
+    url = "https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+api_key
+    instruccion = ("Eres ColBot del "+SCHOOL_NAME+". Lee: "+nombre_doc+"\n"
+                   "Responde SOLO con info del documento. Cita articulos. Max 4 parrafos. Sin Markdown.\n"
+                   "PREGUNTA: "+pregunta)
+    payload = {"contents":[{"parts":[
+        {"inline_data":{"mime_type":"application/pdf","data":pdf_b64}},
+        {"text":instruccion}
+    ]}],"generationConfig":{"temperature":0.3,"maxOutputTokens":700}}
+    async with httpx.AsyncClient(timeout=45) as c:
+        r = await c.post(url, json=payload)
+        d = r.json()
+    if "candidates" not in d:
+        raise Exception("Gemini PDF: "+d.get("error",{}).get("message","error"))
+    return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
 
 
 # ══════════════════════════════════════════════
@@ -651,66 +527,53 @@ def procesar_admin(mensaje):
         dato = mensaje[8:].strip()
         if dato:
             conocimiento_extra.append(dato)
-            return "Listo! Aprendi:\n\"" + dato + "\"\n\nDatos extra: " + str(len(conocimiento_extra))
-        return "Uso: aprende: [informacion]"
+            return "Aprendi: \""+dato+"\"\nTotal: "+str(len(conocimiento_extra))
+        return "Uso: aprende: [info]"
 
     if s in ["que sabes","que recuerdas"]:
-        if not conocimiento_extra:
-            return "No tengo datos extra aun.\nUsa: aprende: [info]"
-        return "Datos ensenados:\n" + "\n".join([str(i+1)+". "+d for i,d in enumerate(conocimiento_extra)])
+        return ("Datos aprendidos:\n"+"\n".join([str(i+1)+". "+d for i,d in enumerate(conocimiento_extra)])
+                if conocimiento_extra else "Sin datos extra aun.")
 
     if s == "olvida todo":
-        n = len(conocimiento_extra)
-        conocimiento_extra = []
-        return "Olvide " + str(n) + " dato(s)."
+        n = len(conocimiento_extra); conocimiento_extra = []
+        return "Olvide "+str(n)+" dato(s)."
 
     if s.startswith("olvida:"):
         try:
-            idx = int(mensaje[7:].strip()) - 1
-            if 0 <= idx < len(conocimiento_extra):
-                return "Eliminado: \"" + conocimiento_extra.pop(idx) + "\""
-            return "Numero invalido."
-        except:
-            return "Uso: olvida: [numero]"
+            idx = int(mensaje[7:].strip())-1
+            return "Eliminado: \""+conocimiento_extra.pop(idx)+"\"" if 0<=idx<len(conocimiento_extra) else "Numero invalido."
+        except: return "Uso: olvida: [numero]"
 
     if s.startswith("agregar docente:"):
-        tel = re.sub(r"[^0-9]", "", mensaje[16:].strip())
+        tel = re.sub(r"[^0-9]","",mensaje[16:].strip())
         if tel and tel not in docentes_admin:
-            docentes_admin.append(tel)
-            return "Docente " + tel + " autorizado."
-        return "Numero invalido o ya existe."
+            docentes_admin.append(tel); return "Docente "+tel+" autorizado."
+        return "Invalido o ya existe."
 
     if s.startswith("quitar docente:"):
-        tel = re.sub(r"[^0-9]", "", mensaje[15:].strip())
+        tel = re.sub(r"[^0-9]","",mensaje[15:].strip())
         if tel in docentes_admin:
-            docentes_admin.remove(tel)
-            return "Docente " + tel + " removido."
-        return "Ese numero no estaba."
+            docentes_admin.remove(tel); return "Docente "+tel+" removido."
+        return "No estaba en la lista."
 
     if s == "ver docentes":
-        return "Docentes autorizados:\n" + ("\n".join(docentes_admin) if docentes_admin else "Ninguno")
+        return "Autorizados:\n"+("\n".join(docentes_admin) if docentes_admin else "Ninguno")
+
+    if s == "ver reportes":
+        return ("Reportes registrados: "+str(contador_reportes)+"\n"
+                "Ver en Google Sheets:\nhttps://docs.google.com/spreadsheets/d/"+SHEETS_ID)
 
     if s == "limpiar cache":
-        n = len(pdf_cache)
-        pdf_cache.clear()
-        return "Cache limpiado. " + str(n) + " PDF(s) eliminados."
+        n = len(pdf_cache); pdf_cache.clear()
+        return "Cache: "+str(n)+" PDF(s) eliminados."
 
     if s in ["comandos","admin ayuda"]:
-        return (
-            "Comandos admin:\n\n"
-            "aprende: [dato]\n"
-            "que sabes\n"
-            "olvida: [num]\n"
-            "olvida todo\n"
-            "agregar docente: [numero]\n"
-            "quitar docente: [numero]\n"
-            "ver docentes\n"
-            "limpiar cache\n"
-            "comandos\n\n"
-            "Datos: " + str(len(conocimiento_extra)) +
-            " | PDFs: " + str(len(pdf_cache)) +
-            " | Docentes: " + str(len(docentes_admin))
-        )
+        return ("Comandos admin:\n\n"
+                "aprende: [dato]\nque sabes\nolvida: [num]\nolvida todo\n"
+                "agregar docente: [num]\nquitar docente: [num]\nver docentes\n"
+                "ver reportes\nlimpiar cache\ncomandos\n\n"
+                "Datos: "+str(len(conocimiento_extra))+" | PDFs: "+str(len(pdf_cache))+
+                " | Docentes: "+str(len(docentes_admin))+" | Reportes: "+str(contador_reportes))
 
     return None
 
@@ -722,6 +585,10 @@ async def procesar(mensaje, telefono, nombre):
     s = norm(mensaje)
     print("MSG [" + (nombre or telefono) + "]: " + mensaje[:100])
 
+    # FORMULARIO ACTIVO — prioridad maxima
+    if telefono in formularios_activos or any(p in s for p in PALABRAS_REPORTE):
+        return await procesar_reporte(mensaje, telefono, nombre)
+
     # ADMIN
     if es_admin(telefono):
         resp_admin = procesar_admin(mensaje)
@@ -729,91 +596,83 @@ async def procesar(mensaje, telefono, nombre):
             return resp_admin
 
     # SALUDO
-    saludos = ["menu","hola","inicio","ayuda","help","hello",
-               "buenas","buenos dias","buenas tardes","buenas noches","start"]
+    saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start"]
     if s in saludos:
         tiene_hist = bool(historiales.get(telefono))
         if tiene_hist:
-            return "Hola de nuevo" + (", " + nombre if nombre else "") + "! En que te puedo ayudar?"
-        return (
-            "Hola" + (", " + nombre if nombre else "") + "! Soy ColBot, asistente del " + SCHOOL_NAME + ".\n\n"
-            "Puedo ayudarte con:\n"
-            "- Informacion del colegio, docentes y directivos\n"
-            "- Calendario escolar y eventos\n"
-            "- Planes de area y documentos\n"
-            "- Notas (portal Webcolegios)\n"
-            "- Cualquier duda institucional\n\n"
-            "Escribe tu pregunta y con gusto te ayudo!"
-        )
+            return "Hola de nuevo"+(", "+nombre if nombre else "")+"! En que te puedo ayudar?"
+        return ("Hola"+(", "+nombre if nombre else "")+"! Soy ColBot del "+SCHOOL_NAME+".\n\n"
+                "Puedo ayudarte con:\n"
+                "- Informacion del colegio y docentes\n"
+                "- Calendario escolar y eventos\n"
+                "- Documentos y planes de area\n"
+                "- Notas (portal Webcolegios)\n"
+                "- Reportar incidentes de convivencia\n\n"
+                "Escribe tu pregunta!")
 
-    # RESPUESTA RAPIDA (sin Gemini)
+    # RESPUESTA RAPIDA
     rapida = respuesta_rapida(mensaje)
     if rapida:
-        guardar_hist(telefono, "u", mensaje)
-        guardar_hist(telefono, "a", rapida)
-        print("OK RAPIDA -> " + (nombre or telefono))
+        guardar_hist(telefono,"u",mensaje); guardar_hist(telefono,"a",rapida)
         return rapida
 
     # LISTA DOCUMENTOS
     if any(p in s for p in ["que documentos","lista documentos","que manuales"]):
-        return lista_docs()
+        lines = ["Documentos oficiales:\n"]
+        for i,(k,(n,_)) in enumerate(CATALOGO.items(),1):
+            lines.append("  "+str(i)+". "+n)
+        lines.append("\nPideme cualquiera: dame el [nombre]")
+        return "\n".join(lines)
 
     # CALENDARIO
-    if es_consulta_calendar(mensaje):
-        guardar_hist(telefono, "u", mensaje)
+    if any(p in s for p in PALABRAS_CALENDAR):
+        guardar_hist(telefono,"u",mensaje)
         try:
             dias = 7 if any(p in s for p in ["hoy","manana","semana"]) else 31 if "mes" in s else 60
-            eventos, error = await asyncio.wait_for(obtener_eventos(dias), timeout=12)
-            if not error and eventos is not None:
-                ctx = formatear_eventos(eventos)
-                respuesta = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre, "\nCALENDARIO:\n" + ctx), timeout=25)
-                guardar_hist(telefono, "a", respuesta)
-                return respuesta
+            eventos, err = await asyncio.wait_for(obtener_eventos(dias), timeout=12)
+            if not err and eventos is not None:
+                ctx = "\nCALENDARIO:\n" + formatear_eventos(eventos)
+                resp = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre, ctx), timeout=25)
+                guardar_hist(telefono,"a",resp); return resp
         except Exception as e:
-            print("ERROR CALENDAR: " + str(e))
+            print("ERROR CALENDAR: "+str(e))
         try:
-            respuesta = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre), timeout=25)
-            guardar_hist(telefono, "a", respuesta)
-            return respuesta
-        except Exception as e:
-            return "No pude consultar el calendario ahora. Intentalo de nuevo."
+            resp = await asyncio.wait_for(llamar_gemini(mensaje,telefono,nombre), timeout=25)
+            guardar_hist(telefono,"a",resp); return resp
+        except: return "No pude consultar el calendario. Intentalo de nuevo."
 
     # DOCUMENTOS PDF
     clave_doc, nom_doc, url_doc = buscar_doc(mensaje)
     if clave_doc:
-        if quiere_leer(mensaje) or not quiere_enlace(mensaje):
-            guardar_hist(telefono, "u", mensaje)
+        if any(p in s for p in PALABRAS_LEER) or not any(p in s for p in PALABRAS_ENLACE):
+            guardar_hist(telefono,"u",mensaje)
             try:
                 pdf_b64  = await asyncio.wait_for(descargar_pdf_b64(url_doc), timeout=28)
-                respuesta = await asyncio.wait_for(llamar_gemini_con_pdf(mensaje, nom_doc, pdf_b64, telefono, nombre), timeout=40)
-                respuesta = "(Segun el " + nom_doc + ")\n\n" + respuesta
+                resp = await asyncio.wait_for(llamar_gemini_pdf(mensaje,nom_doc,pdf_b64,telefono,nombre), timeout=40)
+                resp = "(Segun el "+nom_doc+")\n\n"+resp
             except asyncio.TimeoutError:
-                respuesta = "No pude leer el documento ahora. Descargalo aqui:\n" + url_doc
+                resp = "No pude leer el doc ahora. Descargalo:\n"+url_doc
             except Exception as e:
-                print("ERROR PDF: " + str(e))
-                respuesta = "No pude leer el documento. Descargalo aqui:\n" + url_doc
-            guardar_hist(telefono, "a", respuesta)
-            return respuesta
-        return nom_doc + "\n\nDescarga aqui:\n" + url_doc
+                print("ERROR PDF: "+str(e)); resp = "No pude leer el doc. Descargalo:\n"+url_doc
+            guardar_hist(telefono,"a",resp); return resp
+        return nom_doc+"\n\nDescarga:\n"+url_doc
 
     # ENLACE WEB
-    if quiere_enlace(mensaje):
+    if any(p in s for p in PALABRAS_ENLACE):
         url_w, desc_w = buscar_web(mensaje)
-        if url_w:
-            return desc_w + ":\n" + url_w
+        if url_w: return desc_w+":\n"+url_w
 
     # GEMINI NORMAL
-    guardar_hist(telefono, "u", mensaje)
+    guardar_hist(telefono,"u",mensaje)
     try:
-        respuesta = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre), timeout=25)
+        resp = await asyncio.wait_for(llamar_gemini(mensaje,telefono,nombre), timeout=25)
     except asyncio.TimeoutError:
-        respuesta = "La consulta tardo demasiado. Intentalo de nuevo."
+        resp = "La consulta tardo demasiado. Intentalo de nuevo."
     except Exception as e:
-        print("ERROR GEMINI: " + str(e))
-        respuesta = "Ups, tuve un problema. Intentalo de nuevo en un momento."
-    guardar_hist(telefono, "a", respuesta)
-    print("OK -> " + (nombre or telefono))
-    return respuesta
+        print("ERROR GEMINI: "+str(e)); resp = "Tuve un problema. Intentalo de nuevo."
+    guardar_hist(telefono,"a",resp)
+    print("OK -> "+(nombre or telefono))
+    return resp
 
 
 # ══════════════════════════════════════════════
@@ -823,11 +682,10 @@ async def keep_alive():
     await asyncio.sleep(60)
     while True:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                await client.get(RENDER_URL + "/ping")
-                print("keep-alive ok")
+            async with httpx.AsyncClient(timeout=10) as c:
+                await c.get(RENDER_URL+"/ping"); print("keep-alive ok")
         except Exception as e:
-            print("keep-alive error: " + str(e))
+            print("keep-alive error: "+str(e))
         await asyncio.sleep(540)
 
 
@@ -842,18 +700,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 @app.get("/ping")
-async def ping():
-    return PlainTextResponse("ok")
+async def ping(): return PlainTextResponse("ok")
 
 @app.get("/")
 async def root():
-    return {
-        "status": "ColBot activo",
-        "modelo": os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
-        "datos_extra": len(conocimiento_extra),
-        "pdfs_cache": len(pdf_cache),
-        "conversaciones": len(historiales),
-    }
+    return {"status":"ColBot activo","modelo":os.getenv("GEMINI_MODEL","gemini-2.5-flash"),
+            "reportes":contador_reportes,"conversaciones":len(historiales)}
 
 @app.get("/webhook")
 async def webhook_get(request: Request):
@@ -861,37 +713,28 @@ async def webhook_get(request: Request):
     mensaje  = (params.get("message") or params.get("msg") or "").strip()
     telefono = params.get("sender") or "unknown"
     nombre   = params.get("senderName") or ""
-    if not mensaje:
-        return PlainTextResponse("ColBot activo")
-    respuesta = await procesar(mensaje, telefono, nombre)
-    return JSONResponse({"replies": [{"message": respuesta}]})
+    if not mensaje: return PlainTextResponse("ColBot activo")
+    return JSONResponse({"replies":[{"message": await procesar(mensaje,telefono,nombre)}]})
 
 @app.post("/webhook")
 async def webhook_post(request: Request):
     try:
-        ct = request.headers.get("content-type", "")
+        ct = request.headers.get("content-type","")
         if "form" in ct:
             form     = await request.form()
-            mensaje  = str(form.get("message", "")).strip()
-            telefono = str(form.get("sender", "unknown"))
-            nombre   = str(form.get("senderName", ""))
+            mensaje  = str(form.get("message","")).strip()
+            telefono = str(form.get("sender","unknown"))
+            nombre   = str(form.get("senderName",""))
         else:
             body = await request.body()
-            if not body:
-                return JSONResponse({"replies": [{"message": ""}]})
+            if not body: return JSONResponse({"replies":[{"message":""}]})
             data     = json.loads(body)
-            print("BODY: " + json.dumps(data)[:300])
-            query    = data.get("query", data)
-            mensaje  = str(query.get("message", "")).strip()
-            telefono = str(query.get("sender", "unknown"))
-            nombre   = str(query.get("senderName", "") or query.get("sender", ""))
-
-        if not mensaje:
-            return JSONResponse({"replies": [{"message": ""}]})
-
-        respuesta = await procesar(mensaje, telefono, nombre)
-        return JSONResponse({"replies": [{"message": respuesta}]})
-
+            query    = data.get("query",data)
+            mensaje  = str(query.get("message","")).strip()
+            telefono = str(query.get("sender","unknown"))
+            nombre   = str(query.get("senderName","") or query.get("sender",""))
+        if not mensaje: return JSONResponse({"replies":[{"message":""}]})
+        return JSONResponse({"replies":[{"message": await procesar(mensaje,telefono,nombre)}]})
     except Exception as e:
-        print("ERROR: " + str(e))
-        return JSONResponse({"replies": [{"message": "Ups, algo salio mal. Intenta de nuevo."}]})
+        print("ERROR: "+str(e))
+        return JSONResponse({"replies":[{"message":"Ups, algo salio mal. Intenta de nuevo."}]})
