@@ -88,6 +88,100 @@ PLANES DE AREA 2026:
 """
 
 # ══════════════════════════════════════════════
+#  SEDES Y JORNADAS
+# ══════════════════════════════════════════════
+SEDES_OPCIONES = [
+    ("1", "Simon Bolivar – Jornada Mañana",   "Simon Bolivar",    "Mañana"),
+    ("2", "Simon Bolivar – Jornada Tarde",     "Simon Bolivar",    "Tarde"),
+    ("3", "San Martín – Jornada Mañana",       "San Martin",       "Mañana"),
+    ("4", "San Martín – Jornada Tarde",        "San Martin",       "Tarde"),
+    ("5", "Hernando Acevedo – Jornada Mañana", "Hernando Acevedo", "Mañana"),
+    ("6", "Hernando Acevedo – Jornada Tarde",  "Hernando Acevedo", "Tarde"),
+]
+
+MENU_SEDES = (
+    "🏫 *Selecciona tu sede y jornada:*\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n"
+    "1️⃣  Simón Bolívar – Jornada Mañana\n"
+    "2️⃣  Simón Bolívar – Jornada Tarde\n"
+    "3️⃣  San Martín – Jornada Mañana\n"
+    "4️⃣  San Martín – Jornada Tarde\n"
+    "5️⃣  Hernando Acevedo – Jornada Mañana\n"
+    "6️⃣  Hernando Acevedo – Jornada Tarde\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n"
+    "Responde con el *número* de tu sede.\n"
+    "_(Escribe CANCELAR para salir)_"
+)
+
+# ══════════════════════════════════════════════
+#  FALTAS MANUAL DE CONVIVENCIA (Arts. 161-163)
+# ══════════════════════════════════════════════
+FALTAS_LEVES = [
+    "Impuntualidad / llegada tarde",
+    "Salir del aula sin permiso",
+    "No portar o usar correctamente el uniforme",
+    "Comer o beber en clase sin autorización",
+    "Usar el celular sin permiso del docente",
+    "No traer materiales o útiles escolares",
+    "Vocabulario inapropiado o grosero leve",
+    "Desorden o indisciplina leve en clase",
+    "Otra falta leve (describir)",
+]
+
+FALTAS_GRAVES = [
+    "Perturbar o interrumpir reiteradamente las clases",
+    "Irrespeto verbal a docentes o directivos",
+    "Fraude o plagio académico",
+    "Daño leve a bienes o materiales del colegio",
+    "Agresión verbal o psicológica a compañeros",
+    "Acumulación de 3 faltas leves",
+    "Salida del colegio sin autorización",
+    "Otra falta grave (describir)",
+]
+
+FALTAS_GRAVISIMAS = [
+    "Agresión física a compañeros o docentes",
+    "Porte o consumo de drogas / sustancias psicoactivas",
+    "Porte de armas o elementos peligrosos",
+    "Acoso escolar (bullying) sistemático",
+    "Violencia sexual o acoso sexual",
+    "Vandalismo o daño grave a la institución",
+    "Intimidación o amenazas graves",
+    "Otra falta gravísima (describir)",
+]
+
+# Protocolos legales según tipo de falta
+PROTOCOLOS = {
+    "Leve": (
+        "📋 *Protocolo – Falta Leve (Art. 161):*\n"
+        "• Diálogo con el estudiante y acta de compromiso.\n"
+        "• Notificación al acudiente.\n"
+        "• ⚠️ *3 faltas leves acumuladas = ingreso a falta GRAVE.*"
+    ),
+    "Grave": (
+        "⚠️ *Protocolo – Falta Grave (Art. 162):*\n"
+        "• Citación formal al acudiente.\n"
+        "• Suspensión de 1 a 3 días según gravedad.\n"
+        "• Acta de compromiso de convivencia.\n"
+        "• Remisión a orientación escolar.\n"
+        "• ⚠️ *Reincidencia puede derivar en falta GRAVÍSIMA.*"
+    ),
+    "Gravisima": (
+        "🚨 *Protocolo – Falta Gravísima (Art. 163 / Ley 1620):*\n"
+        "• Activación inmediata de Ruta de Atención Integral.\n"
+        "• Notificación a Comité de Convivencia Escolar.\n"
+        "• Posible remisión a autoridades (ICBF, Policía, Fiscalía).\n"
+        "• Suspensión mientras se investiga.\n"
+        "• *Situación Tipo III – Ley 1620 de 2013.*"
+    ),
+}
+
+EMOJIS_TIPO = {"Leve": "📋", "Grave": "⚠️", "Gravisima": "🚨"}
+
+# Campos que deben estar completos para enviar el reporte
+REPORTE_SCHEMA = ["estudiante", "grado", "tipo_falta", "conducta", "descripcion", "testigo"]
+
+# ══════════════════════════════════════════════
 #  ENLACES WEB
 # ══════════════════════════════════════════════
 WEB_BASE = "https://gestionacademicaco.wixsite.com/colbolivar1"
@@ -145,8 +239,8 @@ historiales     = {}
 conocimiento_extra = []
 docentes_admin  = []
 
-# Estados del formulario de reporte por telefono
-# { telefono: { "paso": 1, "datos": {} } }
+# Estados del reporte inteligente por telefono
+# { telefono: { "fase": "sede"|"tipo"|"conducta"|"datos", "datos": {}, "reportante": "" } }
 formularios_activos = {}
 contador_reportes   = 0
 
@@ -256,6 +350,11 @@ async def obtener_token_sheets():
         return resp.json().get("access_token", "")
 
 async def agregar_fila_sheets(fila):
+    """
+    Guarda 12 columnas en Sheets:
+    N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
+    Tipo Falta | Conducta | Descripción | Testigo | Reportante | Teléfono
+    """
     try:
         token = await obtener_token_sheets()
         if not token:
@@ -263,7 +362,7 @@ async def agregar_fila_sheets(fila):
             return False
 
         url = ("https://sheets.googleapis.com/v4/spreadsheets/"
-               + SHEETS_ID + "/values/A1:H1:append"
+               + SHEETS_ID + "/values/A1:M1:append"
                "?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
 
         headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
@@ -280,130 +379,368 @@ async def agregar_fila_sheets(fila):
 
 
 # ══════════════════════════════════════════════
-#  SISTEMA DE REPORTES DE CONVIVENCIA
+#  REPORTE INTELIGENTE — FUNCIÓN PRINCIPAL
 # ══════════════════════════════════════════════
-PASOS_REPORTE = [
-    ("estudiante",   "Nombre completo del estudiante involucrado:"),
-    ("grado",        "Grado y grupo (ejemplo: 7B, 10A):"),
-    ("tipo",         "Tipo de incidente:\n1. Leve\n2. Grave\n3. Gravisima\n\nEscribe el numero o el tipo:"),
-    ("descripcion",  "Describe detalladamente lo que ocurrio:"),
-    ("testigo",      "Nombre del docente o testigo (escribe 'ninguno' si no hay):"),
-]
-
-def normalizar_tipo(texto):
-    s = norm(texto)
-    if s in ["1","leve"]:
-        return "Leve"
-    if s in ["2","grave"]:
-        return "Grave"
-    if s in ["3","gravisima","gravisimo"]:
-        return "Gravisima"
-    return texto.strip()
-
-async def procesar_reporte(mensaje, telefono, nombre):
+async def gestionar_reporte_inteligente(mensaje, telefono, nombre):
+    """
+    Sistema de reporte en 3 fases rápidas:
+      1. sede   – menú de botones numéricos (1-6)
+      2. tipo   – Leve / Grave / Gravísima + menú de conductas
+      3. datos  – extracción inteligente con Gemini (estudiante, grado, descripción, testigo)
+      → Envío automático cuando todo está completo
+    """
     global contador_reportes
-
     s = norm(mensaje)
 
-    # Cancelar reporte
-    if s in ["cancelar","salir","cancel","no","menu"]:
+    # ── Cancelar en cualquier momento ─────────────────────────────
+    if s in ["cancelar", "salir", "cancel", "no", "menu", "0"]:
         if telefono in formularios_activos:
             del formularios_activos[telefono]
-        return "Reporte cancelado. En que mas te puedo ayudar?"
+        return (
+            "✅ Reporte cancelado.\n\n"
+            "Puedes iniciar uno nuevo escribiendo *reportar* cuando lo necesites.\n"
+            "¿En qué más te puedo ayudar? 😊"
+        )
 
-    # Iniciar nuevo reporte
+    # ── Iniciar: mostrar menú de sedes ─────────────────────────────
     if telefono not in formularios_activos:
-        formularios_activos[telefono] = {"paso": 0, "datos": {}, "reportante": nombre or telefono}
-        return ("Vamos a registrar el reporte de convivencia.\n\n"
-                "Puedes escribir CANCELAR en cualquier momento para salir.\n\n"
-                "Paso 1 de 5\n"
-                + PASOS_REPORTE[0][1])
+        formularios_activos[telefono] = {
+            "fase": "sede",
+            "datos": {},
+            "reportante": nombre or telefono,
+        }
+        return (
+            "📋 *Nuevo Reporte de Convivencia*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "_(Escribe *CANCELAR* en cualquier momento para salir)_\n\n"
+            + MENU_SEDES
+        )
 
     form  = formularios_activos[telefono]
-    paso  = form["paso"]
-    campo = PASOS_REPORTE[paso][0]
+    fase  = form["fase"]
+    datos = form["datos"]
 
-    # Validaciones
-    if campo == "tipo":
-        valor = normalizar_tipo(mensaje)
-        if valor not in ["Leve","Grave","Gravisima"]:
-            return "Por favor escribe 1 (Leve), 2 (Grave) o 3 (Gravisima):"
+    # ══════════════════════════════════════════
+    # FASE 1 — SELECCIÓN DE SEDE
+    # ══════════════════════════════════════════
+    if fase == "sede":
+        # Aceptar número 1-6 o texto con nombre de sede
+        sede_sel = None
+        for codigo, etiqueta, sede, jornada in SEDES_OPCIONES:
+            if s == codigo or norm(etiqueta) in s or (norm(sede) in s and norm(jornada) in s):
+                sede_sel = (sede, jornada, etiqueta)
+                break
+
+        if not sede_sel:
+            return (
+                "Por favor responde con el *número* de tu sede (1 al 6):\n\n"
+                + MENU_SEDES
+            )
+
+        datos["sede"]    = sede_sel[0]
+        datos["jornada"] = sede_sel[1]
+        form["fase"]     = "tipo"
+
+        return (
+            f"✅ Sede: *{sede_sel[2]}*\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "¿Qué tipo de falta vas a reportar?\n\n"
+            "📋 *1* — Falta Leve\n"
+            "⚠️ *2* — Falta Grave\n"
+            "🚨 *3* — Falta Gravísima\n\n"
+            "Responde con *1*, *2* o *3*.\n"
+            "_(O escucho si ya me cuentas todo de una vez 😊)_"
+        )
+
+    # ══════════════════════════════════════════
+    # FASE 2 — TIPO DE FALTA + CONDUCTA
+    # ══════════════════════════════════════════
+    if fase == "tipo":
+        # Detectar tipo en el mensaje
+        tipo_det = _detectar_tipo(s)
+
+        if not tipo_det:
+            return (
+                "Por favor indica el tipo de falta:\n\n"
+                "📋 *1* — Leve\n"
+                "⚠️ *2* — Grave\n"
+                "🚨 *3* — Gravísima"
+            )
+
+        datos["tipo_falta"] = tipo_det
+        form["fase"]        = "conducta"
+        return _menu_conductas(tipo_det)
+
+    # ══════════════════════════════════════════
+    # FASE 3 — SELECCIÓN DE CONDUCTA ESPECÍFICA
+    # ══════════════════════════════════════════
+    if fase == "conducta":
+        tipo    = datos.get("tipo_falta", "Leve")
+        lista   = _lista_faltas(tipo)
+        indice  = None
+
+        # Intentar leer número
+        try:
+            n = int(mensaje.strip())
+            if 1 <= n <= len(lista):
+                indice = n - 1
+        except:
+            pass
+
+        # Si no eligió número pero escribe texto libre, usar como conducta
+        if indice is None and len(mensaje.strip()) > 4:
+            datos["conducta"] = mensaje.strip()
+            form["fase"]      = "datos"
+            return _pedir_datos_faltantes(datos)
+
+        if indice is None:
+            return _menu_conductas(tipo)
+
+        datos["conducta"] = lista[indice]
+        form["fase"]      = "datos"
+
+        # Si ya tenía datos del mensaje inicial, intentar extraerlos
+        if form.get("mensaje_inicial"):
+            return await _extraer_y_completar(form["mensaje_inicial"], telefono, nombre)
+
+        return _pedir_datos_faltantes(datos)
+
+    # ══════════════════════════════════════════
+    # FASE 4 — EXTRACCIÓN INTELIGENTE DE DATOS
+    # ══════════════════════════════════════════
+    if fase == "datos":
+        return await _extraer_y_completar(mensaje, telefono, nombre)
+
+    # Fallback
+    return await _extraer_y_completar(mensaje, telefono, nombre)
+
+
+def _detectar_tipo(s):
+    """Detecta tipo de falta en texto normalizado."""
+    if s in ["1"] or "leve" in s:
+        return "Leve"
+    if s in ["2"] or ("grave" in s and "gravisim" not in s):
+        return "Grave"
+    if s in ["3"] or "gravisim" in s or "gravisimo" in s:
+        return "Gravisima"
+    return None
+
+
+def _lista_faltas(tipo):
+    if tipo == "Leve":       return FALTAS_LEVES
+    if tipo == "Grave":      return FALTAS_GRAVES
+    if tipo == "Gravisima":  return FALTAS_GRAVISIMAS
+    return FALTAS_LEVES
+
+
+def _menu_conductas(tipo):
+    lista  = _lista_faltas(tipo)
+    emoji  = EMOJIS_TIPO.get(tipo, "📋")
+    lineas = [f"{emoji} *Conducta – Falta {tipo}*", "━━━━━━━━━━━━━━━━━━━━━━"]
+    for i, c in enumerate(lista, 1):
+        lineas.append(f"{i}. {c}")
+    lineas.append("━━━━━━━━━━━━━━━━━━━━━━")
+    lineas.append("Elige el *número* de la conducta\no escríbela directamente.")
+    return "\n".join(lineas)
+
+
+def _pedir_datos_faltantes(datos):
+    faltantes = [k for k in REPORTE_SCHEMA if not datos.get(k)]
+    if not faltantes:
+        return None  # todo completo
+
+    primero = faltantes[0]
+    preguntas = {
+        "estudiante":  "👤 ¿Cuál es el *nombre completo* del estudiante involucrado?",
+        "grado":       "🎒 ¿En qué *grado y grupo* está? (ej: 9B, 10A)",
+        "tipo_falta":  "¿Tipo de falta? (1=Leve, 2=Grave, 3=Gravísima)",
+        "conducta":    "¿Cuál fue la conducta específica?",
+        "descripcion": "📝 Describe brevemente lo que ocurrió:",
+        "testigo":     "👁 ¿Hay algún *testigo* o docente presente? (o escribe 'ninguno')",
+    }
+    return preguntas.get(primero, "¿Puedes darme más detalles?")
+
+
+async def _extraer_y_completar(mensaje, telefono, nombre):
+    """
+    Llama a Gemini para extraer campos del mensaje libre.
+    Si completa todos los campos, envía el reporte.
+    """
+    global contador_reportes
+    form  = formularios_activos.get(telefono, {})
+    datos = form.get("datos", {})
+
+    prompt_ext = f"""
+Extrae datos de convivencia escolar del siguiente mensaje.
+Mensaje: "{mensaje}"
+Datos ya conocidos: {json.dumps(datos, ensure_ascii=False)}
+
+Devuelve SOLO un JSON con estos campos (usa null si no se menciona):
+{{
+  "estudiante": "nombre completo o null",
+  "grado": "grado y grupo o null",
+  "tipo_falta": "Leve | Grave | Gravisima | null",
+  "conducta": "conducta especifica o null",
+  "descripcion": "descripcion breve o null",
+  "testigo": "nombre testigo o 'ninguno' o null",
+  "cancelar": false
+}}
+Si el usuario quiere cancelar el reporte, pon "cancelar": true.
+Responde SOLO el JSON, sin texto adicional.
+"""
+    try:
+        raw = await _llamar_gemini_json(prompt_ext)
+        nuevos = json.loads(raw)
+    except Exception as e:
+        print("ERROR extraccion JSON: " + str(e))
+        nuevos = {}
+
+    # Cancelar si Gemini lo detectó
+    if nuevos.get("cancelar"):
+        del formularios_activos[telefono]
+        return "✅ Reporte cancelado. ¿En qué más te puedo ayudar?"
+
+    # Actualizar datos con los nuevos (sin sobreescribir con null)
+    for campo in REPORTE_SCHEMA:
+        val = nuevos.get(campo)
+        if val and val != "null" and val is not None:
+            datos[campo] = val
+
+    # Ver qué falta
+    faltantes = [k for k in REPORTE_SCHEMA if not datos.get(k)]
+
+    if not faltantes:
+        # ✅ Todo completo → guardar y responder
+        return await _finalizar_reporte(telefono, nombre)
     else:
-        valor = mensaje.strip()
-        if len(valor) < 2:
-            return "Por favor escribe una respuesta valida:"
+        pregunta = _pedir_datos_faltantes(datos)
+        return pregunta or await _finalizar_reporte(telefono, nombre)
 
-    form["datos"][campo] = valor
-    form["paso"] += 1
 
-    # Si hay mas pasos
-    if form["paso"] < len(PASOS_REPORTE):
-        siguiente = PASOS_REPORTE[form["paso"]]
-        return ("Paso " + str(form["paso"]+1) + " de " + str(len(PASOS_REPORTE)) + "\n\n"
-                + siguiente[1])
+async def _finalizar_reporte(telefono, nombre):
+    """Guarda en Sheets y retorna el resumen con protocolo legal."""
+    global contador_reportes
 
-    # Reporte completo — guardar
+    form  = formularios_activos.get(telefono, {})
+    datos = form.get("datos", {})
+
     contador_reportes += 1
     ahora     = datetime.now(COL_TZ)
     num_caso  = "RPT-" + ahora.strftime("%Y%m%d") + "-" + str(contador_reportes).zfill(3)
     fecha_str = ahora.strftime("%d/%m/%Y")
     hora_str  = ahora.strftime("%I:%M %p")
-    datos     = form["datos"]
     reportante= form.get("reportante", telefono)
+    tipo      = datos.get("tipo_falta", "")
+    emoji     = EMOJIS_TIPO.get(tipo, "📋")
 
-    # Fila para Google Sheets
+    # 12 columnas en Sheets
     fila = [
         num_caso,
         fecha_str,
         hora_str,
-        datos.get("estudiante",""),
-        datos.get("grado",""),
-        datos.get("tipo",""),
-        datos.get("descripcion",""),
-        datos.get("testigo",""),
+        datos.get("sede", ""),
+        datos.get("jornada", ""),
+        datos.get("estudiante", ""),
+        datos.get("grado", ""),
+        tipo,
+        datos.get("conducta", ""),
+        datos.get("descripcion", ""),
+        datos.get("testigo", ""),
         reportante,
         limpiar_tel(telefono),
     ]
 
     asyncio.create_task(agregar_fila_sheets(fila))
-
-    # Limpiar formulario
     del formularios_activos[telefono]
 
+    protocolo = PROTOCOLOS.get(tipo, "")
+
     resumen = (
-        "Reporte registrado exitosamente!\n\n"
-        "Numero de caso: " + num_caso + "\n"
-        "Fecha: " + fecha_str + " " + hora_str + "\n"
-        "Estudiante: " + datos.get("estudiante","") + "\n"
-        "Grado: " + datos.get("grado","") + "\n"
-        "Tipo: " + datos.get("tipo","") + "\n"
-        "Testigo: " + datos.get("testigo","") + "\n\n"
-        "El caso ha sido registrado y las directivas seran notificadas.\n"
-        "Guarda tu numero de caso: " + num_caso
+        f"{emoji} *Reporte Registrado Exitosamente*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📌 *N° Caso:* {num_caso}\n"
+        f"📅 *Fecha:* {fecha_str} {hora_str}\n"
+        f"🏫 *Sede:* {datos.get('sede','')} – {datos.get('jornada','')}\n"
+        f"👤 *Estudiante:* {datos.get('estudiante','')}\n"
+        f"🎒 *Grado:* {datos.get('grado','')}\n"
+        f"{emoji} *Tipo de falta:* {tipo}\n"
+        f"📋 *Conducta:* {datos.get('conducta','')}\n"
+        f"📝 *Descripción:* {datos.get('descripcion','')}\n"
+        f"👁 *Testigo:* {datos.get('testigo','')}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        + protocolo + "\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ El caso ha sido registrado.\n"
+        f"📎 Guarda tu número de caso: *{num_caso}*"
     )
 
-    print("REPORTE GUARDADO: " + num_caso + " | " + datos.get("estudiante","") + " | " + datos.get("tipo",""))
+    print(f"REPORTE GUARDADO: {num_caso} | {datos.get('estudiante','')} | {tipo}")
     return resumen
 
 
+async def _llamar_gemini_json(prompt):
+    """Llama a Gemini esperando respuesta JSON pura."""
+    api_key = os.getenv("GEMINI_API_KEY","")
+    modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
+    url = "https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+api_key
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": 400,
+            "responseMimeType": "application/json",
+        }
+    }
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.post(url, json=payload)
+        d = r.json()
+    if "candidates" not in d:
+        raise Exception("Gemini JSON error: " + str(d.get("error", {})))
+    raw = d["candidates"][0]["content"]["parts"][0]["text"]
+    # Limpiar posibles backticks
+    raw = re.sub(r"```json|```", "", raw).strip()
+    return raw
+
+
 # ══════════════════════════════════════════════
-#  RESPUESTAS RAPIDAS
+#  MANEJO INTELIGENTE DEL INICIO DE REPORTE
+#  (detecta si ya vienen datos en el primer mensaje)
 # ══════════════════════════════════════════════
-def respuesta_rapida(mensaje):
+async def iniciar_o_continuar_reporte(mensaje, telefono, nombre):
+    """
+    Punto de entrada único para el sistema de reportes.
+    Si el usuario ya viene con datos (ej: "quiero reportar a Juan de 10A..."),
+    los extrae antes de pedir la sede para no perder información.
+    """
     s = norm(mensaje)
-    if any(p in s for p in ["quien es el rector","rector del colegio"]):
-        return "El rector de la Institucion Educativa Simon Bolivar es el Mg. Jesus Maldonado Serrano."
-    if any(p in s for p in ["cuantos docentes","cuantos profesores","lista de docentes"]):
-        return "El ColBolivar cuenta con 95 docentes y 18 directivos y administrativos.\nConsulta el portal: https://www.webcolegios.com/simon/"
-    if any(p in s for p in ["plan de area","planes de area","pensum 2026"]):
-        return ("Planes de Area 2026:\n\nMatematicas:\nhttps://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny\n\nHumanidades:\nhttps://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv\n\nVer todos:\n" + WEB_BASE + "/planesdearea2026")
-    if any(p in s for p in ["telefono","correo","email","direccion","donde queda","contacto","ubicacion"]):
-        return "Calle 4 No.11A-26 San Martin, Cucuta\nTel: 5943344\nCorreo: colintsimonbolivar@semcucuta.gov.co\nFacebook: https://www.facebook.com/share/1NM1mkhhcc/"
-    if any(p in s for p in ["notas","ver notas","mis notas","consultar notas","boletin"]):
-        return "Consulta tus notas y boletines en:\nhttps://www.webcolegios.com/simon/"
-    if any(p in s for p in ["facebook","face","redes sociales"]):
-        return "Siguenos en Facebook:\nhttps://www.facebook.com/share/1NM1mkhhcc/"
-    return None
+
+    # Si ya hay formulario activo → continuar flujo
+    if telefono in formularios_activos:
+        return await gestionar_reporte_inteligente(mensaje, telefono, nombre)
+
+    # Si es solo la palabra "reportar" sin datos → flujo normal
+    if s in PALABRAS_REPORTE or len(mensaje.strip()) < 15:
+        return await gestionar_reporte_inteligente(mensaje, telefono, nombre)
+
+    # Si viene con datos en el mensaje → guardar para usar después
+    formularios_activos[telefono] = {
+        "fase": "sede",
+        "datos": {},
+        "reportante": nombre or telefono,
+        "mensaje_inicial": mensaje,
+    }
+
+    # Intentar extraer tipo de falta del mensaje inicial para mostrarlo en el menú de sede
+    tipo_ini = _detectar_tipo(s)
+    if tipo_ini:
+        formularios_activos[telefono]["datos"]["tipo_falta"] = tipo_ini
+
+    return (
+        "📋 *Nuevo Reporte de Convivencia*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "_(Escribe *CANCELAR* en cualquier momento para salir)_\n\n"
+        + MENU_SEDES
+    )
 
 
 # ══════════════════════════════════════════════
@@ -579,15 +916,39 @@ def procesar_admin(mensaje):
 
 
 # ══════════════════════════════════════════════
+#  RESPUESTAS RAPIDAS
+# ══════════════════════════════════════════════
+def respuesta_rapida(mensaje):
+    s = norm(mensaje)
+    if any(p in s for p in ["quien es el rector","rector del colegio"]):
+        return "El rector de la Institucion Educativa Simon Bolivar es el Mg. Jesus Maldonado Serrano."
+    if any(p in s for p in ["cuantos docentes","cuantos profesores","lista de docentes"]):
+        return "El ColBolivar cuenta con 95 docentes y 18 directivos y administrativos.\nConsulta el portal: https://www.webcolegios.com/simon/"
+    if any(p in s for p in ["plan de area","planes de area","pensum 2026"]):
+        return ("Planes de Area 2026:\n\nMatematicas:\nhttps://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny\n\nHumanidades:\nhttps://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv\n\nVer todos:\n" + WEB_BASE + "/planesdearea2026")
+    if any(p in s for p in ["telefono","correo","email","direccion","donde queda","contacto","ubicacion"]):
+        return "Calle 4 No.11A-26 San Martin, Cucuta\nTel: 5943344\nCorreo: colintsimonbolivar@semcucuta.gov.co\nFacebook: https://www.facebook.com/share/1NM1mkhhcc/"
+    if any(p in s for p in ["notas","ver notas","mis notas","consultar notas","boletin"]):
+        return "Consulta tus notas y boletines en:\nhttps://www.webcolegios.com/simon/"
+    if any(p in s for p in ["facebook","face","redes sociales"]):
+        return "Siguenos en Facebook:\nhttps://www.facebook.com/share/1NM1mkhhcc/"
+    return None
+
+
+# ══════════════════════════════════════════════
 #  PROCESADOR PRINCIPAL
 # ══════════════════════════════════════════════
 async def procesar(mensaje, telefono, nombre):
     s = norm(mensaje)
     print("MSG [" + (nombre or telefono) + "]: " + mensaje[:100])
 
-    # FORMULARIO ACTIVO — prioridad maxima
-    if telefono in formularios_activos or any(p in s for p in PALABRAS_REPORTE):
-        return await procesar_reporte(mensaje, telefono, nombre)
+    # FORMULARIO ACTIVO — prioridad máxima
+    if telefono in formularios_activos:
+        return await gestionar_reporte_inteligente(mensaje, telefono, nombre)
+
+    # INICIO DE REPORTE (palabras clave o mensaje con datos)
+    if any(p in s for p in PALABRAS_REPORTE):
+        return await iniciar_o_continuar_reporte(mensaje, telefono, nombre)
 
     # ADMIN
     if es_admin(telefono):
@@ -599,9 +960,10 @@ async def procesar(mensaje, telefono, nombre):
     saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start"]
     if s in saludos:
         tiene_hist = bool(historiales.get(telefono))
+        nombre_txt = nombre or ""
         if tiene_hist:
-            return "Hola de nuevo"+(", "+nombre if nombre else "")+"! En que te puedo ayudar?"
-        return ("Hola"+(", "+nombre if nombre else "")+"! Soy ColBot del "+SCHOOL_NAME+".\n\n"
+            return "Hola de nuevo"+(", "+nombre_txt if nombre_txt else "")+"! En que te puedo ayudar?"
+        return ("Hola"+(", "+nombre_txt if nombre_txt else "")+"! Soy ColBot del "+SCHOOL_NAME+".\n\n"
                 "Puedo ayudarte con:\n"
                 "- Informacion del colegio y docentes\n"
                 "- Calendario escolar y eventos\n"
