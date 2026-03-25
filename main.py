@@ -1011,9 +1011,9 @@ WEB_LINKS = {
 # ══════════════════════════════════════════════
 BASE_PDF = "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_"
 CATALOGO = {
-    "pei":                     ("PEI - Proyecto Educativo Institucional",   "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
+    "pei":                     ("Compilado Institucional ColBolívar 2024 (Manual de Convivencia págs.1-287 | Manual de Normatividad Académica págs.288-344 | Mapa de Procesos págs.345-370 | POA págs.371 | PEI págs.372-497)",   "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
     "siee":                    ("SIEE - Sistema de Evaluacion",             BASE_PDF + "f245afe526dd49d097d9417251ec1adc.pdf"),
-    "manual de convivencia":   ("Manual de Convivencia",                    "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
+    "manual de convivencia":   ("Documento Maestro Institucional ColBolívar",  "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
     "manual de funciones":     ("Manual de Funciones",                      BASE_PDF + "711c1ffb30334ea9b10163d87aaed4ba.pdf"),
     "propuesta intercultural": ("Propuesta Intercultural Yukpa",            BASE_PDF + "a29820f94ee5437abff3787c8f77a79b.pdf"),
     "salas de informatica":    ("Manual Salas de Informatica",              BASE_PDF + "e6e7265c3d7c4132925b62267253521d.pdf"),
@@ -1105,36 +1105,107 @@ PALABRAS_MANUAL_CONV = [
 ]
 PALABRAS_PEI_CTX = ["mision","vision","filosofia","modelo pedagogico","proyecto educativo","horizonte institucional","principios","objetivos institucionales","enfoque pedagogico","perfiles","competencias","gobierno escolar","personero","contralor escolar","consejo directivo","consejo academico"]
 
-# Palabras que indican que la pregunta es sobre el colegio y debe consultarse
-# el documento central antes de responder con Gemini solo
+# ══════════════════════════════════════════════════════════════
+#  DOCUMENTO MAESTRO INSTITUCIONAL
+#  Compilado de 7 documentos:
+#  1. PEI  (Proyecto Educativo Institucional)
+#  2. Manual de Convivencia
+#  3. Manual de Normatividad
+#  4. Mapa de Procesos
+#  5. POA  (Plan Operativo Anual)
+#  6. PMI  (Plan de Mejoramiento Institucional)
+#  7. PED / Anexos
+# ══════════════════════════════════════════════════════════════
 PALABRAS_DOC_CENTRAL = [
-    # gestión y procesos
-    "proceso","procesos","gestion","subproceso","mapa de procesos",
-    "gestion academica","gestion directiva","gestion administrativa","gestion comunitaria",
-    "plan de estudios","enfoque metodologico","practicas pedagogicas","practica pedagogica",
-    "recursos para el aprendizaje","jornada escolar","seguimiento","evaluacion de aula",
-    # convivencia y disciplina
-    "falta leve","falta grave","falta gravisima","falta gravísima",
-    "manual de convivencia","manual convivencia","reglamento convivencia",
-    "tipos de faltas","clasificacion de faltas","conducta","comportamiento",
-    "sancion","sanción","correctivo","comite de convivencia","comité",
-    "ruta de atencion","suspension","acta de compromiso","acudiente",
-    "derechos del estudiante","deberes del estudiante",
-    "uso del uniforme","presentacion personal","normas de convivencia",
-    "ley 1620","decreto 1965","matoneo","acoso escolar",
-    # institucional / PEI
-    "mision","vision","filosofia","modelo pedagogico","proyecto educativo",
-    "horizonte institucional","principios","objetivos institucionales",
-    "enfoque pedagogico","perfiles","competencias","gobierno escolar",
-    "personero","contralor escolar","consejo directivo","consejo academico",
-    # otros temas del PEI
-    "resignificacion","resignificación","plan de mejoramiento","pei",
-    "area fundamental","area transversal","intensidad horaria","pensum",
+    # ── PEI ──────────────────────────────────────────────────
+    "pei","proyecto educativo","resignificacion","horizonte institucional",
+    "mision","vision","filosofia institucional","modelo pedagogico",
+    "enfoque pedagogico","perfil del estudiante","perfil del docente",
+    "principios institucionales","objetivos institucionales",
+    "gobierno escolar","personero","contralor escolar",
+    "consejo directivo","consejo academico","consejo estudiantil",
+    "plan de estudios","area fundamental","area transversal",
+    "intensidad horaria","pensum","malla curricular",
     "proyecto transversal","proyecto de vida","escuela de padres",
-    "manual de funciones","cargo","funciones del","rol del",
-    "matricula","admision","admisión","requisitos de ingreso",
-    "convenio","sena","universidad de pamplona","ufps",
-    "sede","sedes del colegio","cuantos estudiantes","cuantos docentes",
+    "convenio sena","universidad de pamplona","ufps",
+    "competencias","perfiles","formacion integral",
+
+    # ── Mapa de Procesos ─────────────────────────────────────
+    "mapa de procesos","proceso","procesos","subproceso","subprocesos",
+    "gestion academica","gestion directiva","gestion administrativa",
+    "gestion comunitaria","gestion de aula","gestion financiera",
+    "practicas pedagogicas","practica pedagogica","practica de aula",
+    "recursos para el aprendizaje","uso del tiempo","ambiente de aprendizaje",
+    "interaccion en el aula","manejo de la disciplina",
+    "seguimiento al aprendizaje","evaluacion de aula",
+    "opciones didacticas","estrategias para las tareas",
+    "GAP","codigo de proceso","indicador de proceso",
+
+    # ── POA (Plan Operativo Anual) ────────────────────────────
+    "poa","plan operativo","plan operativo anual","actividad institucional",
+    "meta institucional","indicador de gestion","cronograma institucional",
+    "presupuesto","recursos institucionales","responsable","fecha de ejecucion",
+
+    # ── PMI (Plan de Mejoramiento Institucional) ──────────────
+    "pmi","plan de mejoramiento","mejoramiento institucional",
+    "indice sintetico","isce","siempre dia e","pruebas saber",
+    "resultado saber","desempeno institucional","autoevaluacion",
+    "area de mejora","estrategia de mejora","accion de mejora",
+    "seguimiento pmi","evaluacion pmi",
+
+    # ── Manual de Convivencia ─────────────────────────────────
+    "manual de convivencia","reglamento","normas de convivencia",
+    "falta leve","falta grave","falta gravisima","falta gravísima",
+    "tipos de faltas","clasificacion de faltas","conducta","comportamiento",
+    "sancion","correctivo","comite de convivencia",
+    "ruta de atencion","suspension","acta de compromiso",
+    "derechos del estudiante","deberes del estudiante",
+    "uso del uniforme","presentacion personal",
+    "ley 1620","decreto 1965","matoneo","acoso escolar","bullying",
+    "mediacion escolar","conciliacion","restaurativo",
+    "acudiente","citacion","notificacion",
+
+    # ── Manual de Normatividad ────────────────────────────────
+    "manual de normatividad","normatividad","norma","decreto","resolucion",
+    "ley general de educacion","ley 115","decreto 1290","decreto 1860",
+    "constitucion","articulo","capitulo","paragrafo",
+    "regimen disciplinario","estatuto docente","codigo de infancia",
+    "icbf","policia de infancia","comisaria de familia",
+
+    # ── PED / Anexos ─────────────────────────────────────────
+    "ped","plan especial","plan de emergencias","gestion del riesgo",
+    "simulacro","evacuacion","ruta de evacuacion","brigada",
+    "manual de funciones","cargo","funciones del rector",
+    "funciones del docente","funciones del coordinador",
+    "matricula","admision","requisitos de ingreso","proceso de matricula",
+    "certificado","paz y salvo","constancia","documento",
+
+    # ── Manual de Normatividad Académica (págs 288-344) ───────
+    "normatividad academica","siee","sistema de evaluacion",
+    "escala de valoracion","valoracion","desempeno superior","desempeno alto",
+    "desempeno basico","desempeno bajo","periodo academico","nota","calificacion",
+    "reprobado","reprueba","perdio el ano","perdio el año","promovido","no promovido",
+    "nivelacion","recuperacion","prueba de","habilitacion",
+    "comision de evaluacion","comision de promocion",
+    "GA-D1","GAP","codigo GAP",
+
+    # ── Mapa de Procesos (págs 345-370) ───────────────────────
+    "P1","P2","P3","P4","GAP1","GAP2","GAP3","GAP4",
+    "diseño pedagogico curricular","practicas pedagogicas",
+    "gestion de aula","seguimiento academico",
+    "ambiente de aprendizaje","interaccion en el aula",
+    "manejo de la disciplina en el aula","uso del tiempo libre",
+    "19 componentes","aplicativo","autoevaluacion institucional",
+
+    # ── POA (pág 371) ─────────────────────────────────────────
+    "plan operativo anual","poa","actividad del poa",
+    "formulacion de proyectos","meta del plan",
+
+    # ── Preguntas generales sobre el colegio ─────────────────
+    "cuantos","cuanto","cuales son","como funciona","que dice",
+    "que establece","que indica","segun el colegio","en colbolivar",
+    "en la institucion","en el colegio","en simon bolivar",
+    "dime","explicame","que es","que son","como se","cuando se",
 ]
 
 
@@ -1186,12 +1257,22 @@ async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usua
     modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
     instruccion = (
-        "Eres ColBot, asistente oficial de la IE Simón Bolívar de Cúcuta.\n"
-        "Lee el documento COMPLETO y de forma EXHAUSTIVA (todos los artículos, "
-        "capítulos, secciones y anexos). Si la información está en el documento, "
-        "SIEMPRE responde con ella. Cita artículos y capítulos cuando sea posible. "
-        "Máximo 5 párrafos. Sin formato Markdown.\n\n"
-        f"DOCUMENTO: {nombre_doc}\n"
+        "Eres ColBot, asistente oficial de la IE Simón Bolívar de Cúcuta (Colombia).\n\n"
+        "Este documento es el COMPILADO INSTITUCIONAL del Colegio Simón Bolívar de Cúcuta (2024), "
+        "organizado así:\n"
+        "• Págs. 1-287:   Manual de Convivencia (faltas, sanciones, derechos, deberes, rutas de atención, Ley 1620)\n"
+        "• Págs. 288-344: Manual de Normatividad Académica (evaluación, promoción, SIEE, escala de valoración)\n"
+        "• Págs. 345-370: Mapa de Procesos 2024 (gestión académica, procesos P1/P2/P3/P4, códigos GAP)\n"
+        "• Pág.  371:     POA - Plan Operativo Anual (actividades, metas, cronograma)\n"
+        "• Págs. 372-497: PEI - Proyecto Educativo Institucional (misión, visión, modelo pedagógico, "
+        "gobierno escolar, plan de estudios, componentes directivo/académico/administrativo/comunitario)\n\n"
+        "REGLAS DE RESPUESTA:\n"
+        "1. Busca EXHAUSTIVAMENTE en todo el documento antes de responder.\n"
+        "2. NUNCA digas que no tienes el dato si la pregunta es sobre el colegio — la respuesta está en el documento.\n"
+        "3. Cita siempre el documento de origen y el artículo/sección/página cuando sea posible "
+        "(ej: 'Según el Manual de Convivencia, Art. 45...' o 'Según el Mapa de Procesos, proceso GAP151...').\n"
+        "4. Responde directo, claro y profesional. Máximo 5 párrafos. Sin formato Markdown.\n"
+        "5. Si la pregunta pide listados, números o conteos, dálos completos y precisos.\n\n"
         f"PREGUNTA: {pregunta}"
     )
     partes = [{"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}}]
