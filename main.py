@@ -17,7 +17,6 @@ CALENDAR_ID    = "f4ff65197ae712df6cd26ab18dc878dc5eac8248c178dc7a67f855cb89b0de
 SHEETS_ID      = "1VTImBJaeAYGRTIeEMawam9eaoyaReMwW1fMikbqilcs"
 COL_TZ         = timezone(timedelta(hours=-5))
 
-# Credenciales Google Sheets (cuenta de servicio)
 SHEETS_CREDS = {
     "type": "service_account",
     "project_id": "colbot-491101",
@@ -40,7 +39,6 @@ Web colegios: https://www.webcolegios.com/simon/
 Sitio web: https://gestionacademicaco.wixsite.com/colbolivar1
 Facebook: https://www.facebook.com/share/1NM1mkhhcc/
 YouTube: https://www.youtube.com/@colbolivar
-Calendario: https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t
 
 DATOS GENERALES:
 - Rector: Jesus Maldonado Serrano
@@ -78,13 +76,6 @@ PLANES DE AREA 2026:
 - Matematicas: https://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny
 - Humanidades: https://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv
 - Ciencias Naturales: https://drive.google.com/drive/folders/1WH5qeW4g61gM99BWlL4nBFfqZGr03HFr
-- Ed. Religiosa: https://drive.google.com/drive/folders/1l9U76HFES6_0fnouGKpm9IzbzNVYzgMC
-- Etica y Valores: https://drive.google.com/drive/folders/1HXYKdGnGN1hFz7s5w9yeEzecgRhjSyCx
-- Ed. Fisica: https://drive.google.com/drive/folders/1_pq0T7-VgXrtQJlF6Pmmuj9TqBBvo0DE
-- Tecnologia e Informatica: https://drive.google.com/drive/folders/1w0wnlXesGdF6lgQ0lstZWgen5hOLWxw7
-- Ed. Artistica: https://drive.google.com/drive/folders/1AeLZdegTlSRam2xE3eNsjz3Aaz9N4Mud
-- Ciencias Economicas: https://drive.google.com/drive/folders/19u5e-xJ_aypoKxXc1UXzekOYIGZLBRy
-- Filosofia: https://drive.google.com/drive/folders/1Rz1wJsFIRXbn8YKpbbKeJFdIp_x66re
 """
 
 # ══════════════════════════════════════════════
@@ -114,18 +105,17 @@ MENU_SEDES = (
 )
 
 # ══════════════════════════════════════════════
-#  REPORTE — CAMPOS SIMPLIFICADOS
-#  Se eliminaron: conducta, testigo
-#  Quedan: estudiante, grado, tipo_falta, descripcion
+#  CAMPOS DEL REPORTE
+#  (conducta y testigo eliminados)
+#  relato = nombre del campo de descripción
 # ══════════════════════════════════════════════
-
-CAMPOS_REPORTE = ["estudiante", "grado", "tipo_falta", "descripcion"]
+CAMPOS_REPORTE = ["estudiante", "grado", "tipo_falta", "relato"]
 
 ETIQUETAS_CAMPO = {
     "estudiante":  "👤 Nombre completo del estudiante",
     "grado":       "🎒 Grado y grupo (ej: 10A, 7B)",
-    "tipo_falta":  "⚠️ Tipo de falta: escribe *leve*, *grave* o *gravísima*",
-    "descripcion": "📝 Descripción detallada de lo ocurrido",
+    "tipo_falta":  "⚠️ Tipo de falta: *leve*, *grave* o *gravísima*",
+    "relato":      "📝 ¿Qué ocurrió? Descríbelo con tus palabras",
 }
 
 EMOJIS_TIPO = {"Leve": "📋", "Grave": "⚠️", "Gravisima": "🚨"}
@@ -135,7 +125,7 @@ PROTOCOLOS = {
         "📋 *Protocolo – Falta Leve (Art. 161):*\n"
         "• Diálogo con el estudiante y acta de compromiso.\n"
         "• Notificación al acudiente.\n"
-        "• ⚠️ 3 faltas leves acumuladas = ingreso a falta *Grave*."
+        "• ⚠️ 3 faltas leves acumuladas = falta *Grave*."
     ),
     "Grave": (
         "⚠️ *Protocolo – Falta Grave (Art. 162):*\n"
@@ -156,6 +146,17 @@ PROTOCOLOS = {
 }
 
 # ══════════════════════════════════════════════
+#  ESTADO EN MEMORIA
+# ══════════════════════════════════════════════
+pdf_cache           = {}
+historiales         = {}
+conocimiento_extra  = []
+docentes_admin      = []
+formularios_activos = {}
+contador_reportes   = 0
+
+
+# ══════════════════════════════════════════════
 #  UTILIDADES
 # ══════════════════════════════════════════════
 def norm(t):
@@ -170,23 +171,6 @@ def limpiar_tel(tel):
 def es_admin(telefono):
     tel = limpiar_tel(telefono)
     return tel == limpiar_tel(ADMIN_PHONE) or tel in [limpiar_tel(d) for d in docentes_admin]
-
-def buscar_doc(texto):
-    s = norm(texto)
-    for clave, val in CATALOGO.items():
-        if norm(clave) in s:
-            return clave, val[0], val[1]
-    for alias, clave in ALIAS_DOC.items():
-        if norm(alias) in s and clave in CATALOGO:
-            return clave, CATALOGO[clave][0], CATALOGO[clave][1]
-    return None, None, None
-
-def buscar_web(texto):
-    s = norm(texto)
-    for clave, (url, desc) in WEB_LINKS.items():
-        if norm(clave) in s:
-            return url, desc
-    return None, None
 
 def limpiar_markdown(texto):
     texto = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\2', texto)
@@ -221,20 +205,16 @@ def formatear_fecha(fecha_str):
     except:
         return fecha_str
 
-
-# ══════════════════════════════════════════════
-#  DETECCION SEDE / JORNADA
-# ══════════════════════════════════════════════
 def _detectar_sede_en_texto(s):
     jornada = None
-    if "manana" in s or "mañana" in s or "morning" in s:
+    if "manana" in s or "mañana" in s:
         jornada = "Mañana"
-    elif "tarde" in s or "afternoon" in s:
+    elif "tarde" in s:
         jornada = "Tarde"
     sede = None
     if "simon" in s or "bolivar" in s or "central" in s:
         sede = "Simon Bolivar"
-    elif "san martin" in s or "san martín" in s or "sanmartin" in s:
+    elif "san martin" in s or "sanmartin" in s:
         sede = "San Martin"
     elif "hernando" in s or "acevedo" in s:
         sede = "Hernando Acevedo"
@@ -249,20 +229,48 @@ def _resolver_sede_por_numero(texto):
             return sede, jornada, etiqueta
     return None
 
+def _campos_faltantes(datos):
+    faltantes = []
+    for campo in CAMPOS_REPORTE:
+        val = datos.get(campo)
+        if not val or str(val).strip() in ("", "null"):
+            faltantes.append(campo)
+    return faltantes
+
+def _mensaje_pedir_faltantes(faltantes):
+    if not faltantes:
+        return None
+    lineas = ["Solo me falta:\n"]
+    for campo in faltantes:
+        lineas.append(f"• {ETIQUETAS_CAMPO[campo]}")
+    lineas.append("\nResponde todo en un solo mensaje si puedes.")
+    return "\n".join(lineas)
+
+def _resumen_parcial(datos):
+    lineas = []
+    mapa = {
+        "sede":       ("🏫", "Sede"),
+        "jornada":    ("🕐", "Jornada"),
+        "estudiante": ("👤", "Estudiante"),
+        "grado":      ("🎒", "Grado"),
+        "tipo_falta": ("⚠️", "Tipo"),
+        "relato":     ("📝", "Relato"),
+    }
+    for clave, (emoji, label) in mapa.items():
+        val = datos.get(clave)
+        if val and val not in ("null", ""):
+            lineas.append(f"{emoji} *{label}:* {val}")
+    return "\n".join(lineas) if lineas else "_(aún sin datos)_"
+
 
 # ══════════════════════════════════════════════
-#  EXTRACCION DE DATOS DEL REPORTE
-#  NUEVA ESTRATEGIA: acumular descripcion en capas
+#  EXTRACCION LOCAL — regex (nunca falla, sin red)
 # ══════════════════════════════════════════════
-def _extraer_sin_gemini(mensaje, nombre_reportante=""):
-    """
-    Extracción local con regex. Rápida, sin red, infalible.
-    Para descripcion: captura TODO el mensaje si no hay otras pistas.
-    """
-    s     = norm(mensaje)
+def _extraer_local(mensaje):
+    s = norm(mensaje)
     datos = {}
 
-    # ── Tipo de falta ──────────────────────────────────────────────
+    # Tipo de falta
     if re.search(r'\bgravis[ií]ma?\b|\btipo\s*3\b|\bfalta\s*3\b', s):
         datos["tipo_falta"] = "Gravisima"
     elif re.search(r'\bgrave\b|\btipo\s*2\b|\bfalta\s*2\b', s):
@@ -270,157 +278,229 @@ def _extraer_sin_gemini(mensaje, nombre_reportante=""):
     elif re.search(r'\bleve\b|\btipo\s*1\b|\bfalta\s*1\b|\btipo\s*uno\b', s):
         datos["tipo_falta"] = "Leve"
 
-    # ── Grado ─────────────────────────────────────────────────────
+    # Grado
     m = re.search(r'\bgrado\s*([0-9]{1,2}[-°]?[0-9a-zA-Z]{1,2})\b', s)
     if not m:
         m = re.search(r'\b([0-9]{1,2}[-°]?[0-9]?[a-zA-Z])\b', mensaje)
     if m:
         datos["grado"] = m.group(1).upper().replace("°","").replace("-","")
 
-    # ── Cancelar ──────────────────────────────────────────────────
+    # Cancelar
     if re.search(r'\bcancelar\b|\bsalir\b|\bcancel\b', s):
         datos["cancelar"] = True
 
     return datos
 
 
-async def _extraer_datos_gemini(mensaje_completo, datos_actuales, nombre_reportante="", es_respuesta_descripcion=False):
-    """
-    Extracción de datos en dos capas:
-      1. Regex local (rápido, sin red, infalible)
-      2. Gemini con prompt estricto
-    
-    NUEVO: si es_respuesta_descripcion=True, todo el mensaje se trata como descripcion directamente.
-    """
-    extraidos = _extraer_sin_gemini(mensaje_completo, nombre_reportante)
-
-    # ── DESCRIPCION: estrategia directa ───────────────────────────
-    # Si el sistema está esperando descripcion específicamente, tomamos el mensaje completo
-    if es_respuesta_descripcion:
-        texto_limpio = mensaje_completo.strip()
-        # Filtrar respuestas que son solo números (selección de sede) o muy cortas sin sentido
-        if len(texto_limpio) >= 5 and not re.match(r'^[1-6]$', texto_limpio.strip()):
-            extraidos["descripcion"] = texto_limpio
-        return extraidos
-
-    # ── Gemini para campos complejos ───────────────────────────────
-    necesita_gemini = any(
-        not datos_actuales.get(c) and not extraidos.get(c)
-        for c in ["estudiante", "descripcion"]
+# ══════════════════════════════════════════════
+#  EXTRACCION CON GEMINI
+#  SOLO para: estudiante, grado, tipo_falta
+#  El RELATO se captura SIEMPRE de forma directa
+# ══════════════════════════════════════════════
+async def _extraer_con_gemini(mensaje, datos_actuales):
+    prompt = (
+        "Eres un extractor de datos para reportes escolares.\n"
+        "Mensaje: \"" + mensaje + "\"\n\n"
+        "Responde SOLO estas líneas (texto plano, sin comillas):\n"
+        "estudiante: [nombre completo o null]\n"
+        "grado: [ej: 10A, 7B, 402 o null]\n"
+        "tipo_falta: [Leve o Grave o Gravisima o null]\n\n"
+        "Reglas: tipo1=Leve tipo2=Grave tipo3=Gravisima\n"
+        "NO extraigas descripción ni relato en este paso."
     )
+    try:
+        api_key = os.getenv("GEMINI_API_KEY", "")
+        modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 120}
+        }
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(url, json=payload)
+            d = r.json()
 
-    if necesita_gemini:
-        prompt = (
-            "Eres un extractor de datos para reportes escolares colombianos.\n"
-            "Mensaje del docente: \"" + mensaje_completo + "\"\n\n"
-            "Extrae la informacion y responde SOLO con estas lineas (texto plano, sin comillas, sin llaves):\n"
-            "estudiante: [nombre completo o null]\n"
-            "grado: [grado+grupo como 10A, 7B, o null]\n"
-            "tipo_falta: [Leve o Grave o Gravisima o null]\n"
-            "descripcion: [descripcion completa de lo ocurrido, puede ser larga, o null]\n\n"
-            "Reglas:\n"
-            "- tipo 1 = Leve | tipo 2 = Grave | tipo 3 = Gravisima\n"
-            "- Para descripcion: incluye TODA la narrativa de lo que paso, no la recortes\n"
-            "- Si el mensaje completo es una descripcion de un evento, ponlo en descripcion\n"
-            "- Si un campo no se menciona escribe null\n"
-            "- NO uses comillas ni formato JSON"
-        )
-
-        try:
-            api_key = os.getenv("GEMINI_API_KEY", "")
-            modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-            url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-                   f"{modelo}:generateContent?key={api_key}")
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.1,
-                    "maxOutputTokens": 400,
-                }
-            }
-            async with httpx.AsyncClient(timeout=18) as c:
-                r = await c.post(url, json=payload)
-                d = r.json()
-
-            if "candidates" in d:
-                raw = d["candidates"][0]["content"]["parts"][0]["text"]
-                for linea in raw.splitlines():
-                    linea = linea.strip()
-                    if ":" not in linea:
-                        continue
-                    clave, _, valor = linea.partition(":")
-                    clave  = clave.strip().lower().replace(" ", "_")
-                    valor  = valor.strip().strip('"').strip("'").strip()
-                    if valor.lower() in ("null", "ninguno mencionado", "no mencionado", "no se menciona", ""):
-                        continue
-                    if clave in CAMPOS_REPORTE and valor:
-                        extraidos[clave] = valor
-        except Exception as e:
-            print("WARN extraccion Gemini (usando solo regex): " + str(e))
-
-    return extraidos
-
-
-def _campos_faltantes(datos):
-    faltantes = []
-    for campo in CAMPOS_REPORTE:
-        val = datos.get(campo)
-        if not val or val == "null" or str(val).strip() == "":
-            faltantes.append(campo)
-    return faltantes
-
-
-def _mensaje_pedir_faltantes(faltantes):
-    if not faltantes:
-        return None
-    lineas = ["Solo me falta saber:\n"]
-    for campo in faltantes:
-        lineas.append(f"• {ETIQUETAS_CAMPO[campo]}")
-    lineas.append("\nPuedes responderme todo en un solo mensaje.")
-    return "\n".join(lineas)
+        extraidos = {}
+        if "candidates" in d:
+            raw = d["candidates"][0]["content"]["parts"][0]["text"]
+            for linea in raw.splitlines():
+                if ":" not in linea:
+                    continue
+                clave, _, valor = linea.partition(":")
+                clave = clave.strip().lower().replace(" ", "_")
+                valor = valor.strip().strip('"').strip("'")
+                if valor.lower() in ("null", "no se menciona", ""):
+                    continue
+                if clave in ("estudiante", "grado", "tipo_falta") and valor:
+                    extraidos[clave] = valor
+        return extraidos
+    except Exception as e:
+        print(f"WARN Gemini extracción: {e}")
+        return {}
 
 
 # ══════════════════════════════════════════════
-#  GESTOR PRINCIPAL DEL REPORTE
+#  REDACCION PROFESIONAL + ACCION REPARADORA
 # ══════════════════════════════════════════════
-async def gestionar_reporte_inteligente(mensaje, telefono, nombre):
+async def _procesar_relato(relato_raw, estudiante, grado, tipo_falta, sede, jornada):
+    """
+    Recibe el relato tal como lo escribió el docente.
+    Devuelve (relato_profesional, accion_reparadora).
+    Si falla, devuelve el relato original sin cambios.
+    """
+    if not relato_raw or len(relato_raw.strip()) < 5:
+        return relato_raw, ""
+
+    prompt = (
+        "Eres experto en convivencia escolar y redacción pedagógica de la "
+        "IE Simón Bolívar de Cúcuta (Colombia).\n\n"
+        "CONTEXTO DEL CASO:\n"
+        f"Estudiante: {estudiante} | Grado: {grado}\n"
+        f"Sede: {sede} | Jornada: {jornada} | Tipo de falta: {tipo_falta}\n"
+        f"Relato del docente: \"{relato_raw}\"\n\n"
+        "INSTRUCCION 1 — RELATO PROFESIONAL:\n"
+        "Reescribe el relato de forma profesional y pedagógica, como constaría en "
+        "un acta oficial de convivencia escolar. Corrige ortografía y gramática. "
+        "NO cambies los hechos. NO agregues información nueva. "
+        "Usa tercera persona, tono formal. Máximo 4 oraciones.\n\n"
+        "INSTRUCCION 2 — ACCION REPARADORA:\n"
+        "Sugiere UNA acción reparadora concreta, restaurativa y pedagógicamente "
+        "pertinente para este caso específico, con base en la Ley 1620 de 2013 "
+        "y el Manual de Convivencia Escolar. No debe ser punitiva. Máximo 3 oraciones.\n\n"
+        "Responde EXACTAMENTE con este formato (dos líneas, sin asteriscos ni comillas):\n"
+        "RELATO: [el relato redactado aquí]\n"
+        "ACCION: [la acción reparadora aquí]"
+    )
+    try:
+        api_key = os.getenv("GEMINI_API_KEY", "")
+        modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500}
+        }
+        async with httpx.AsyncClient(timeout=25) as c:
+            r = await c.post(url, json=payload)
+            d = r.json()
+
+        if "candidates" not in d:
+            return relato_raw, ""
+
+        raw = d["candidates"][0]["content"]["parts"][0]["text"].strip()
+        relato_prof = ""
+        accion_rep  = ""
+
+        for linea in raw.splitlines():
+            linea = linea.strip()
+            if linea.upper().startswith("RELATO:"):
+                relato_prof = linea.partition(":")[2].strip()
+            elif linea.upper().startswith("ACCION:"):
+                accion_rep = linea.partition(":")[2].strip()
+
+        # Fallback robusto si el modelo no respetó el formato
+        if not relato_prof and "RELATO" in raw.upper():
+            partes = re.split(r'RELATO\s*:', raw, flags=re.IGNORECASE, maxsplit=1)
+            if len(partes) > 1:
+                resto = partes[1]
+                accion_split = re.split(r'ACCION\s*:', resto, flags=re.IGNORECASE, maxsplit=1)
+                relato_prof = accion_split[0].strip()
+                if len(accion_split) > 1:
+                    accion_rep = accion_split[1].strip()
+
+        return relato_prof or relato_raw, accion_rep
+
+    except Exception as e:
+        print(f"WARN _procesar_relato: {e}")
+        return relato_raw, ""
+
+
+# ══════════════════════════════════════════════
+#  GESTOR DEL REPORTE
+#
+#  FLUJO SIMPLIFICADO (máx. 2-3 mensajes):
+#
+#  Msg 1: Docente escribe todo lo que sabe
+#    → Gemini extrae: estudiante, grado, tipo_falta
+#    → Regex detecta: sede, jornada
+#    → Si hay narrativa larga: se guarda como relato_original
+#    → Se pide lo que falta (todo junto)
+#
+#  Msg 2 (si falta relato): esperando_relato=True
+#    → Captura DIRECTA del texto completo sin pasar por Gemini
+#    → Se guarda como relato_original
+#
+#  Msg 3 (si faltaba sede): esperando_sede=True
+#    → Número 1-6 o texto libre
+#
+#  Al finalizar:
+#    → Gemini redacta relato_profesional + accion_reparadora
+#    → Se guarda en Sheets
+#    → Se envía resumen al docente
+# ══════════════════════════════════════════════
+async def gestionar_reporte(mensaje, telefono, nombre):
     global contador_reportes
     s = norm(mensaje)
 
-    # ── Cancelar en cualquier momento ─────────────────
-    if s in ["cancelar", "salir", "cancel", "no", "menu", "0"]:
+    # ── Cancelar en cualquier momento ─────────────────────────────
+    if s in ["cancelar", "salir", "cancel", "menu", "0"]:
         if telefono in formularios_activos:
             del formularios_activos[telefono]
         return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
 
-    # ── Iniciar formulario nuevo ───────────────────────
+    # ── Iniciar formulario si no existe ───────────────────────────
     if telefono not in formularios_activos:
         formularios_activos[telefono] = {
-            "datos": {},
-            "reportante": nombre or telefono,
-            "esperando_sede": False,
-            "esperando_descripcion": False,   # NUEVO FLAG
+            "datos":            {},
+            "reportante":       nombre or telefono,
+            "esperando_sede":   False,
+            "esperando_relato": False,   # ← FLAG PRINCIPAL del fix
         }
 
     form  = formularios_activos[telefono]
     datos = form["datos"]
 
-    # ══════════════════════════════════════════
-    # PASO A — Resolver sede si está esperando
-    # ══════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════
+    # ESTADO A: Esperando RELATO
+    # Captura directa — el mensaje completo ES el relato
+    # ══════════════════════════════════════════════════════════════
+    if form.get("esperando_relato"):
+        texto = mensaje.strip()
+
+        if re.match(r'^[1-6]$', texto):
+            return "📝 Por favor escribe el relato de lo ocurrido (no un número):"
+
+        if len(texto) < 8:
+            return "📝 Por favor cuéntame un poco más sobre lo que ocurrió:"
+
+        # ✅ GUARDAR RELATO DIRECTAMENTE
+        datos["relato_original"] = texto
+        datos["relato"]          = texto
+        form["esperando_relato"] = False
+        print(f"[RELATO CAPTURADO] tel={telefono} | '{texto[:80]}'")
+
+        # ¿Falta la sede?
+        if not datos.get("sede"):
+            form["esperando_sede"] = True
+            return "✅ Relato guardado.\n\n" + MENU_SEDES
+
+        faltantes = _campos_faltantes(datos)
+        if faltantes:
+            return "✅ Relato guardado.\n\n" + _mensaje_pedir_faltantes(faltantes)
+
+        return await _finalizar_reporte(telefono, nombre)
+
+    # ══════════════════════════════════════════════════════════════
+    # ESTADO B: Esperando SEDE
+    # ══════════════════════════════════════════════════════════════
     if form.get("esperando_sede"):
         sede_res = _resolver_sede_por_numero(mensaje)
         if not sede_res:
             sede_txt = _detectar_sede_en_texto(s)
             if sede_txt:
-                datos["sede"]    = sede_txt[0]
-                datos["jornada"] = sede_txt[1]
                 sede_res = (sede_txt[0], sede_txt[1], f"{sede_txt[0]} – {sede_txt[1]}")
             else:
-                return (
-                    "No reconocí esa sede. Por favor responde con el *número* del 1 al 6:\n\n"
-                    + MENU_SEDES
-                )
+                return "No reconocí esa sede. Responde con el número del *1 al 6*:\n\n" + MENU_SEDES
+
         datos["sede"]           = sede_res[0]
         datos["jornada"]        = sede_res[1]
         form["esperando_sede"]  = False
@@ -431,57 +511,71 @@ async def gestionar_reporte_inteligente(mensaje, telefono, nombre):
 
         confirmacion = f"✅ Sede: *{sede_res[2]}*\n\n"
 
-        # Si lo que falta es solo descripcion, activar modo directo
-        if faltantes == ["descripcion"]:
-            form["esperando_descripcion"] = True
-            return confirmacion + "📝 *Describe con detalle qué ocurrió:*\n_(Puedes escribir todo lo que quieras)_"
+        if faltantes == ["relato"]:
+            form["esperando_relato"] = True
+            return (confirmacion +
+                    "📝 *¿Qué ocurrió?* Escríbelo con tus palabras:\n"
+                    "_(Puedes escribir todo lo que quieras)_")
 
         return confirmacion + _mensaje_pedir_faltantes(faltantes)
 
-    # ══════════════════════════════════════════
-    # PASO B — Captura directa de descripción
-    # Cuando el sistema sabe que el usuario está
-    # respondiendo solo la descripción
-    # ══════════════════════════════════════════
-    if form.get("esperando_descripcion"):
-        texto_desc = mensaje.strip()
-        if len(texto_desc) >= 5 and not re.match(r'^[1-6]$', texto_desc):
-            datos["descripcion"] = texto_desc
-            form["esperando_descripcion"] = False
-            print(f"DEBUG descripcion capturada directamente: {texto_desc[:80]}")
+    # ══════════════════════════════════════════════════════════════
+    # ESTADO C: Esperando respuesta a campos faltantes variados
+    # Puede incluir el relato — si es el único campo que falta,
+    # se trata como captura directa
+    # ══════════════════════════════════════════════════════════════
+    if form.get("esperando_complemento"):
+        # Re-extraer con regex y Gemini
+        local = _extraer_local(mensaje)
+        for campo in ("grado", "tipo_falta"):
+            if local.get(campo) and not datos.get(campo):
+                datos[campo] = local[campo]
 
-            # Verificar si falta la sede
-            if not datos.get("sede"):
-                form["esperando_sede"] = True
-                return "✅ Descripción guardada.\n\n" + MENU_SEDES
+        try:
+            gext = await asyncio.wait_for(_extraer_con_gemini(mensaje, datos), timeout=12)
+            for campo in ("estudiante", "grado", "tipo_falta"):
+                if gext.get(campo) and not datos.get(campo):
+                    datos[campo] = gext[campo]
+        except Exception as e:
+            print(f"WARN gemini complemento: {e}")
 
-            faltantes = _campos_faltantes(datos)
-            if not faltantes:
-                return await _finalizar_reporte(telefono, nombre)
-            return "✅ Descripción guardada.\n\n" + _mensaje_pedir_faltantes(faltantes)
-        else:
-            return "📝 Por favor escribe la descripción de lo ocurrido (mínimo una oración):"
+        form["esperando_complemento"] = False
 
-    # ══════════════════════════════════════════
-    # PASO C — Extracción inteligente (primer mensaje o actualizaciones)
-    # ══════════════════════════════════════════
-    extraidos = await _extraer_datos_gemini(
-        mensaje, datos,
-        nombre_reportante=form.get("reportante", ""),
-        es_respuesta_descripcion=False
-    )
+        faltantes = _campos_faltantes(datos)
+        if not faltantes:
+            return await _finalizar_reporte(telefono, nombre)
 
-    if extraidos.get("cancelar"):
+        if faltantes == ["relato"]:
+            form["esperando_relato"] = True
+            return ("📝 *¿Qué ocurrió?* Escríbelo con tus palabras:\n"
+                    "_(Puedes escribir todo lo que quieras)_")
+
+        # Si quedaron varios campos, pedir de nuevo
+        return _mensaje_pedir_faltantes(faltantes)
+
+    # ══════════════════════════════════════════════════════════════
+    # ESTADO INICIAL: Primer mensaje del reporte
+    # ══════════════════════════════════════════════════════════════
+
+    # Extracción local
+    local = _extraer_local(mensaje)
+    if local.get("cancelar"):
         del formularios_activos[telefono]
         return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
+    for campo in ("grado", "tipo_falta"):
+        if local.get(campo):
+            datos[campo] = local[campo]
 
-    # Fusionar datos nuevos sin sobreescribir con null
-    for campo in CAMPOS_REPORTE:
-        val = extraidos.get(campo)
-        if val and val != "null" and str(val).strip():
-            datos[campo] = val
+    # Extracción Gemini (estudiante, grado, tipo_falta)
+    try:
+        gext = await asyncio.wait_for(_extraer_con_gemini(mensaje, datos), timeout=15)
+        for campo in ("estudiante", "grado", "tipo_falta"):
+            if gext.get(campo) and not datos.get(campo):
+                datos[campo] = gext[campo]
+    except Exception as e:
+        print(f"WARN gemini primer msg: {e}")
 
-    # Detectar sede en texto libre
+    # Detectar sede
     if not datos.get("sede"):
         sede_txt = _detectar_sede_en_texto(s)
         if sede_txt:
@@ -494,71 +588,70 @@ async def gestionar_reporte_inteligente(mensaje, telefono, nombre):
             datos["sede"]    = sede_num[0]
             datos["jornada"] = sede_num[1]
 
-    # ══════════════════════════════════════════
-    # PASO D — ¿Falta la sede?
-    # ══════════════════════════════════════════
-    if not datos.get("sede"):
-        form["esperando_sede"] = True
-        faltantes_sin_sede = _campos_faltantes(datos)
-        if faltantes_sin_sede:
-            msg_campos = _mensaje_pedir_faltantes(faltantes_sin_sede)
-            resumen_conocido = _resumen_parcial(datos)
-            return (
-                f"📋 *Iniciando reporte*\n{resumen_conocido}\n\n"
-                + msg_campos
-            )
-        else:
-            return "Casi listo ✅ Solo falta la sede:\n\n" + MENU_SEDES
+    # Detectar si el mensaje ya contiene un relato narrativo
+    # Heurística: mensaje largo (>50 chars) con verbos de acción → es un relato
+    palabras_narrativas = [
+        "golpeo","golpeó","agredio","agredió","insulto","insultó","mordio","mordió",
+        "empujo","empujó","robo","robó","daño","dañó","amenazó","amenazo",
+        "peleo","peleó","ocurrio","ocurrió","sucedió","sucedio","sin razon","sin razón",
+        "de manera","durante","en clase","en el salon","en el patio","mientras","cuando",
+        "hizo","dijo","fue","estaba","habia","había","presento","presentó","encontró",
+        "describio","describe","reporta","informo","informó","notifico","notificó"
+    ]
+    tiene_narrativa = any(p in s for p in palabras_narrativas)
+    if tiene_narrativa and len(mensaje) > 50 and not datos.get("relato"):
+        datos["relato_original"] = mensaje
+        datos["relato"]          = mensaje
+        print(f"[RELATO DETECTADO en 1er msg] '{mensaje[:80]}'")
 
-    # ══════════════════════════════════════════
-    # PASO E — ¿Faltan otros campos?
-    # ══════════════════════════════════════════
+    # Verificar campos faltantes
     faltantes = _campos_faltantes(datos)
 
-    if faltantes:
-        resumen_conocido = _resumen_parcial(datos)
+    # Si falta sede
+    if not datos.get("sede"):
+        form["esperando_sede"] = True
+        if faltantes:
+            resumen = _resumen_parcial(datos)
+            otros_faltantes = [f for f in faltantes if f != "relato"]
+            if otros_faltantes:
+                return (f"📋 *Iniciando reporte*\n{resumen}\n\n"
+                        + _mensaje_pedir_faltantes(otros_faltantes)
+                        + "\n\n_(Después te preguntaré la sede)_")
+        return "Casi listo ✅ Solo falta la sede:\n\n" + MENU_SEDES
 
-        # Si solo falta descripcion → activar captura directa
-        if faltantes == ["descripcion"]:
-            form["esperando_descripcion"] = True
-            return (
-                f"📋 *Ya tengo estos datos:*\n{resumen_conocido}\n\n"
-                "📝 *Describe con detalle qué ocurrió:*\n"
-                "_(Escribe libremente, con todo el detalle que quieras)_"
-            )
+    if not faltantes:
+        return await _finalizar_reporte(telefono, nombre)
 
+    resumen = _resumen_parcial(datos)
+
+    # Solo falta relato → captura directa
+    if faltantes == ["relato"]:
+        form["esperando_relato"] = True
         return (
-            f"📋 *Ya tengo estos datos:*\n{resumen_conocido}\n\n"
-            + _mensaje_pedir_faltantes(faltantes)
+            f"📋 *Ya tengo estos datos:*\n{resumen}\n\n"
+            "📝 *¿Qué ocurrió?* Escríbelo con tus palabras:\n"
+            "_(Puedes escribir todo lo que quieras)_"
         )
 
-    # ══════════════════════════════════════════
-    # PASO F — Todo completo → guardar
-    # ══════════════════════════════════════════
-    return await _finalizar_reporte(telefono, nombre)
+    # Varios campos faltantes
+    form["esperando_complemento"] = True
+    return (
+        f"📋 *Ya tengo estos datos:*\n{resumen}\n\n"
+        + _mensaje_pedir_faltantes(faltantes)
+    )
 
 
-def _resumen_parcial(datos):
-    lineas = []
-    mapa = {
-        "sede":        ("🏫", "Sede"),
-        "jornada":     ("🕐", "Jornada"),
-        "estudiante":  ("👤", "Estudiante"),
-        "grado":       ("🎒", "Grado"),
-        "tipo_falta":  ("⚠️", "Tipo"),
-        "descripcion": ("📝", "Descripción"),
-    }
-    for clave, (emoji, label) in mapa.items():
-        val = datos.get(clave)
-        if val and val != "null":
-            lineas.append(f"{emoji} *{label}:* {val}")
-    return "\n".join(lineas) if lineas else "_(aún sin datos)_"
-
-
+# ══════════════════════════════════════════════
+#  FINALIZAR REPORTE
+# ══════════════════════════════════════════════
 async def _finalizar_reporte(telefono, nombre):
     global contador_reportes
+
     form  = formularios_activos.get(telefono, {})
     datos = form.get("datos", {})
+
+    relato_original = datos.get("relato_original") or datos.get("relato", "")
+    print(f"[FINALIZAR] tel={telefono} | relato='{relato_original[:80]}' | estudiante={datos.get('estudiante')} | tipo={datos.get('tipo_falta')}")
 
     contador_reportes += 1
     ahora      = datetime.now(COL_TZ)
@@ -567,24 +660,44 @@ async def _finalizar_reporte(telefono, nombre):
     hora_str   = ahora.strftime("%I:%M %p")
     reportante = form.get("reportante", telefono)
     tipo       = datos.get("tipo_falta", "")
-    emoji      = EMOJIS_TIPO.get(tipo, "📋")
+    emoji_t    = EMOJIS_TIPO.get(tipo, "📋")
 
-    # 11 columnas: N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
-    #              Tipo | Descripción | Reportante | Teléfono
+    # ── Redacción profesional + acción reparadora ─────────────────
+    relato_prof = relato_original
+    accion_rep  = ""
+    if relato_original and len(relato_original.strip()) > 5:
+        try:
+            relato_prof, accion_rep = await asyncio.wait_for(
+                _procesar_relato(
+                    relato_original,
+                    datos.get("estudiante", ""),
+                    datos.get("grado", ""),
+                    tipo,
+                    datos.get("sede", ""),
+                    datos.get("jornada", "")
+                ),
+                timeout=25
+            )
+            print(f"[RELATO PROF] '{relato_prof[:80]}'")
+        except asyncio.TimeoutError:
+            print("WARN timeout redacción profesional")
+        except Exception as e:
+            print(f"WARN _finalizar_reporte redacción: {e}")
+
+    # ── Guardar en Sheets ─────────────────────────────────────────
+    # 13 columnas:
+    # N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
+    # Tipo | Relato Original | Relato Profesional | Acción Reparadora | Reportante | Teléfono
     fila = [
-        num_caso,
-        fecha_str,
-        hora_str,
-        datos.get("sede", ""),
-        datos.get("jornada", ""),
-        datos.get("estudiante", ""),
-        datos.get("grado", ""),
+        num_caso, fecha_str, hora_str,
+        datos.get("sede", ""), datos.get("jornada", ""),
+        datos.get("estudiante", ""), datos.get("grado", ""),
         tipo,
-        datos.get("descripcion", ""),
-        reportante,
-        limpiar_tel(telefono),
+        relato_original,
+        relato_prof,
+        accion_rep,
+        reportante, limpiar_tel(telefono),
     ]
-
     asyncio.create_task(agregar_fila_sheets(fila))
 
     if telefono in formularios_activos:
@@ -592,24 +705,35 @@ async def _finalizar_reporte(telefono, nombre):
 
     protocolo = PROTOCOLOS.get(tipo, "")
 
+    # ── Respuesta al docente ──────────────────────────────────────
     resumen = (
-        f"{emoji} *Reporte Registrado Exitosamente*\n"
+        f"{emoji_t} *Reporte Registrado Exitosamente*\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📌 *N° Caso:* {num_caso}\n"
         f"📅 *Fecha:* {fecha_str}  {hora_str}\n"
         f"🏫 *Sede:* {datos.get('sede','')} – {datos.get('jornada','')}\n"
         f"👤 *Estudiante:* {datos.get('estudiante','')}\n"
         f"🎒 *Grado:* {datos.get('grado','')}\n"
-        f"{emoji} *Tipo de falta:* {tipo}\n"
-        f"📝 *Descripción:* {datos.get('descripcion','')}\n"
+        f"{emoji_t} *Tipo de falta:* {tipo}\n\n"
+        f"📝 *Hecho registrado:*\n{relato_prof}\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
-        + protocolo + "\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"✅ Caso registrado en el sistema.\n"
-        f"📎 Número de caso: *{num_caso}*"
+        + protocolo
     )
 
-    print(f"REPORTE GUARDADO: {num_caso} | {datos.get('estudiante','')} | {tipo}")
+    if accion_rep:
+        resumen += (
+            "\n━━━━━━━━━━━━━━━━━━━━━━\n"
+            "💡 *Acción Reparadora Sugerida:*\n"
+            + accion_rep
+        )
+
+    resumen += (
+        "\n━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ Caso guardado en el sistema.\n"
+        f"📎 *N° Caso: {num_caso}*"
+    )
+
+    print(f"REPORTE OK: {num_caso} | {datos.get('estudiante','')} | {tipo}")
     return resumen
 
 
@@ -661,28 +785,28 @@ ALIAS_DOC = {
     "sanitarias":"baterias sanitarias", "funciones":"manual de funciones",
 }
 
-PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido","que habla","habla sobre","describe","como funciona","cual es","cuales son"]
+PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido","que habla","como funciona","cual es"]
 PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf"]
 PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay","actividades","bimestral","receso","periodo","semana","mes","hoy","manana","proximo","vacaciones","boletin","dia civico","reunion","padres","clausura","graduacion"]
-PALABRAS_REPORTE = ["reportar","reporte","incidente","queja","denuncia","problema de convivencia","agresion","bullying","conflicto","falta","reportar un caso","hacer un reporte"]
+PALABRAS_REPORTE = ["reportar","reporte","incidente","queja","denuncia","problema de convivencia","agresion","bullying","conflicto","falta","reportar un caso","hacer un reporte","registrar falta","anotar falta"]
+PALABRAS_PEI_CTX = ["mision","vision","filosofia","modelo pedagogico","proyecto educativo","horizonte institucional","principios","objetivos institucionales","enfoque pedagogico","perfiles","competencias","gobierno escolar","personero","contralor escolar","consejo directivo","consejo academico"]
 
-# Palabras que indican que la pregunta es de tipo institucional/educativa
-# y deberían consultar el PEI como contexto base
-PALABRAS_PEI_CONTEXT = [
-    "mision","vision","filosofia","modelo pedagogico","proyecto educativo",
-    "horizonte institucional","principios","objetivos institucionales",
-    "enfoque pedagogico","metodologia","perfiles","competencias",
-    "gobierno escolar","personero","contralor escolar","consejo directivo",
-    "consejo academico","manual","convivencia","reglamento","normas"
-]
+def buscar_doc(texto):
+    s = norm(texto)
+    for clave, val in CATALOGO.items():
+        if norm(clave) in s:
+            return clave, val[0], val[1]
+    for alias, clave in ALIAS_DOC.items():
+        if norm(alias) in s and clave in CATALOGO:
+            return clave, CATALOGO[clave][0], CATALOGO[clave][1]
+    return None, None, None
 
-pdf_cache       = {}
-historiales     = {}
-conocimiento_extra = []
-docentes_admin  = []
-
-formularios_activos = {}
-contador_reportes   = 0
+def buscar_web(texto):
+    s = norm(texto)
+    for clave, (url, desc) in WEB_LINKS.items():
+        if norm(clave) in s:
+            return url, desc
+    return None, None
 
 
 # ══════════════════════════════════════════════
@@ -694,8 +818,7 @@ def base64url(data):
     return base64.urlsafe_b64encode(data).rstrip(b'=').decode()
 
 async def obtener_token_sheets():
-    import json as json_mod
-    import time
+    import json as json_mod, time
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import padding
 
@@ -704,17 +827,14 @@ async def obtener_token_sheets():
         "iss":   SHEETS_CREDS["client_email"],
         "scope": "https://www.googleapis.com/auth/spreadsheets",
         "aud":   SHEETS_CREDS["token_uri"],
-        "exp":   now + 3600,
-        "iat":   now,
+        "exp":   now + 3600, "iat": now,
     }
     header  = base64url(json_mod.dumps({"alg":"RS256","typ":"JWT"}))
     payload = base64url(json_mod.dumps(claim))
     msg     = (header + "." + payload).encode()
-
-    key = serialization.load_pem_private_key(SHEETS_CREDS["private_key"].encode(), password=None)
-    sig = base64url(key.sign(msg, padding.PKCS1v15(), hashes.SHA256()))
-    jwt = header + "." + payload + "." + sig
-
+    key     = serialization.load_pem_private_key(SHEETS_CREDS["private_key"].encode(), password=None)
+    sig     = base64url(key.sign(msg, padding.PKCS1v15(), hashes.SHA256()))
+    jwt     = header + "." + payload + "." + sig
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(SHEETS_CREDS["token_uri"], data={
             "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
@@ -726,24 +846,17 @@ async def agregar_fila_sheets(fila):
     try:
         token = await obtener_token_sheets()
         if not token:
-            print("ERROR: No se obtuvo token de Sheets")
-            return False
-
-        url = ("https://sheets.googleapis.com/v4/spreadsheets/"
-               + SHEETS_ID + "/values/A1:K1:append"
-               "?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
-
+            print("ERROR: No se obtuvo token de Sheets"); return False
+        url = (f"https://sheets.googleapis.com/v4/spreadsheets/{SHEETS_ID}"
+               "/values/A1:M1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
         headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
-        body    = {"values": [fila]}
-
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(url, headers=headers, json=body)
-            ok   = resp.status_code == 200
-            print("SHEETS " + ("OK" if ok else "ERROR " + str(resp.status_code) + ": " + resp.text[:200]))
+            resp = await client.post(url, headers=headers, json={"values": [fila]})
+            ok = resp.status_code == 200
+            print("SHEETS " + ("OK" if ok else f"ERROR {resp.status_code}: {resp.text[:200]}"))
             return ok
     except Exception as e:
-        print("SHEETS EXCEPTION: " + str(e))
-        return False
+        print(f"SHEETS EXCEPTION: {e}"); return False
 
 
 # ══════════════════════════════════════════════
@@ -751,8 +864,7 @@ async def agregar_fila_sheets(fila):
 # ══════════════════════════════════════════════
 async def obtener_eventos(dias=60):
     key = os.getenv("GOOGLE_API_KEY","")
-    if not key:
-        return None, "sin clave"
+    if not key: return None, "sin clave"
     ahora    = datetime.now(COL_TZ)
     time_min = ahora.isoformat().replace("+","%2B")
     time_max = (ahora+timedelta(days=dias)).isoformat().replace("+","%2B")
@@ -763,42 +875,33 @@ async def obtener_eventos(dias=60):
            + "&maxResults=15&singleEvents=true&orderBy=startTime")
     try:
         async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(url)
-            d = r.json()
-        if "error" in d:
-            return None, d["error"].get("message","error")
+            r = await c.get(url); d = r.json()
+        if "error" in d: return None, d["error"].get("message","error")
         return d.get("items",[]), None
     except Exception as e:
         return None, str(e)
 
 def formatear_eventos(eventos):
-    if not eventos:
-        return "No hay eventos programados por ahora."
+    if not eventos: return "No hay eventos programados por ahora."
     lines = ["Eventos en el calendario escolar:\n"]
     for ev in eventos:
         titulo = ev.get("summary","Sin titulo")
-        inicio = ev.get("start",{})
-        fin    = ev.get("end",{})
-        fi     = inicio.get("date") or inicio.get("dateTime","")
-        ff     = fin.get("date") or fin.get("dateTime","")
-        linea  = "- " + titulo
-        if fi:
-            linea += "\n  " + formatear_fecha(fi)
-        if ff and ff != fi:
-            linea += " al " + formatear_fecha(ff)
+        inicio = ev.get("start",{}); fin = ev.get("end",{})
+        fi = inicio.get("date") or inicio.get("dateTime","")
+        ff = fin.get("date") or fin.get("dateTime","")
+        linea = "- " + titulo
+        if fi: linea += "\n  " + formatear_fecha(fi)
+        if ff and ff != fi: linea += " al " + formatear_fecha(ff)
         lines.append(linea)
     lines.append("\nCalendario completo:\nhttps://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t")
     return "\n".join(lines)
 
 
 # ══════════════════════════════════════════════
-#  DESCARGA PDF (con reintentos)
+#  DESCARGA PDF
 # ══════════════════════════════════════════════
 async def descargar_pdf_b64(url):
-    if url in pdf_cache:
-        print(f"PDF desde cache: {url[-30:]}")
-        return pdf_cache[url]
-    
+    if url in pdf_cache: return pdf_cache[url]
     for intento in range(3):
         try:
             async with httpx.AsyncClient(timeout=35, follow_redirects=True) as c:
@@ -806,123 +909,44 @@ async def descargar_pdf_b64(url):
                 if r.status_code == 200 and len(r.content) > 1000:
                     b64 = base64.b64encode(r.content).decode()
                     pdf_cache[url] = b64
-                    print(f"PDF descargado OK ({len(r.content)//1024}KB): {url[-30:]}")
                     return b64
-                raise Exception(f"HTTP {r.status_code} / size {len(r.content)}")
+                raise Exception(f"HTTP {r.status_code}")
         except Exception as e:
-            if intento < 2:
-                print(f"PDF intento {intento+1} fallo: {e}. Reintentando...")
-                await asyncio.sleep(2)
-            else:
-                raise Exception(f"No se pudo descargar PDF tras 3 intentos: {e}")
+            if intento < 2: await asyncio.sleep(2)
+            else: raise
 
 
 # ══════════════════════════════════════════════
-#  GEMINI — ANÁLISIS PROFUNDO DE PDF
-#  NUEVA ESTRATEGIA: siempre incluir el PEI como
-#  contexto institucional base + análisis exhaustivo
+#  GEMINI — ANÁLISIS PDF (exhaustivo)
 # ══════════════════════════════════════════════
 async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usuario, pdf_pei_b64=None):
-    """
-    Analiza un documento PDF con Gemini de forma exhaustiva.
-    Si se provee pdf_pei_b64, lo incluye como contexto institucional adicional.
-    """
     api_key = os.getenv("GEMINI_API_KEY","")
     modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
-    url = "https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+api_key
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
 
     instruccion = (
-        "Eres ColBot, asistente oficial de la Institución Educativa Simón Bolívar (ColBolivar) de Cúcuta.\n\n"
-        "INSTRUCCIONES DE ANÁLISIS:\n"
-        "1. Lee el documento completo de forma EXHAUSTIVA, no te limites a las primeras páginas.\n"
-        "2. Busca la información en TODOS los artículos, capítulos, secciones, anexos y párrafos.\n"
-        "3. Si la información está en el documento, SIEMPRE responde con ella. NUNCA digas 'no encontré' si está ahí.\n"
-        "4. Cita el artículo, capítulo o página exacta cuando sea posible.\n"
-        "5. Si la pregunta toca varios temas, responde todos.\n"
-        "6. Responde en español colombiano, de forma clara y organizada.\n"
-        "7. Máximo 5 párrafos o 400 palabras. Sin formato Markdown.\n\n"
-        f"DOCUMENTO ANALIZADO: {nombre_doc}\n\n"
-        f"PREGUNTA DEL USUARIO: {pregunta}\n\n"
-        "Responde ÚNICAMENTE con información del documento. Si un tema específico NO está en el documento, "
-        "indícalo brevemente y ofrece la información más cercana que sí encontraste."
-    )
-
-    # Construir partes del mensaje
-    partes = []
-
-    # Documento principal
-    partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}})
-
-    # PEI como contexto adicional si está disponible y no es el doc principal
-    if pdf_pei_b64 and "pei" not in nombre_doc.lower():
-        partes.append({
-            "text": "A continuación también tienes el PEI (Proyecto Educativo Institucional) como contexto institucional de referencia:"
-        })
-        partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_pei_b64}})
-
-    partes.append({"text": instruccion})
-
-    payload = {
-        "contents": [{"parts": partes}],
-        "generationConfig": {
-            "temperature": 0.2,
-            "maxOutputTokens": 1000,
-            "topP": 0.8,
-        }
-    }
-
-    async with httpx.AsyncClient(timeout=60) as c:
-        r = await c.post(url, json=payload)
-        d = r.json()
-
-    if "candidates" not in d:
-        err = d.get("error",{})
-        raise Exception("Gemini PDF ["+str(err.get("code","?"))+"]: "+err.get("message","error"))
-
-    return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
-
-
-async def llamar_gemini_pdf_multiturno(pregunta, documentos, telefono, nombre_usuario):
-    """
-    Versión para consultas que requieren múltiples documentos.
-    documentos = [(nombre, pdf_b64), ...]
-    """
-    api_key = os.getenv("GEMINI_API_KEY","")
-    modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
-    url = "https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+api_key
-
-    partes = []
-    nombres = []
-    for nombre_doc, pdf_b64 in documentos:
-        partes.append({"text": f"--- Documento: {nombre_doc} ---"})
-        partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}})
-        nombres.append(nombre_doc)
-
-    instruccion = (
-        "Eres ColBot de la IE Simón Bolívar. Tienes acceso a estos documentos institucionales:\n"
-        + "\n".join(f"- {n}" for n in nombres) + "\n\n"
-        "INSTRUCCIONES:\n"
-        "- Analiza TODOS los documentos de forma exhaustiva.\n"
-        "- Responde con información ESPECÍFICA y PRECISA de los documentos.\n"
-        "- Cita artículos y capítulos cuando sea posible.\n"
-        "- Si la información está en uno o más documentos, SIEMPRE respóndela.\n"
-        "- Máximo 5 párrafos. Sin Markdown.\n\n"
+        "Eres ColBot, asistente oficial de la IE Simón Bolívar de Cúcuta.\n"
+        "Lee el documento COMPLETO y de forma EXHAUSTIVA (todos los artículos, "
+        "capítulos, secciones y anexos). Si la información está en el documento, "
+        "SIEMPRE responde con ella. Cita artículos y capítulos cuando sea posible. "
+        "Máximo 5 párrafos. Sin formato Markdown.\n\n"
+        f"DOCUMENTO: {nombre_doc}\n"
         f"PREGUNTA: {pregunta}"
     )
+    partes = [{"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}}]
+    if pdf_pei_b64 and "pei" not in nombre_doc.lower():
+        partes.append({"text": "Contexto PEI institucional:"})
+        partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_pei_b64}})
     partes.append({"text": instruccion})
 
     payload = {
         "contents": [{"parts": partes}],
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1000}
     }
-
-    async with httpx.AsyncClient(timeout=90) as c:
-        r = await c.post(url, json=payload)
-        d = r.json()
-
+    async with httpx.AsyncClient(timeout=60) as c:
+        r = await c.post(url, json=payload); d = r.json()
     if "candidates" not in d:
-        raise Exception("Gemini multiPDF: " + d.get("error",{}).get("message","error"))
-
+        raise Exception("Gemini PDF: " + d.get("error",{}).get("message","error"))
     return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
 
 
@@ -932,9 +956,8 @@ async def llamar_gemini_pdf_multiturno(pregunta, documentos, telefono, nombre_us
 async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
     api_key = os.getenv("GEMINI_API_KEY","")
     modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
-    if not api_key:
-        raise Exception("GEMINI_API_KEY no configurada")
-    url = "https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+api_key
+    if not api_key: raise Exception("GEMINI_API_KEY no configurada")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
     hist    = get_hist_txt(telefono)
     primera = not bool(hist)
     extra   = "\nDATOS EXTRA:\n"+"\n".join(["- "+d for d in conocimiento_extra])+"\n" if conocimiento_extra else ""
@@ -950,11 +973,9 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
     payload = {"contents":[{"parts":[{"text":prompt}]}],
                "generationConfig":{"temperature":0.6,"maxOutputTokens":500,"topP":0.9}}
     async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.post(url, json=payload)
-        d = r.json()
+        r = await c.post(url, json=payload); d = r.json()
     if "candidates" not in d:
-        err = d.get("error",{})
-        raise Exception("Gemini ["+str(err.get("code","?"))+"]: "+err.get("message","error"))
+        raise Exception("Gemini: " + d.get("error",{}).get("message","error"))
     return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
 
 
@@ -964,59 +985,38 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
 def procesar_admin(mensaje):
     global conocimiento_extra, docentes_admin
     s = norm(mensaje)
-
     if s.startswith("aprende:"):
         dato = mensaje[8:].strip()
-        if dato:
-            conocimiento_extra.append(dato)
-            return "Aprendi: \""+dato+"\"\nTotal: "+str(len(conocimiento_extra))
+        if dato: conocimiento_extra.append(dato); return "Aprendi: \""+dato+"\"\nTotal: "+str(len(conocimiento_extra))
         return "Uso: aprende: [info]"
-
     if s in ["que sabes","que recuerdas"]:
-        return ("Datos aprendidos:\n"+"\n".join([str(i+1)+". "+d for i,d in enumerate(conocimiento_extra)])
-                if conocimiento_extra else "Sin datos extra aun.")
-
+        return ("Datos:\n"+"\n".join([str(i+1)+". "+d for i,d in enumerate(conocimiento_extra)]) if conocimiento_extra else "Sin datos.")
     if s == "olvida todo":
-        n = len(conocimiento_extra); conocimiento_extra = []
-        return "Olvide "+str(n)+" dato(s)."
-
+        n = len(conocimiento_extra); conocimiento_extra = []; return "Olvide "+str(n)+" dato(s)."
     if s.startswith("olvida:"):
         try:
             idx = int(mensaje[7:].strip())-1
             return "Eliminado: \""+conocimiento_extra.pop(idx)+"\"" if 0<=idx<len(conocimiento_extra) else "Numero invalido."
         except: return "Uso: olvida: [numero]"
-
     if s.startswith("agregar docente:"):
         tel = re.sub(r"[^0-9]","",mensaje[16:].strip())
-        if tel and tel not in docentes_admin:
-            docentes_admin.append(tel); return "Docente "+tel+" autorizado."
+        if tel and tel not in docentes_admin: docentes_admin.append(tel); return "Docente "+tel+" autorizado."
         return "Invalido o ya existe."
-
     if s.startswith("quitar docente:"):
         tel = re.sub(r"[^0-9]","",mensaje[15:].strip())
-        if tel in docentes_admin:
-            docentes_admin.remove(tel); return "Docente "+tel+" removido."
+        if tel in docentes_admin: docentes_admin.remove(tel); return "Docente "+tel+" removido."
         return "No estaba en la lista."
-
-    if s == "ver docentes":
-        return "Autorizados:\n"+("\n".join(docentes_admin) if docentes_admin else "Ninguno")
-
+    if s == "ver docentes": return "Autorizados:\n"+("\n".join(docentes_admin) if docentes_admin else "Ninguno")
     if s == "ver reportes":
-        return ("Reportes registrados: "+str(contador_reportes)+"\n"
-                "Ver en Google Sheets:\nhttps://docs.google.com/spreadsheets/d/"+SHEETS_ID)
-
+        return ("Reportes: "+str(contador_reportes)+"\nhttps://docs.google.com/spreadsheets/d/"+SHEETS_ID)
     if s == "limpiar cache":
-        n = len(pdf_cache); pdf_cache.clear()
-        return "Cache: "+str(n)+" PDF(s) eliminados."
-
+        n = len(pdf_cache); pdf_cache.clear(); return "Cache: "+str(n)+" PDF(s) eliminados."
     if s in ["comandos","admin ayuda"]:
-        return ("Comandos admin:\n\n"
-                "aprende: [dato]\nque sabes\nolvida: [num]\nolvida todo\n"
-                "agregar docente: [num]\nquitar docente: [num]\nver docentes\n"
-                "ver reportes\nlimpiar cache\ncomandos\n\n"
-                "Datos: "+str(len(conocimiento_extra))+" | PDFs: "+str(len(pdf_cache))+
-                " | Docentes: "+str(len(docentes_admin))+" | Reportes: "+str(contador_reportes))
-
+        return ("Comandos:\naprende: | que sabes | olvida: | olvida todo\n"
+                "agregar docente: | quitar docente: | ver docentes\n"
+                "ver reportes | limpiar cache | comandos\n\n"
+                f"Datos:{len(conocimiento_extra)} PDFs:{len(pdf_cache)} "
+                f"Docentes:{len(docentes_admin)} Reportes:{contador_reportes}")
     return None
 
 
@@ -1026,17 +1026,17 @@ def procesar_admin(mensaje):
 def respuesta_rapida(mensaje):
     s = norm(mensaje)
     if any(p in s for p in ["quien es el rector","rector del colegio"]):
-        return "El rector de la Institucion Educativa Simon Bolivar es el Mg. Jesus Maldonado Serrano."
-    if any(p in s for p in ["cuantos docentes","cuantos profesores","lista de docentes"]):
-        return "El ColBolivar cuenta con 95 docentes y 18 directivos y administrativos.\nConsulta el portal: https://www.webcolegios.com/simon/"
+        return "El rector del ColBolivar es el Mg. Jesus Maldonado Serrano."
+    if any(p in s for p in ["cuantos docentes","cuantos profesores"]):
+        return "El ColBolivar cuenta con 95 docentes.\nhttps://www.webcolegios.com/simon/"
     if any(p in s for p in ["plan de area","planes de area","pensum 2026"]):
-        return ("Planes de Area 2026:\n\nMatematicas:\nhttps://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny\n\nHumanidades:\nhttps://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv\n\nVer todos:\n" + WEB_BASE + "/planesdearea2026")
-    if any(p in s for p in ["telefono","correo","email","direccion","donde queda","contacto","ubicacion"]):
-        return "Calle 4 No.11A-26 San Martin, Cucuta\nTel: 5943344\nCorreo: colintsimonbolivar@semcucuta.gov.co\nFacebook: https://www.facebook.com/share/1NM1mkhhcc/"
-    if any(p in s for p in ["notas","ver notas","mis notas","consultar notas","boletin"]):
-        return "Consulta tus notas y boletines en:\nhttps://www.webcolegios.com/simon/"
+        return "Planes de Area 2026:\nhttps://"+WEB_BASE.split("//")[1]+"/planesdearea2026"
+    if any(p in s for p in ["telefono","correo","email","direccion","donde queda","contacto"]):
+        return "Calle 4 No.11A-26 San Martin, Cucuta\nTel: 5943344\nCorreo: colintsimonbolivar@semcucuta.gov.co"
+    if any(p in s for p in ["notas","ver notas","mis notas","consultar notas"]):
+        return "Consulta tus notas en:\nhttps://www.webcolegios.com/simon/"
     if any(p in s for p in ["facebook","face","redes sociales"]):
-        return "Siguenos en Facebook:\nhttps://www.facebook.com/share/1NM1mkhhcc/"
+        return "Siguenos:\nhttps://www.facebook.com/share/1NM1mkhhcc/"
     return None
 
 
@@ -1047,15 +1047,14 @@ async def procesar(mensaje, telefono, nombre):
     s = norm(mensaje)
     print("MSG [" + (nombre or telefono) + "]: " + mensaje[:100])
 
-    # FORMULARIO ACTIVO o inicio de reporte — prioridad máxima
+    # REPORTE — prioridad máxima
     if telefono in formularios_activos or any(p in s for p in PALABRAS_REPORTE):
-        return await gestionar_reporte_inteligente(mensaje, telefono, nombre)
+        return await gestionar_reporte(mensaje, telefono, nombre)
 
     # ADMIN
     if es_admin(telefono):
         resp_admin = procesar_admin(mensaje)
-        if resp_admin is not None:
-            return resp_admin
+        if resp_admin is not None: return resp_admin
 
     # SALUDO
     saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start"]
@@ -1063,28 +1062,27 @@ async def procesar(mensaje, telefono, nombre):
         tiene_hist = bool(historiales.get(telefono))
         nombre_txt = nombre or ""
         if tiene_hist:
-            return "Hola de nuevo"+(", "+nombre_txt if nombre_txt else "")+"! En que te puedo ayudar?"
+            return "Hola de nuevo"+(", "+nombre_txt if nombre_txt else "")+"! ¿En qué te ayudo?"
         return ("Hola"+(", "+nombre_txt if nombre_txt else "")+"! Soy ColBot del "+SCHOOL_NAME+".\n\n"
                 "Puedo ayudarte con:\n"
-                "- Informacion del colegio y docentes\n"
-                "- Calendario escolar y eventos\n"
-                "- Documentos y planes de area\n"
-                "- Notas (portal Webcolegios)\n"
-                "- Reportar incidentes de convivencia\n\n"
-                "Escribe tu pregunta!")
+                "• Información del colegio\n"
+                "• Calendario escolar y eventos\n"
+                "• Documentos y planes de área\n"
+                "• Notas (portal Webcolegios)\n"
+                "• Reportar faltas de convivencia\n\n"
+                "¿En qué te ayudo?")
 
     # RESPUESTA RAPIDA
     rapida = respuesta_rapida(mensaje)
     if rapida:
-        guardar_hist(telefono,"u",mensaje); guardar_hist(telefono,"a",rapida)
-        return rapida
+        guardar_hist(telefono,"u",mensaje); guardar_hist(telefono,"a",rapida); return rapida
 
     # LISTA DOCUMENTOS
     if any(p in s for p in ["que documentos","lista documentos","que manuales"]):
         lines = ["Documentos oficiales:\n"]
         for i,(k,(n,_)) in enumerate(CATALOGO.items(),1):
-            lines.append("  "+str(i)+". "+n)
-        lines.append("\nPideme cualquiera: dame el [nombre]")
+            lines.append(f"  {i}. {n}")
+        lines.append("\nPídeme cualquiera por nombre.")
         return "\n".join(lines)
 
     # CALENDARIO
@@ -1104,94 +1102,42 @@ async def procesar(mensaje, telefono, nombre):
             guardar_hist(telefono,"a",resp); return resp
         except: return "No pude consultar el calendario. Intentalo de nuevo."
 
-    # ══════════════════════════════════════════
-    #  DOCUMENTOS PDF — ANÁLISIS PROFUNDO
-    #  Nueva lógica: siempre cargar PEI como contexto base
-    # ══════════════════════════════════════════
+    # DOCUMENTOS PDF
     clave_doc, nom_doc, url_doc = buscar_doc(mensaje)
-    
-    # Detectar si la pregunta requiere contexto del PEI aunque no lo pidan explícitamente
-    necesita_pei_ctx = (
-        clave_doc and clave_doc != "pei" and
-        any(p in s for p in PALABRAS_PEI_CONTEXT)
-    )
-    
     if clave_doc:
-        # Siempre intentar leer el documento (no solo con palabras_leer)
-        # Solo dar enlace si el usuario explícitamente pide descarga
-        solo_enlace = (
-            any(p in s for p in PALABRAS_ENLACE) and
-            not any(p in s for p in PALABRAS_LEER)
-        )
-        
+        solo_enlace = (any(p in s for p in PALABRAS_ENLACE) and not any(p in s for p in PALABRAS_LEER))
         if solo_enlace:
             return nom_doc + "\n\nDescarga:\n" + url_doc
-
         guardar_hist(telefono, "u", mensaje)
         try:
-            # Descargar documento principal
             pdf_b64 = await asyncio.wait_for(descargar_pdf_b64(url_doc), timeout=35)
-            
-            # Intentar cargar PEI como contexto adicional si aplica
             pdf_pei = None
-            if necesita_pei_ctx or any(p in s for p in ["contexto","institucional","objetivo","mision","vision"]):
-                try:
-                    url_pei = CATALOGO["pei"][1]
-                    pdf_pei = await asyncio.wait_for(descargar_pdf_b64(url_pei), timeout=30)
-                    print("PEI cargado como contexto adicional")
-                except Exception as ep:
-                    print(f"No se pudo cargar PEI como contexto: {ep}")
-
+            if clave_doc != "pei" and any(p in s for p in PALABRAS_PEI_CTX):
+                try: pdf_pei = await asyncio.wait_for(descargar_pdf_b64(CATALOGO["pei"][1]), timeout=25)
+                except: pass
             resp = await asyncio.wait_for(
                 llamar_gemini_pdf(mensaje, nom_doc, pdf_b64, telefono, nombre, pdf_pei_b64=pdf_pei),
                 timeout=55
             )
             resp = f"(Según el {nom_doc})\n\n" + resp
-
         except asyncio.TimeoutError:
-            resp = f"El documento tardó demasiado en cargar. Puedes descargarlo directamente:\n{url_doc}"
+            resp = f"El documento tardó demasiado. Descárgalo:\n{url_doc}"
         except Exception as e:
-            print("ERROR PDF: " + str(e))
-            resp = f"No pude leer el documento en este momento. Descárgalo aquí:\n{url_doc}"
+            print("ERROR PDF: " + str(e)); resp = f"No pude leer el documento. Descárgalo:\n{url_doc}"
+        guardar_hist(telefono, "a", resp); return resp
 
-        guardar_hist(telefono, "a", resp)
-        return resp
-
-    # ══════════════════════════════════════════
-    #  PREGUNTAS INSTITUCIONALES SIN DOC ESPECÍFICO
-    #  → Enviar PEI + Manual de Convivencia como contexto
-    # ══════════════════════════════════════════
-    if any(p in s for p in PALABRAS_PEI_CONTEXT):
+    # PREGUNTAS INSTITUCIONALES → PEI automático
+    if any(p in s for p in PALABRAS_PEI_CTX):
         guardar_hist(telefono, "u", mensaje)
         try:
-            docs_a_cargar = []
-            url_pei = CATALOGO["pei"][1]
-            pdf_pei = await asyncio.wait_for(descargar_pdf_b64(url_pei), timeout=30)
-            docs_a_cargar.append(("PEI - Proyecto Educativo Institucional", pdf_pei))
-            
-            # Si la pregunta es sobre convivencia/normas, agregar también el manual
-            if any(p in s for p in ["convivencia","manual","norma","reglamento","gobierno escolar"]):
-                try:
-                    url_conv = CATALOGO["manual de convivencia"][1]
-                    pdf_conv = await asyncio.wait_for(descargar_pdf_b64(url_conv), timeout=30)
-                    docs_a_cargar.append(("Manual de Convivencia", pdf_conv))
-                except Exception as ec:
-                    print(f"No se pudo cargar Manual Convivencia: {ec}")
-            
-            if docs_a_cargar:
-                resp = await asyncio.wait_for(
-                    llamar_gemini_pdf_multiturno(mensaje, docs_a_cargar, telefono, nombre),
-                    timeout=70
-                )
-            else:
-                resp = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre), timeout=25)
-                
-            guardar_hist(telefono, "a", resp)
-            return resp
+            pdf_pei = await asyncio.wait_for(descargar_pdf_b64(CATALOGO["pei"][1]), timeout=30)
+            resp = await asyncio.wait_for(
+                llamar_gemini_pdf(mensaje, "PEI - Proyecto Educativo Institucional", pdf_pei, telefono, nombre),
+                timeout=55
+            )
+            guardar_hist(telefono, "a", resp); return resp
         except Exception as e:
-            print(f"ERROR PEI context: {e}")
-            # Fallback a Gemini normal
-            pass
+            print(f"ERROR PEI auto: {e}")
 
     # ENLACE WEB
     if any(p in s for p in PALABRAS_ENLACE):
@@ -1205,8 +1151,7 @@ async def procesar(mensaje, telefono, nombre):
     except asyncio.TimeoutError:
         resp = "La consulta tardó demasiado. Intentalo de nuevo."
     except Exception as e:
-        print("ERROR GEMINI: " + str(e))
-        resp = "Tuve un problema. Intentalo de nuevo."
+        print("ERROR GEMINI: " + str(e)); resp = "Tuve un problema. Intentalo de nuevo."
     guardar_hist(telefono, "a", resp)
     print("OK -> " + (nombre or telefono))
     return resp
