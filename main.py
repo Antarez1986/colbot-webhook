@@ -1035,7 +1035,7 @@ ALIAS_DOC = {
 }
 PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido","que habla","como funciona","cual es"]
 PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf"]
-PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay","actividades","bimestral","receso","periodo","semana","mes","hoy","manana","proximo","vacaciones","boletin","dia civico","reunion","padres","clausura","graduacion"]
+PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay","actividades","bimestral","receso","periodo","semana","mes","hoy","manana","mañana","proximo","próximo","vacaciones","boletin","boletín","dia civico","reunion","reunión","padres","clausura","graduacion","graduación","izado","izad","capacitacion","capacitación","prueba saber","matricula","matrícula","festivo","festivos","puente","semana santa","semana de receso","dias libres","suspensión","suspension","paro","sin clases"]
 
 # ══════════════════════════════════════════════
 #  DETECCIÓN SEMÁNTICA DE INTENCIÓN DE REPORTE
@@ -1443,22 +1443,39 @@ async def procesar(mensaje, telefono, nombre):
         lines.append("\nPídeme cualquiera por nombre.")
         return "\n".join(lines)
 
-    # CALENDARIO
+    # CALENDARIO — AGREGAR EVENTO (docentes autorizados)
+    clave_cal = _cal_clave(telefono)
+    hay_flujo_cal = clave_cal in borradores_cache
+    if hay_flujo_cal or (es_intencion_agregar_evento(s) and es_admin(telefono)):
+        if not es_admin(telefono):
+            return "⚠️ Solo los docentes autorizados pueden agregar eventos al calendario.\nPide al administrador que te autorice."
+        return await gestionar_agregar_evento(mensaje, telefono, nombre)
+
+    # CALENDARIO — CONSULTA
     if any(p in s for p in PALABRAS_CALENDAR):
         guardar_hist(telefono,"u",mensaje)
+        # Detectar filtro de sede y rango de días
+        filtro_sede = _detectar_sede_filtro(s)
+        if any(p in s for p in ["hoy","manana","mañana"]):
+            dias = 2
+        elif any(p in s for p in ["semana","proximos dias","próximos días"]):
+            dias = 7
+        elif any(p in s for p in ["mes","este mes","proximo mes","próximo mes"]):
+            dias = 31
+        elif any(p in s for p in ["trimestre","periodo","período"]):
+            dias = 90
+        else:
+            dias = 60
+
         try:
-            dias = 7 if any(p in s for p in ["hoy","manana","semana"]) else 31 if "mes" in s else 60
-            eventos, err = await asyncio.wait_for(obtener_eventos(dias), timeout=12)
+            eventos, err = await asyncio.wait_for(obtener_eventos(dias, max_results=50), timeout=12)
             if not err and eventos is not None:
-                ctx = "\nCALENDARIO:\n" + formatear_eventos(eventos)
-                resp = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre, ctx), timeout=25)
+                # Respuesta directa con formato visual rico — sin pasar por Gemini
+                resp = formatear_eventos(eventos, filtro_sede)
                 guardar_hist(telefono,"a",resp); return resp
         except Exception as e:
             print("ERROR CALENDAR: "+str(e))
-        try:
-            resp = await asyncio.wait_for(llamar_gemini(mensaje,telefono,nombre), timeout=25)
-            guardar_hist(telefono,"a",resp); return resp
-        except: return "No pude consultar el calendario. Intentalo de nuevo."
+        return "No pude consultar el calendario. Intentalo de nuevo. 😔"
 
     # DOCUMENTOS PDF
     clave_doc, nom_doc, url_doc = buscar_doc(mensaje)
@@ -1523,9 +1540,70 @@ async def procesar(mensaje, telefono, nombre):
 
 
 # ══════════════════════════════════════════════
-#  GOOGLE CALENDAR
+#  GOOGLE CALENDAR — MÓDULO POTENCIADO
+#  • Lectura con filtro de sede / tipo
+#  • Formato visual rico para WhatsApp
+#  • Creación de eventos desde WhatsApp (docentes autorizados)
+#  • Convención de títulos: "[SEDE] Título | descripción"
+#    Sedes válidas: [SB]=Simón Bolívar, [SM]=San Martín,
+#                  [HA]=Hernando Acevedo, [TODAS]=todas las sedes
 # ══════════════════════════════════════════════
-async def obtener_eventos(dias=60):
+
+# Emojis por tipo de evento (se detecta por palabras clave en el título)
+EMOJI_EVENTO = {
+    "reunion":    "🤝", "reunión":    "🤝",
+    "entrega":    "📝", "informe":    "📋", "boletin":    "📋", "boletín": "📋",
+    "izad":       "🇨🇴", "izado":      "🇨🇴", "civico":     "🇨🇴", "cívico": "🇨🇴",
+    "vacacion":   "🏖️", "vacaciones": "🏖️", "receso":     "🏖️",
+    "clausura":   "🎓", "graduacion": "🎓", "graduación": "🎓",
+    "matricula":  "📒", "matrícula":  "📒", "inscripcion":"📒",
+    "capacitacion":"📚","formacion":  "📚", "taller":     "📚",
+    "prueba":     "✏️", "saber":      "✏️", "evaluacion": "✏️", "examen": "✏️",
+    "padres":     "👨‍👩‍👧", "acudientes":  "👨‍👩‍👧", "familia":    "👨‍👩‍👧",
+    "deportivo":  "⚽", "deporte":    "⚽", "juego":      "⚽",
+    "cultural":   "🎭", "festival":   "🎭", "muestra":    "🎭",
+    "salida":     "🚌", "visita":     "🚌", "excursion":  "🚌",
+    "paro":       "⚠️", "suspension": "⚠️", "suspensión": "⚠️",
+}
+
+EMOJI_SEDE = {
+    "[SB]":    "🏫 Simón Bolívar",
+    "[SM]":    "🏫 San Martín",
+    "[HA]":    "🏫 Hernando Acevedo",
+    "[TODAS]": "🏫 Todas las sedes",
+    "":        "🏫 General",
+}
+
+URL_CALENDAR_PUBLIC = "https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t"
+
+def _emoji_evento(titulo: str) -> str:
+    t = titulo.lower()
+    for clave, emoji in EMOJI_EVENTO.items():
+        if clave in t:
+            return emoji
+    return "📅"
+
+def _extraer_sede_titulo(titulo: str):
+    """Extrae tag de sede del título. Retorna (sede_label, titulo_limpio)."""
+    import re
+    m = re.match(r"^(\[(?:SB|SM|HA|TODAS)\])\s*", titulo.strip(), re.IGNORECASE)
+    if m:
+        tag = m.group(1).upper()
+        titulo_limpio = titulo[m.end():].strip()
+        return tag, titulo_limpio
+    return "", titulo.strip()
+
+def _detectar_sede_filtro(s: str):
+    """Detecta si el usuario quiere filtrar por sede."""
+    if any(p in s for p in ["simon bolivar","sede central","[sb]","sede sb"]):
+        return "[SB]"
+    if any(p in s for p in ["san martin","san martín","[sm]","sede sm"]):
+        return "[SM]"
+    if any(p in s for p in ["hernando acevedo","[ha]","sede ha"]):
+        return "[HA]"
+    return None  # sin filtro = mostrar todas
+
+async def obtener_eventos(dias=60, max_results=30):
     key = os.getenv("GOOGLE_API_KEY","")
     if not key: return None, "sin clave"
     ahora    = datetime.now(COL_TZ)
@@ -1535,7 +1613,7 @@ async def obtener_eventos(dias=60):
            + CALENDAR_ID.replace("@","%40")
            + "/events?key=" + key
            + "&timeMin=" + time_min + "&timeMax=" + time_max
-           + "&maxResults=15&singleEvents=true&orderBy=startTime")
+           + f"&maxResults={max_results}&singleEvents=true&orderBy=startTime")
     try:
         async with httpx.AsyncClient(timeout=15) as c:
             r = await c.get(url); d = r.json()
@@ -1544,20 +1622,320 @@ async def obtener_eventos(dias=60):
     except Exception as e:
         return None, str(e)
 
-def formatear_eventos(eventos):
-    if not eventos: return "No hay eventos programados por ahora."
-    lines = ["Eventos en el calendario escolar:\n"]
+async def crear_evento_calendar(titulo: str, fecha_str: str, descripcion: str = "",
+                                 hora_inicio: str = "", hora_fin: str = "") -> tuple:
+    """
+    Crea un evento en Google Calendar usando Service Account.
+    fecha_str: "2026-04-15"
+    hora_inicio/fin: "08:00" (opcional; si vacío → evento de todo el día)
+    Retorna (True, id_evento) o (False, mensaje_error)
+    """
+    try:
+        token = await obtener_token_sheets()  # mismo SA, mismo token
+        if not token:
+            return False, "No se pudo obtener autorización"
+
+        cal_id_enc = CALENDAR_ID.replace("@", "%40")
+        url = f"https://www.googleapis.com/calendar/v3/calendars/{cal_id_enc}/events"
+        headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+
+        if hora_inicio:
+            # Evento con hora
+            tz = "America/Bogota"
+            start = {"dateTime": f"{fecha_str}T{hora_inicio}:00", "timeZone": tz}
+            end_t = hora_fin if hora_fin else _sumar_hora(hora_inicio, 1)
+            end   = {"dateTime": f"{fecha_str}T{end_t}:00",   "timeZone": tz}
+        else:
+            # Evento de todo el día
+            start = {"date": fecha_str}
+            end   = {"date": fecha_str}
+
+        body = {"summary": titulo, "description": descripcion, "start": start, "end": end}
+
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(url, headers=headers, json=body)
+            d = r.json()
+
+        if r.status_code in (200, 201):
+            return True, d.get("id","")
+        else:
+            msg = d.get("error",{}).get("message","error desconocido")
+            print(f"CALENDAR CREATE ERROR {r.status_code}: {msg}")
+            return False, msg
+    except Exception as e:
+        print(f"CALENDAR CREATE excepcion: {e}")
+        return False, str(e)
+
+def _sumar_hora(hora_str: str, horas: int) -> str:
+    h, m = map(int, hora_str.split(":"))
+    h = (h + horas) % 24
+    return f"{h:02d}:{m:02d}"
+
+def _dias_para(fecha_str: str) -> int:
+    """Días que faltan para una fecha ISO."""
+    try:
+        d = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+        hoy = datetime.now(COL_TZ).date()
+        return (d - hoy).days
+    except:
+        return 999
+
+def formatear_eventos(eventos, filtro_sede: str = None) -> str:
+    if not eventos:
+        return "No hay eventos programados por ahora. 📭"
+
+    # Filtrar por sede si se pidió
+    if filtro_sede:
+        eventos = [e for e in eventos
+                   if filtro_sede.upper() in (e.get("summary","")).upper()
+                   or "[TODAS]" in (e.get("summary","")).upper()]
+
+    if not eventos:
+        sede_label = EMOJI_SEDE.get(filtro_sede, filtro_sede)
+        return f"No hay eventos para {sede_label} en este período. 📭"
+
+    # Agrupar por mes
+    from collections import defaultdict
+    por_mes = defaultdict(list)
+    MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio",
+             "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+
     for ev in eventos:
-        titulo = ev.get("summary","Sin titulo")
-        inicio = ev.get("start",{}); fin = ev.get("end",{})
+        inicio = ev.get("start",{})
         fi = inicio.get("date") or inicio.get("dateTime","")
-        ff = fin.get("date") or fin.get("dateTime","")
-        linea = "- " + titulo
-        if fi: linea += "\n  " + formatear_fecha(fi)
-        if ff and ff != fi: linea += " al " + formatear_fecha(ff)
-        lines.append(linea)
-    lines.append("\nCalendario completo:\nhttps://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t")
+        if fi:
+            try:
+                mes = int(fi[5:7])
+            except:
+                mes = 0
+        else:
+            mes = 0
+        por_mes[mes].append(ev)
+
+    lines = []
+    ahora = datetime.now(COL_TZ)
+
+    for mes in sorted(por_mes.keys()):
+        lines.append("")
+        lines.append("📆 *" + (MESES[mes] if mes else "Sin fecha") + "*")
+        lines.append("─────────────────────")
+        for ev in por_mes[mes]:
+            titulo_raw = ev.get("summary","Sin título")
+            sede_tag, titulo = _extraer_sede_titulo(titulo_raw)
+            emoji = _emoji_evento(titulo)
+            sede_label = EMOJI_SEDE.get(sede_tag, "")
+
+            inicio = ev.get("start",{})
+            fin    = ev.get("end",{})
+            fi = inicio.get("date") or inicio.get("dateTime","")
+            ff = fin.get("date")    or fin.get("dateTime","")
+            desc = (ev.get("description") or "").strip()
+
+            # Fecha formateada
+            fecha_fmt = formatear_fecha(fi) if fi else ""
+            fecha_fin_fmt = formatear_fecha(ff) if (ff and ff != fi) else ""
+
+            # Días restantes
+            dias_rest = _dias_para(fi[:10]) if fi else 999
+            if   dias_rest == 0:  urgencia = " 🔴 *¡HOY!*"
+            elif dias_rest == 1:  urgencia = " 🟠 *¡Mañana!*"
+            elif dias_rest <= 7:  urgencia = f" 🟡 _{dias_rest} días_"
+            elif dias_rest < 0:   urgencia = ""
+            else:                 urgencia = ""
+
+            linea = f"{emoji} *{titulo}*{urgencia}"
+            if sede_label:
+                linea += "\n   " + sede_label
+            if fecha_fmt:
+                linea += "\n   📅 " + fecha_fmt
+                if fecha_fin_fmt:
+                    linea += f" → {fecha_fin_fmt}"
+            if desc:
+                linea += "\n   💬 _" + desc[:120] + "_"
+            lines.append(linea)
+
+    lines.append("\n─────────────────────")
+    lines.append(f"🔗 Ver calendario completo:\n{URL_CALENDAR_PUBLIC}")
     return "\n".join(lines)
+
+
+# ══════════════════════════════════════════════
+#  GESTIÓN DE CREACIÓN DE EVENTOS (docentes autorizados)
+#  Flujo conversacional para agregar eventos al calendario
+#  Estado en borradores_cache con prefijo "cal_"
+# ══════════════════════════════════════════════
+
+# Estados del flujo
+CAL_CAMPOS = ["titulo","sede","fecha","hora","descripcion"]
+
+CAL_PREGUNTAS = {
+    "titulo":      "📝 ¿Cuál es el *título* del evento?\n_(ej: Reunión de padres, Izado de bandera, Entrega de boletines)_",
+    "sede":        ("🏫 ¿A qué sede(s) aplica?\n"
+                    "━━━━━━━━━━━━━━━━\n"
+                    "1️⃣  Simón Bolívar\n"
+                    "2️⃣  San Martín\n"
+                    "3️⃣  Hernando Acevedo\n"
+                    "4️⃣  Todas las sedes\n"
+                    "━━━━━━━━━━━━━━━━\n"
+                    "Responde con el número."),
+    "fecha":       "📅 ¿Qué fecha? Escríbela así: *DD/MM/AAAA*\n_(ej: 15/04/2026)_",
+    "hora":        "⏰ ¿Tiene hora específica?\n• Escribe la hora en formato 24h (ej: *14:30*)\n• O escribe *no* si es evento de todo el día",
+    "descripcion": "💬 ¿Algún detalle adicional? (opcional)\n_Escribe la descripción o *no* para omitir_",
+}
+
+SEDES_CAL = {
+    "1": ("[SB]",    "Simón Bolívar"),
+    "2": ("[SM]",    "San Martín"),
+    "3": ("[HA]",    "Hernando Acevedo"),
+    "4": ("[TODAS]", "Todas las sedes"),
+    "simon bolivar": ("[SB]", "Simón Bolívar"),
+    "san martin":    ("[SM]", "San Martín"),
+    "hernando acevedo": ("[HA]", "Hernando Acevedo"),
+    "todas":         ("[TODAS]", "Todas las sedes"),
+}
+
+def _cal_clave(telefono): return "cal_" + limpiar_tel(telefono)
+
+async def gestionar_agregar_evento(mensaje: str, telefono: str, nombre: str) -> str:
+    """Flujo conversacional para crear un evento en Google Calendar."""
+    s = norm(mensaje)
+    clave = _cal_clave(telefono)
+
+    # Cancelar
+    if s in ["cancelar","salir","cancel","0"]:
+        borradores_cache.pop(clave, None)
+        return "✅ Creación de evento cancelada."
+
+    b = borradores_cache.get(clave, {})
+
+    # ── Si no hay estado, iniciar flujo ───────────────────────
+    if not b:
+        b = {"paso": 0}
+        borradores_cache[clave] = b
+
+    paso = b.get("paso", 0)
+    campo_actual = CAL_CAMPOS[paso] if paso < len(CAL_CAMPOS) else None
+
+    # ── Procesar respuesta del paso actual ────────────────────
+    if campo_actual == "titulo":
+        if len(mensaje.strip()) < 3:
+            return "El título debe tener al menos 3 caracteres. ¿Cómo se llama el evento?"
+        b["titulo"] = mensaje.strip()
+        b["paso"] = 1
+        borradores_cache[clave] = b
+        return CAL_PREGUNTAS["sede"]
+
+    elif campo_actual == "sede":
+        res = SEDES_CAL.get(s) or SEDES_CAL.get(mensaje.strip())
+        if not res:
+            return "No reconocí la sede. Responde con el número del *1 al 4*:\n\n" + CAL_PREGUNTAS["sede"]
+        b["sede_tag"], b["sede_label"] = res
+        b["paso"] = 2
+        borradores_cache[clave] = b
+        return CAL_PREGUNTAS["fecha"]
+
+    elif campo_actual == "fecha":
+        # Parsear DD/MM/AAAA
+        import re as _re
+        m = _re.search(r"(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{4})", mensaje)
+        if not m:
+            return "No entendí la fecha. Escríbela así: *DD/MM/AAAA* (ej: 15/04/2026)"
+        dia, mes, anio = m.group(1), m.group(2), m.group(3)
+        try:
+            from datetime import date as _date
+            _date(int(anio), int(mes), int(dia))  # validar
+        except:
+            return "Fecha inválida. Verifica el día y mes (ej: 15/04/2026)"
+        b["fecha_iso"] = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
+        b["fecha_display"] = f"{dia.zfill(2)}/{mes.zfill(2)}/{anio}"
+        b["paso"] = 3
+        borradores_cache[clave] = b
+        return CAL_PREGUNTAS["hora"]
+
+    elif campo_actual == "hora":
+        import re as _re
+        if s in ["no","n","sin hora","todo el dia","todo el día","no tiene"]:
+            b["hora"] = ""
+        else:
+            m = _re.search(r"(\d{1,2})[:\.](\d{2})", mensaje)
+            if m:
+                h, mi = int(m.group(1)), int(m.group(2))
+                if 0 <= h <= 23 and 0 <= mi <= 59:
+                    b["hora"] = f"{h:02d}:{mi:02d}"
+                else:
+                    return "Hora inválida. Escríbela en formato 24h (ej: 14:30) o escribe *no*"
+            else:
+                return "No entendí la hora. Escríbela en formato 24h (ej: *08:00*, *14:30*) o escribe *no*"
+        b["paso"] = 4
+        borradores_cache[clave] = b
+        return CAL_PREGUNTAS["descripcion"]
+
+    elif campo_actual == "descripcion":
+        b["descripcion"] = "" if s in ["no","n","ninguna","omitir","-"] else mensaje.strip()
+        b["paso"] = 5
+        borradores_cache[clave] = b
+        # Mostrar resumen y confirmar
+        hora_txt = b.get("hora","") or "Todo el día"
+        resumen = (
+            "📋 *Resumen del evento:*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"📝 *Título:*  {b['titulo']}\n"
+            f"🏫 *Sede:*   {b['sede_label']}\n"
+            f"📅 *Fecha:*  {b['fecha_display']}\n"
+            f"⏰ *Hora:*   {hora_txt}\n"
+        )
+        if b.get("descripcion"):
+            resumen += f"💬 *Detalle:* {b['descripcion']}\n"
+        resumen += "━━━━━━━━━━━━━━━━━━━━\n"
+        resumen += "¿Confirmas? Responde *sí* para guardar o *no* para cancelar."
+        return resumen
+
+    elif paso == 5:
+        # Confirmación
+        if s in ["si","sí","s","yes","confirmar","ok","correcto","guardar"]:
+            # Construir título con tag de sede
+            titulo_final = f"{b['sede_tag']} {b['titulo']}"
+            ok, resultado = await crear_evento_calendar(
+                titulo_final,
+                b["fecha_iso"],
+                b.get("descripcion",""),
+                b.get("hora",""),
+            )
+            borradores_cache.pop(clave, None)
+            if ok:
+                hora_txt = b.get("hora","") or "Todo el día"
+                return (
+                    f"✅ *¡Evento agregado al calendario!*\n\n"
+                    f"📝 *{b['titulo']}*\n"
+                    f"🏫 {b['sede_label']}\n"
+                    f"📅 {b['fecha_display']} — {hora_txt}\n\n"
+                    f"🔗 Ver en el calendario:\n{URL_CALENDAR_PUBLIC}"
+                )
+            else:
+                return (
+                    f"❌ No pude crear el evento: {resultado}\n"
+                    "Verifica que el bot tenga permisos de escritura en el calendario."
+                )
+        else:
+            borradores_cache.pop(clave, None)
+            return "Evento cancelado. ¿En qué más te puedo ayudar? 😊"
+
+    # Si llegamos aquí sin estado válido, reiniciar
+    b = {"paso": 0}
+    borradores_cache[clave] = b
+    return CAL_PREGUNTAS["titulo"]
+
+
+def es_intencion_agregar_evento(s: str) -> bool:
+    """Detecta si el docente quiere agregar un evento al calendario."""
+    TRIGGERS = [
+        "agregar evento","añadir evento","crear evento","nuevo evento",
+        "programar evento","agendar","agrega al calendario","añade al calendario",
+        "agrega una fecha","añade una fecha","crear una fecha","programar una fecha",
+        "agregar al calendario","agregar fecha","nueva fecha en el calendario",
+        "registrar evento","poner en el calendario","anota en el calendario",
+    ]
+    return any(p in s for p in TRIGGERS)
 
 
 # ══════════════════════════════════════════════
