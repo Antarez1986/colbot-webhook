@@ -591,22 +591,32 @@ async def _procesar_detalle(detalle_raw, estudiante, grado, tipo_falta, sede, jo
         return detalle_raw, ""
 
     prompt = (
-        "Eres experto en convivencia escolar y redacción pedagógica de la "
-        "IE Simón Bolívar de Cúcuta (Colombia), con dominio de la Ley 1620 de 2013.\n\n"
-        "CONTEXTO:\n"
-        f"Estudiante: {estudiante} | Grado: {grado}\n"
-        f"Sede: {sede} | Jornada: {jornada} | Tipo de falta: {tipo_falta}\n"
-        f"Detalle del docente: \"{detalle_raw}\"\n\n"
-        "TAREA 1 — REDACCIÓN PROFESIONAL:\n"
-        "Reescribe el detalle como constaría en un acta oficial de convivencia escolar. "
-        "Usa tercera persona, tono formal, sin faltas ortográficas. "
-        "NO cambies los hechos. NO agregues información nueva. Máximo 4 oraciones.\n\n"
-        "TAREA 2 — ACCIÓN REPARADORA:\n"
-        "Sugiere UNA acción reparadora restaurativa y pedagógicamente pertinente "
-        "para este caso, con base en la Ley 1620 de 2013. No punitiva. Máximo 3 oraciones.\n\n"
-        "Formato EXACTO (sin asteriscos, sin comillas):\n"
-        "DETALLE: [redacción profesional aquí]\n"
-        "ACCION: [acción reparadora aquí]"
+        "Eres el secretario académico y experto en convivencia escolar de la IE Simón Bolívar "
+        "de Cúcuta (Colombia). Tienes pleno dominio de la Ley 1620 de 2013, el Decreto 1965 de 2013 "
+        "y el Manual de Convivencia institucional.\n\n"
+        "DATOS DEL CASO:\n"
+        f"- Estudiante: {estudiante}\n"
+        f"- Grado: {grado}\n"
+        f"- Sede: {sede} | Jornada: {jornada}\n"
+        f"- Clasificación de la falta: {tipo_falta}\n"
+        f"- Relato del docente: {detalle_raw}\n\n"
+        "TAREA 1 — REDACCIÓN PROFESIONAL DEL HECHO:\n"
+        "Redacta el hecho como aparecería en un acta oficial de convivencia escolar. "
+        "Requisitos: tercera persona, vocabulario técnico-pedagógico, tono formal e institucional, "
+        "sin faltas ortográficas. Menciona explícitamente el nombre completo del estudiante "
+        f"({estudiante}), el grado ({grado}), la sede y jornada. "
+        "Describe la conducta con precisión, citando si aplica el artículo correspondiente "
+        "del Manual de Convivencia o la Ley 1620. Mínimo 5 oraciones completas y bien estructuradas. "
+        "NO inventes hechos que el docente no mencionó.\n\n"
+        "TAREA 2 — ACCIÓN REPARADORA SUGERIDA:\n"
+        "Propón una acción reparadora restaurativa, pedagógicamente pertinente y específica "
+        "para este caso concreto, enmarcada en el enfoque restaurativo de la Ley 1620 de 2013. "
+        "Debe ser práctica, aplicable en el contexto escolar colombiano y orientada a la "
+        "reflexión y el cambio de conducta, no al castigo. Mínimo 3 oraciones.\n\n"
+        "FORMATO DE RESPUESTA — respeta estas etiquetas exactas al inicio de cada sección:\n"
+        "DETALLE: [aquí la redacción profesional completa]\n"
+        "ACCION: [aquí la acción reparadora completa]\n\n"
+        "No uses asteriscos, no uses comillas, no agregues más secciones."
     )
     try:
         api_key = os.getenv("GEMINI_API_KEY", "")
@@ -614,7 +624,7 @@ async def _procesar_detalle(detalle_raw, estudiante, grado, tipo_falta, sede, jo
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500}
+            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 1200}
         }
         async with httpx.AsyncClient(timeout=25) as c:
             r = await c.post(url, json=payload)
@@ -626,23 +636,27 @@ async def _procesar_detalle(detalle_raw, estudiante, grado, tipo_falta, sede, jo
         detalle_prof = ""
         accion_rep   = ""
 
-        for linea in raw.splitlines():
-            l = linea.strip()
-            if l.upper().startswith("DETALLE:"):
-                detalle_prof = l.partition(":")[2].strip()
-            elif l.upper().startswith("ACCION:"):
-                accion_rep = l.partition(":")[2].strip()
+        # Parser robusto: DETALLE y ACCION pueden ocupar múltiples líneas
+        partes_det = re.split(r'(?i)^DETALLE\s*:', raw, maxsplit=1, flags=re.MULTILINE)
+        if len(partes_det) > 1:
+            resto = partes_det[1]
+            partes_acc = re.split(r'(?i)^ACCION\s*:', resto, maxsplit=1, flags=re.MULTILINE)
+            detalle_prof = partes_acc[0].strip()
+            if len(partes_acc) > 1:
+                accion_rep = partes_acc[1].strip()
 
-        # Fallback robusto si el modelo no respetó el formato
+        # Fallback: buscar sin ancla de inicio de línea
         if not detalle_prof:
-            partes = re.split(r'DETALLE\s*:', raw, flags=re.IGNORECASE, maxsplit=1)
-            if len(partes) > 1:
-                resto = partes[1]
-                accion_split = re.split(r'ACCION\s*:', resto, flags=re.IGNORECASE, maxsplit=1)
-                detalle_prof = accion_split[0].strip()
-                if len(accion_split) > 1:
-                    accion_rep = accion_split[1].strip()
+            partes_det2 = re.split(r'(?i)DETALLE\s*:', raw, maxsplit=1)
+            if len(partes_det2) > 1:
+                resto = partes_det2[1]
+                partes_acc2 = re.split(r'(?i)ACCION\s*:', resto, maxsplit=1)
+                detalle_prof = partes_acc2[0].strip()
+                if len(partes_acc2) > 1:
+                    accion_rep = partes_acc2[1].strip()
 
+        print(f"[DETALLE_PROF len={len(detalle_prof)}] {detalle_prof[:80]}")
+        print(f"[ACCION_REP len={len(accion_rep)}] {accion_rep[:80]}")
         return detalle_prof or detalle_raw, accion_rep
 
     except Exception as e:
@@ -922,10 +936,10 @@ async def _finalizar_reporte(telefono, b: dict):
             print(f"WARN _finalizar_reporte: {e}")
 
     # ── Guardar en hoja Reportes ──────────────────────────────────
-    # 13 columnas:
+    # 12 columnas:
     # N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
     # Tipo | Detalle Original | Detalle Profesional | Accion Reparadora |
-    # Reportante | Teléfono
+    # Reportante
     fila_final = [
         num_caso, fecha_str, hora_str,
         b.get("sede",""), b.get("jornada",""),
@@ -935,7 +949,6 @@ async def _finalizar_reporte(telefono, b: dict):
         detalle_prof,
         accion_rep,
         b.get("reportante", limpiar_tel(telefono)),
-        limpiar_tel(telefono),
     ]
     asyncio.create_task(guardar_reporte_final(fila_final))
 
