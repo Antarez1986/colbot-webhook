@@ -360,7 +360,7 @@ async def _sheets_borrar_fila(fila_num, token=None):
         token = await obtener_token_sheets()
     if not token:
         return False
-    rango = f"'{SHEET_BORRADORES}'!A{fila_num}:J{fila_num}"
+    rango = f"{SHEET_BORRADORES}!A{fila_num}:J{fila_num}"
     url = (f"https://sheets.googleapis.com/v4/spreadsheets/{SHEETS_ID}"
            f"/values/{rango}:clear")
     headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
@@ -377,18 +377,29 @@ async def _sheets_append(hoja, fila, token=None):
     if not token:
         token = await obtener_token_sheets()
     if not token:
+        print(f"SHEETS append '{hoja}': sin token")
         return False
+    # Sin comillas simples en la URL — causan ERROR 400 en algunos casos
     url = (f"https://sheets.googleapis.com/v4/spreadsheets/{SHEETS_ID}"
-           f"/values/'{hoja}'!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
+           f"/values/{hoja}!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
     headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+    # Garantizar que todos los valores sean strings
+    fila_str = [str(v) if v is not None else "" for v in fila]
     try:
         async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.post(url, headers=headers, json={"values": [fila]})
+            r = await c.post(url, headers=headers, json={"values": [fila_str]})
             ok = r.status_code == 200
-            print(f"SHEETS append '{hoja}': " + ("OK" if ok else f"ERROR {r.status_code}"))
+            if not ok:
+                try:
+                    detail = r.json()
+                    print(f"SHEETS append '{hoja}': ERROR {r.status_code} -> {detail.get('error',{}).get('message','?')}")
+                except:
+                    print(f"SHEETS append '{hoja}': ERROR {r.status_code} -> {r.text[:200]}")
+            else:
+                print(f"SHEETS append '{hoja}': OK ({len(fila_str)} cols)")
             return ok
     except Exception as e:
-        print(f"SHEETS append error: {e}")
+        print(f"SHEETS append '{hoja}' excepcion: {e}")
         return False
 
 async def _borrador_buscar_fila(telefono, token=None):
@@ -396,7 +407,7 @@ async def _borrador_buscar_fila(telefono, token=None):
     Busca en la hoja Borradores la fila correspondiente al telefono.
     Retorna (numero_de_fila, dict_datos) o (None, None).
     """
-    filas = await _sheets_leer_rango(f"'{SHEET_BORRADORES}'!A:J", token)
+    filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:J", token)
     for i, fila in enumerate(filas, start=1):
         if fila and limpiar_tel(fila[0]) == limpiar_tel(telefono):
             return i, _borrador_a_dict(fila)
@@ -419,7 +430,7 @@ async def borrador_guardar(telefono, b: dict):
         fila_datos = _dict_a_borrador(b)
 
         if fila_num:
-            rango = f"'{SHEET_BORRADORES}'!A{fila_num}:J{fila_num}"
+            rango = f"{SHEET_BORRADORES}!A{fila_num}:J{fila_num}"
             await _sheets_escribir_rango(rango, [fila_datos], token)
         else:
             await _sheets_append(SHEET_BORRADORES, fila_datos, token)
@@ -465,7 +476,7 @@ async def cargar_todos_borradores():
     Carga todos los borradores activos de Sheets al cache en memoria.
     """
     try:
-        filas = await _sheets_leer_rango(f"'{SHEET_BORRADORES}'!A:J")
+        filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:J")
         n = 0
         for fila in filas:
             if not fila or not fila[0]:
@@ -1175,7 +1186,7 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
         + "\nPREGUNTA: " + pregunta
     )
     payload = {"contents":[{"parts":[{"text":prompt}]}],
-               "generationConfig":{"temperature":0.6,"maxOutputTokens":500,"topP":0.9}}
+               "generationConfig":{"temperature":0.6,"maxOutputTokens":800,"topP":0.9}}
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.post(url, json=payload); d = r.json()
     if "candidates" not in d:
