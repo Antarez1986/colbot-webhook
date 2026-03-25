@@ -114,27 +114,18 @@ MENU_SEDES = (
 )
 
 # ══════════════════════════════════════════════
-#  REPORTE INTELIGENTE — NUEVA ESTRATEGIA
-#
-#  Flujo:
-#  1. Usuario escribe cualquier cosa sobre el reporte
-#  2. Gemini extrae TODO lo que pueda del mensaje
-#  3. Si falta la sede → menú rápido 1-6
-#  4. Si faltan otros datos → se piden TODOS juntos en un solo mensaje
-#  5. En el siguiente turno Gemini extrae lo nuevo y completa
-#  6. Cuando todo está → guardar y enviar resumen
+#  REPORTE — CAMPOS SIMPLIFICADOS
+#  Se eliminaron: conducta, testigo
+#  Quedan: estudiante, grado, tipo_falta, descripcion
 # ══════════════════════════════════════════════
 
-# Campos obligatorios (sede y jornada se manejan aparte)
-CAMPOS_REPORTE = ["estudiante", "grado", "tipo_falta", "conducta", "descripcion", "testigo"]
+CAMPOS_REPORTE = ["estudiante", "grado", "tipo_falta", "descripcion"]
 
 ETIQUETAS_CAMPO = {
     "estudiante":  "👤 Nombre completo del estudiante",
     "grado":       "🎒 Grado y grupo (ej: 10A, 7B)",
     "tipo_falta":  "⚠️ Tipo de falta: escribe *leve*, *grave* o *gravísima*",
-    "conducta":    "📋 Conducta específica (qué hizo exactamente)",
-    "descripcion": "📝 Descripción de lo ocurrido",
-    "testigo":     "👁 Testigo o docente presente (o escribe *ninguno*)",
+    "descripcion": "📝 Descripción detallada de lo ocurrido",
 }
 
 EMOJIS_TIPO = {"Leve": "📋", "Grave": "⚠️", "Gravisima": "🚨"}
@@ -163,447 +154,6 @@ PROTOCOLOS = {
         "• *Situación Tipo III – Ley 1620 de 2013.*"
     ),
 }
-
-# Palabras clave para detectar sede/jornada en texto libre
-def _detectar_sede_en_texto(s):
-    """Intenta detectar sede y jornada desde texto normalizado. Retorna (sede, jornada) o None."""
-    jornada = None
-    if "manana" in s or "mañana" in s or "morning" in s:
-        jornada = "Mañana"
-    elif "tarde" in s or "afternoon" in s:
-        jornada = "Tarde"
-
-    sede = None
-    if "simon" in s or "bolivar" in s or "central" in s:
-        sede = "Simon Bolivar"
-    elif "san martin" in s or "san martín" in s or "sanmartin" in s:
-        sede = "San Martin"
-    elif "hernando" in s or "acevedo" in s:
-        sede = "Hernando Acevedo"
-
-    if sede and jornada:
-        return sede, jornada
-    return None
-
-def _resolver_sede_por_numero(texto):
-    """Resuelve sede/jornada si el usuario respondió 1-6."""
-    t = texto.strip()
-    for codigo, etiqueta, sede, jornada in SEDES_OPCIONES:
-        if t == codigo:
-            return sede, jornada, etiqueta
-    return None
-
-
-def _extraer_sin_gemini(mensaje, nombre_reportante=""):
-    """
-    Extracción local con regex — no depende de Gemini, nunca falla.
-    Se usa como primer intento y como fallback.
-    """
-    s     = norm(mensaje)
-    datos = {}
-
-    # ── Tipo de falta ──────────────────────────────────────────────
-    if re.search(r'\bgravis[ií]ma?\b|\btipo\s*3\b|\bfalta\s*3\b', s):
-        datos["tipo_falta"] = "Gravisima"
-    elif re.search(r'\bgrave\b|\btipo\s*2\b|\bfalta\s*2\b', s):
-        datos["tipo_falta"] = "Grave"
-    elif re.search(r'\bleve\b|\btipo\s*1\b|\bfalta\s*1\b|\btipo\s*uno\b', s):
-        datos["tipo_falta"] = "Leve"
-
-    # ── Grado ─────────────────────────────────────────────────────
-    # Acepta: 10A, 4°2, 402, 4-02, grado 7b, decimo a, etc.
-    m = re.search(r'\bgrado\s*([0-9]{1,2}[-°]?[0-9a-zA-Z]{1,2})\b', s)
-    if not m:
-        m = re.search(r'\b([0-9]{1,2}[-°]?[0-9]?[a-zA-Z])\b', mensaje)
-    if m:
-        datos["grado"] = m.group(1).upper().replace("°","").replace("-","")
-
-    # ── Testigo ───────────────────────────────────────────────────
-    if re.search(r'\byo\s+soy\s+(el\s+)?testigo\b|\bsoy\s+(el\s+)?testigo\b', s):
-        datos["testigo"] = nombre_reportante or "El docente reportante"
-    elif re.search(r'\bsin\s+testigo\b|\bninguno\b|\bno\s+hay\s+testigo\b', s):
-        datos["testigo"] = "ninguno"
-
-    # ── Cancelar ──────────────────────────────────────────────────
-    if re.search(r'\bcancelar\b|\bsalir\b|\bcancel\b', s):
-        datos["cancelar"] = True
-
-    return datos
-
-
-async def _extraer_datos_gemini(mensaje_completo, datos_actuales, nombre_reportante=""):
-    """
-    Extracción de datos en dos capas:
-      1. Regex local (rápido, sin red, infalible)
-      2. Gemini con prompt estricto y parser blindado (obtiene estudiante, descripción, conducta)
-    Combina ambos resultados. NUNCA lanza excepción.
-    """
-    # Capa 1 — regex local siempre
-    extraidos = _extraer_sin_gemini(mensaje_completo, nombre_reportante)
-
-    # Capa 2 — Gemini para campos de texto libre (estudiante, descripcion, conducta)
-    # Solo llamamos si faltan esos campos
-    necesita_gemini = any(
-        not datos_actuales.get(c) and not extraidos.get(c)
-        for c in ["estudiante", "descripcion", "conducta"]
-    )
-
-    if necesita_gemini:
-        # Prompt ultra-estricto: claves simples, sin caracteres especiales en valores
-        prompt = (
-            "Extrae datos del siguiente mensaje de un docente colombiano.\n"
-            "Mensaje: " + mensaje_completo + "\n\n"
-            "Responde UNICAMENTE con lineas en este formato exacto (sin llaves, sin comillas):\n"
-            "estudiante: valor\n"
-            "grado: valor\n"
-            "tipo_falta: Leve o Grave o Gravisima\n"
-            "conducta: valor\n"
-            "descripcion: valor\n"
-            "testigo: valor\n\n"
-            "Reglas:\n"
-            "- tipo 1 / falta 1 / leve = Leve\n"
-            "- tipo 2 / falta 2 / grave = Grave\n"
-            "- tipo 3 / falta 3 / gravisima = Gravisima\n"
-            "- Si no se menciona un campo escribe: null\n"
-            "- yo soy testigo -> testigo = " + (nombre_reportante or "docente reportante") + "\n"
-            "- conducta: maximo 8 palabras resumiendo que hizo el estudiante\n"
-            "- NO uses comillas, NO uses llaves, solo texto plano"
-        )
-
-        try:
-            api_key = os.getenv("GEMINI_API_KEY", "")
-            modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-            url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-                   f"{modelo}:generateContent?key={api_key}")
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.1,
-                    "maxOutputTokens": 250,
-                    # NO usamos responseMimeType json para evitar JSON malformado
-                }
-            }
-            async with httpx.AsyncClient(timeout=18) as c:
-                r = await c.post(url, json=payload)
-                d = r.json()
-
-            if "candidates" in d:
-                raw = d["candidates"][0]["content"]["parts"][0]["text"]
-                # Parser de texto plano: lee "clave: valor" línea por línea
-                for linea in raw.splitlines():
-                    linea = linea.strip()
-                    if ":" not in linea:
-                        continue
-                    clave, _, valor = linea.partition(":")
-                    clave  = clave.strip().lower().replace(" ", "_")
-                    valor  = valor.strip().strip('"').strip("'")
-                    if clave in CAMPOS_REPORTE and valor and valor.lower() not in ("null", "ninguno mencionado", "no mencionado", ""):
-                        extraidos[clave] = valor
-                    elif clave == "testigo" and valor.lower() not in ("null", ""):
-                        extraidos["testigo"] = valor
-        except Exception as e:
-            print("WARN extraccion Gemini (usando solo regex): " + str(e))
-            # Continúa con lo que ya tiene extraidos del regex
-
-    return extraidos
-
-
-def _campos_faltantes(datos):
-    """Retorna lista de campos que aún faltan (valor None, vacío o 'null')."""
-    faltantes = []
-    for campo in CAMPOS_REPORTE:
-        val = datos.get(campo)
-        if not val or val == "null" or str(val).strip() == "":
-            faltantes.append(campo)
-    return faltantes
-
-
-def _mensaje_pedir_faltantes(faltantes):
-    """Construye UN SOLO mensaje pidiendo todos los campos faltantes a la vez."""
-    if not faltantes:
-        return None
-    lineas = ["Entendido 👍 Solo me falta saber:\n"]
-    for campo in faltantes:
-        lineas.append(f"• {ETIQUETAS_CAMPO[campo]}")
-    lineas.append("\nPuedes responderme todo en un solo mensaje.")
-    return "\n".join(lineas)
-
-
-async def gestionar_reporte_inteligente(mensaje, telefono, nombre):
-    """
-    Punto de entrada único para reportes.
-    Estrategia: extraer todo con Gemini desde el primer mensaje,
-    luego pedir solo lo que falta (todos juntos en un mensaje).
-    """
-    global contador_reportes
-    s = norm(mensaje)
-
-    # ── Cancelar en cualquier momento ─────────────────
-    if s in ["cancelar", "salir", "cancel", "no", "menu", "0"]:
-        if telefono in formularios_activos:
-            del formularios_activos[telefono]
-        return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
-
-    # ── Iniciar formulario nuevo ───────────────────────
-    if telefono not in formularios_activos:
-        formularios_activos[telefono] = {
-            "datos": {},
-            "reportante": nombre or telefono,
-            "esperando_sede": False,
-        }
-
-    form  = formularios_activos[telefono]
-    datos = form["datos"]
-
-    # ══════════════════════════════════════════
-    # PASO A — Resolver sede si está esperando
-    # ══════════════════════════════════════════
-    if form.get("esperando_sede"):
-        # Intentar número 1-6
-        sede_res = _resolver_sede_por_numero(mensaje)
-        if not sede_res:
-            # Intentar texto libre
-            sede_txt = _detectar_sede_en_texto(s)
-            if sede_txt:
-                datos["sede"]    = sede_txt[0]
-                datos["jornada"] = sede_txt[1]
-                sede_res = (sede_txt[0], sede_txt[1], f"{sede_txt[0]} – {sede_txt[1]}")
-            else:
-                return (
-                    "No reconocí esa sede. Por favor responde con el *número* del 1 al 6:\n\n"
-                    + MENU_SEDES
-                )
-
-        datos["sede"]           = sede_res[0]
-        datos["jornada"]        = sede_res[1]
-        form["esperando_sede"]  = False
-
-        # Ver si ya hay datos suficientes para cerrar o qué falta
-        faltantes = _campos_faltantes(datos)
-        if not faltantes:
-            return await _finalizar_reporte(telefono, nombre)
-
-        confirmacion = f"✅ Sede: *{sede_res[2]}*\n\n"
-        return confirmacion + _mensaje_pedir_faltantes(faltantes)
-
-    # ══════════════════════════════════════════
-    # PASO B — Extraer datos con Gemini + regex
-    # ══════════════════════════════════════════
-    extraidos = await _extraer_datos_gemini(
-        mensaje, datos,
-        nombre_reportante=form.get("reportante", "")
-    )
-
-    # Cancelar si fue detectado
-    if extraidos.get("cancelar"):
-        del formularios_activos[telefono]
-        return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
-
-    # Fusionar datos nuevos (sin sobreescribir con null)
-    for campo in CAMPOS_REPORTE:
-        val = extraidos.get(campo)
-        if val and val != "null" and str(val).strip():
-            datos[campo] = val
-
-    # Intentar detectar sede en el texto también
-    if "sede" not in datos or not datos["sede"]:
-        sede_txt = _detectar_sede_en_texto(s)
-        if sede_txt:
-            datos["sede"]    = sede_txt[0]
-            datos["jornada"] = sede_txt[1]
-
-    # Resolver sede por número si fue lo único que dijo
-    if "sede" not in datos or not datos.get("sede"):
-        sede_num = _resolver_sede_por_numero(mensaje)
-        if sede_num:
-            datos["sede"]    = sede_num[0]
-            datos["jornada"] = sede_num[1]
-
-    # ══════════════════════════════════════════
-    # PASO C — ¿Falta la sede?
-    # ══════════════════════════════════════════
-    if not datos.get("sede"):
-        form["esperando_sede"] = True
-
-        # ¿Ya tenemos todos los otros campos?
-        faltantes_sin_sede = _campos_faltantes(datos)
-
-        if faltantes_sin_sede:
-            # Hay campos Y sede que faltan — pedir campos primero, sede al final
-            msg_campos = _mensaje_pedir_faltantes(faltantes_sin_sede)
-            resumen_conocido = _resumen_parcial(datos)
-            return (
-                f"📋 *Iniciando reporte*\n{resumen_conocido}\n\n"
-                + msg_campos
-            )
-        else:
-            # Solo falta la sede
-            return (
-                "Casi listo ✅ Solo falta la sede:\n\n"
-                + MENU_SEDES
-            )
-
-    # ══════════════════════════════════════════
-    # PASO D — ¿Faltan otros campos?
-    # ══════════════════════════════════════════
-    faltantes = _campos_faltantes(datos)
-
-    if faltantes:
-        resumen_conocido = _resumen_parcial(datos)
-        return (
-            f"📋 *Ya tengo estos datos:*\n{resumen_conocido}\n\n"
-            + _mensaje_pedir_faltantes(faltantes)
-        )
-
-    # ══════════════════════════════════════════
-    # PASO E — Todo completo → guardar
-    # ══════════════════════════════════════════
-    return await _finalizar_reporte(telefono, nombre)
-
-
-def _resumen_parcial(datos):
-    """Muestra los datos ya capturados de forma compacta."""
-    lineas = []
-    mapa = {
-        "sede":        ("🏫", "Sede"),
-        "jornada":     ("🕐", "Jornada"),
-        "estudiante":  ("👤", "Estudiante"),
-        "grado":       ("🎒", "Grado"),
-        "tipo_falta":  ("⚠️", "Tipo"),
-        "conducta":    ("📋", "Conducta"),
-        "descripcion": ("📝", "Descripción"),
-        "testigo":     ("👁", "Testigo"),
-    }
-    for clave, (emoji, label) in mapa.items():
-        val = datos.get(clave)
-        if val and val != "null":
-            lineas.append(f"{emoji} *{label}:* {val}")
-    return "\n".join(lineas) if lineas else "_(aún sin datos)_"
-
-
-async def _finalizar_reporte(telefono, nombre):
-    """Guarda en Sheets y devuelve el resumen final con protocolo legal."""
-    global contador_reportes
-
-    form  = formularios_activos.get(telefono, {})
-    datos = form.get("datos", {})
-
-    contador_reportes += 1
-    ahora      = datetime.now(COL_TZ)
-    num_caso   = "RPT-" + ahora.strftime("%Y%m%d") + "-" + str(contador_reportes).zfill(3)
-    fecha_str  = ahora.strftime("%d/%m/%Y")
-    hora_str   = ahora.strftime("%I:%M %p")
-    reportante = form.get("reportante", telefono)
-    tipo       = datos.get("tipo_falta", "")
-    emoji      = EMOJIS_TIPO.get(tipo, "📋")
-
-    # 13 columnas: N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
-    #              Tipo | Conducta | Descripción | Testigo | Reportante | Teléfono
-    fila = [
-        num_caso,
-        fecha_str,
-        hora_str,
-        datos.get("sede", ""),
-        datos.get("jornada", ""),
-        datos.get("estudiante", ""),
-        datos.get("grado", ""),
-        tipo,
-        datos.get("conducta", ""),
-        datos.get("descripcion", ""),
-        datos.get("testigo", ""),
-        reportante,
-        limpiar_tel(telefono),
-    ]
-
-    asyncio.create_task(agregar_fila_sheets(fila))
-
-    if telefono in formularios_activos:
-        del formularios_activos[telefono]
-
-    protocolo = PROTOCOLOS.get(tipo, "")
-
-    resumen = (
-        f"{emoji} *Reporte Registrado Exitosamente*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📌 *N° Caso:* {num_caso}\n"
-        f"📅 *Fecha:* {fecha_str}  {hora_str}\n"
-        f"🏫 *Sede:* {datos.get('sede','')} – {datos.get('jornada','')}\n"
-        f"👤 *Estudiante:* {datos.get('estudiante','')}\n"
-        f"🎒 *Grado:* {datos.get('grado','')}\n"
-        f"{emoji} *Tipo de falta:* {tipo}\n"
-        f"📋 *Conducta:* {datos.get('conducta','')}\n"
-        f"📝 *Descripción:* {datos.get('descripcion','')}\n"
-        f"👁 *Testigo:* {datos.get('testigo','')}\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        + protocolo + "\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"✅ Caso registrado en el sistema.\n"
-        f"📎 Número de caso: *{num_caso}*"
-    )
-
-    print(f"REPORTE GUARDADO: {num_caso} | {datos.get('estudiante','')} | {tipo}")
-    return resumen
-# ══════════════════════════════════════════════
-WEB_BASE = "https://gestionacademicaco.wixsite.com/colbolivar1"
-WEB_LINKS = {
-    "inicio":                    (WEB_BASE, "Pagina principal"),
-    "planes de area":            (WEB_BASE + "/planesdearea2026", "Planes de Area 2026"),
-    "recursos academicos":       (WEB_BASE + "/documentosdocentes2026", "Recursos Academicos"),
-    "proyectos transversales":   (WEB_BASE + "/proyectostransversales", "Proyectos Transversales"),
-    "documentos institucionales":(WEB_BASE + "/documentosinstitucionales2026", "Documentos Institucionales"),
-    "gestiones":                 (WEB_BASE + "/calidad", "Gestion de Calidad"),
-    "san martin":                (WEB_BASE + "/sanmart%C3%ADn", "Sede San Martin"),
-    "biblioteca":                (WEB_BASE + "/biblioteca", "Biblioteca"),
-    "facebook":                  ("https://www.facebook.com/share/1NM1mkhhcc/", "Facebook oficial"),
-    "youtube":                   ("https://www.youtube.com/@colbolivar", "Canal YouTube"),
-    "webcolegios":               ("https://www.webcolegios.com/simon/", "Portal Webcolegios - notas"),
-    "calendario":                ("https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t", "Calendario escolar"),
-}
-
-# ══════════════════════════════════════════════
-#  DOCUMENTOS PDF
-# ══════════════════════════════════════════════
-BASE_PDF = "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_"
-CATALOGO = {
-    "pei":                     ("PEI - Proyecto Educativo Institucional",   BASE_PDF + "a9f081d3d6da48eebcdbfde82e4ab0af.pdf"),
-    "siee":                    ("SIEE - Sistema de Evaluacion",             BASE_PDF + "f245afe526dd49d097d9417251ec1adc.pdf"),
-    "manual de convivencia":   ("Manual de Convivencia",                    BASE_PDF + "793cfd61ebe14c7cade9feafd6828d3b.pdf"),
-    "manual de funciones":     ("Manual de Funciones",                      BASE_PDF + "711c1ffb30334ea9b10163d87aaed4ba.pdf"),
-    "propuesta intercultural": ("Propuesta Intercultural Yukpa",            BASE_PDF + "a29820f94ee5437abff3787c8f77a79b.pdf"),
-    "salas de informatica":    ("Manual Salas de Informatica",              BASE_PDF + "e6e7265c3d7c4132925b62267253521d.pdf"),
-    "matricula":               ("Manual de Matricula",                      BASE_PDF + "122543af3a0e474eab079ec1038e7c63.pdf"),
-    "contratacion":            ("Manual de Contratacion",                   BASE_PDF + "a9a9bececa6044d4a69978f81484735b.pdf"),
-    "practicas empresariales": ("Manual Practicas Empresariales SENA",     BASE_PDF + "7e73596b192e47f2bbd0b1ea0ad2c049.pdf"),
-    "practicas de laboratorio":("Manual Practicas de Laboratorio",         BASE_PDF + "802a094d6ecd450891f62be4f10f7f01.pdf"),
-    "baterias sanitarias":     ("Manual Baterias Sanitarias",              BASE_PDF + "f30bc178fce5422a847addebb144f696.pdf"),
-}
-
-ALIAS_DOC = {
-    "convivencia":"manual de convivencia", "reglamento":"manual de convivencia",
-    "proyecto educativo":"pei", "resignificacion":"pei",
-    "evaluacion":"siee", "calificaciones":"siee",
-    "yukpa":"propuesta intercultural", "intercultural":"propuesta intercultural",
-    "informatica":"salas de informatica", "tecnologia":"salas de informatica",
-    "inscripcion":"matricula", "contrato":"contratacion",
-    "sena":"practicas empresariales", "laboratorio":"practicas de laboratorio",
-    "sanitarias":"baterias sanitarias", "funciones":"manual de funciones",
-}
-
-PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido"]
-PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf"]
-PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay","actividades","bimestral","receso","periodo","semana","mes","hoy","manana","proximo","vacaciones","boletin","dia civico","reunion","padres","clausura","graduacion"]
-PALABRAS_REPORTE = ["reportar","reporte","incidente","queja","denuncia","problema de convivencia","agresion","bullying","conflicto","falta","reportar un caso","hacer un reporte"]
-
-pdf_cache       = {}
-historiales     = {}
-conocimiento_extra = []
-docentes_admin  = []
-
-# Estados del reporte inteligente por telefono
-# { telefono: { "fase": "sede"|"tipo"|"conducta"|"datos", "datos": {}, "reportante": "" } }
-formularios_activos = {}
-contador_reportes   = 0
-
 
 # ══════════════════════════════════════════════
 #  UTILIDADES
@@ -673,6 +223,469 @@ def formatear_fecha(fecha_str):
 
 
 # ══════════════════════════════════════════════
+#  DETECCION SEDE / JORNADA
+# ══════════════════════════════════════════════
+def _detectar_sede_en_texto(s):
+    jornada = None
+    if "manana" in s or "mañana" in s or "morning" in s:
+        jornada = "Mañana"
+    elif "tarde" in s or "afternoon" in s:
+        jornada = "Tarde"
+    sede = None
+    if "simon" in s or "bolivar" in s or "central" in s:
+        sede = "Simon Bolivar"
+    elif "san martin" in s or "san martín" in s or "sanmartin" in s:
+        sede = "San Martin"
+    elif "hernando" in s or "acevedo" in s:
+        sede = "Hernando Acevedo"
+    if sede and jornada:
+        return sede, jornada
+    return None
+
+def _resolver_sede_por_numero(texto):
+    t = texto.strip()
+    for codigo, etiqueta, sede, jornada in SEDES_OPCIONES:
+        if t == codigo:
+            return sede, jornada, etiqueta
+    return None
+
+
+# ══════════════════════════════════════════════
+#  EXTRACCION DE DATOS DEL REPORTE
+#  NUEVA ESTRATEGIA: acumular descripcion en capas
+# ══════════════════════════════════════════════
+def _extraer_sin_gemini(mensaje, nombre_reportante=""):
+    """
+    Extracción local con regex. Rápida, sin red, infalible.
+    Para descripcion: captura TODO el mensaje si no hay otras pistas.
+    """
+    s     = norm(mensaje)
+    datos = {}
+
+    # ── Tipo de falta ──────────────────────────────────────────────
+    if re.search(r'\bgravis[ií]ma?\b|\btipo\s*3\b|\bfalta\s*3\b', s):
+        datos["tipo_falta"] = "Gravisima"
+    elif re.search(r'\bgrave\b|\btipo\s*2\b|\bfalta\s*2\b', s):
+        datos["tipo_falta"] = "Grave"
+    elif re.search(r'\bleve\b|\btipo\s*1\b|\bfalta\s*1\b|\btipo\s*uno\b', s):
+        datos["tipo_falta"] = "Leve"
+
+    # ── Grado ─────────────────────────────────────────────────────
+    m = re.search(r'\bgrado\s*([0-9]{1,2}[-°]?[0-9a-zA-Z]{1,2})\b', s)
+    if not m:
+        m = re.search(r'\b([0-9]{1,2}[-°]?[0-9]?[a-zA-Z])\b', mensaje)
+    if m:
+        datos["grado"] = m.group(1).upper().replace("°","").replace("-","")
+
+    # ── Cancelar ──────────────────────────────────────────────────
+    if re.search(r'\bcancelar\b|\bsalir\b|\bcancel\b', s):
+        datos["cancelar"] = True
+
+    return datos
+
+
+async def _extraer_datos_gemini(mensaje_completo, datos_actuales, nombre_reportante="", es_respuesta_descripcion=False):
+    """
+    Extracción de datos en dos capas:
+      1. Regex local (rápido, sin red, infalible)
+      2. Gemini con prompt estricto
+    
+    NUEVO: si es_respuesta_descripcion=True, todo el mensaje se trata como descripcion directamente.
+    """
+    extraidos = _extraer_sin_gemini(mensaje_completo, nombre_reportante)
+
+    # ── DESCRIPCION: estrategia directa ───────────────────────────
+    # Si el sistema está esperando descripcion específicamente, tomamos el mensaje completo
+    if es_respuesta_descripcion:
+        texto_limpio = mensaje_completo.strip()
+        # Filtrar respuestas que son solo números (selección de sede) o muy cortas sin sentido
+        if len(texto_limpio) >= 5 and not re.match(r'^[1-6]$', texto_limpio.strip()):
+            extraidos["descripcion"] = texto_limpio
+        return extraidos
+
+    # ── Gemini para campos complejos ───────────────────────────────
+    necesita_gemini = any(
+        not datos_actuales.get(c) and not extraidos.get(c)
+        for c in ["estudiante", "descripcion"]
+    )
+
+    if necesita_gemini:
+        prompt = (
+            "Eres un extractor de datos para reportes escolares colombianos.\n"
+            "Mensaje del docente: \"" + mensaje_completo + "\"\n\n"
+            "Extrae la informacion y responde SOLO con estas lineas (texto plano, sin comillas, sin llaves):\n"
+            "estudiante: [nombre completo o null]\n"
+            "grado: [grado+grupo como 10A, 7B, o null]\n"
+            "tipo_falta: [Leve o Grave o Gravisima o null]\n"
+            "descripcion: [descripcion completa de lo ocurrido, puede ser larga, o null]\n\n"
+            "Reglas:\n"
+            "- tipo 1 = Leve | tipo 2 = Grave | tipo 3 = Gravisima\n"
+            "- Para descripcion: incluye TODA la narrativa de lo que paso, no la recortes\n"
+            "- Si el mensaje completo es una descripcion de un evento, ponlo en descripcion\n"
+            "- Si un campo no se menciona escribe null\n"
+            "- NO uses comillas ni formato JSON"
+        )
+
+        try:
+            api_key = os.getenv("GEMINI_API_KEY", "")
+            modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+            url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                   f"{modelo}:generateContent?key={api_key}")
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.1,
+                    "maxOutputTokens": 400,
+                }
+            }
+            async with httpx.AsyncClient(timeout=18) as c:
+                r = await c.post(url, json=payload)
+                d = r.json()
+
+            if "candidates" in d:
+                raw = d["candidates"][0]["content"]["parts"][0]["text"]
+                for linea in raw.splitlines():
+                    linea = linea.strip()
+                    if ":" not in linea:
+                        continue
+                    clave, _, valor = linea.partition(":")
+                    clave  = clave.strip().lower().replace(" ", "_")
+                    valor  = valor.strip().strip('"').strip("'").strip()
+                    if valor.lower() in ("null", "ninguno mencionado", "no mencionado", "no se menciona", ""):
+                        continue
+                    if clave in CAMPOS_REPORTE and valor:
+                        extraidos[clave] = valor
+        except Exception as e:
+            print("WARN extraccion Gemini (usando solo regex): " + str(e))
+
+    return extraidos
+
+
+def _campos_faltantes(datos):
+    faltantes = []
+    for campo in CAMPOS_REPORTE:
+        val = datos.get(campo)
+        if not val or val == "null" or str(val).strip() == "":
+            faltantes.append(campo)
+    return faltantes
+
+
+def _mensaje_pedir_faltantes(faltantes):
+    if not faltantes:
+        return None
+    lineas = ["Solo me falta saber:\n"]
+    for campo in faltantes:
+        lineas.append(f"• {ETIQUETAS_CAMPO[campo]}")
+    lineas.append("\nPuedes responderme todo en un solo mensaje.")
+    return "\n".join(lineas)
+
+
+# ══════════════════════════════════════════════
+#  GESTOR PRINCIPAL DEL REPORTE
+# ══════════════════════════════════════════════
+async def gestionar_reporte_inteligente(mensaje, telefono, nombre):
+    global contador_reportes
+    s = norm(mensaje)
+
+    # ── Cancelar en cualquier momento ─────────────────
+    if s in ["cancelar", "salir", "cancel", "no", "menu", "0"]:
+        if telefono in formularios_activos:
+            del formularios_activos[telefono]
+        return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
+
+    # ── Iniciar formulario nuevo ───────────────────────
+    if telefono not in formularios_activos:
+        formularios_activos[telefono] = {
+            "datos": {},
+            "reportante": nombre or telefono,
+            "esperando_sede": False,
+            "esperando_descripcion": False,   # NUEVO FLAG
+        }
+
+    form  = formularios_activos[telefono]
+    datos = form["datos"]
+
+    # ══════════════════════════════════════════
+    # PASO A — Resolver sede si está esperando
+    # ══════════════════════════════════════════
+    if form.get("esperando_sede"):
+        sede_res = _resolver_sede_por_numero(mensaje)
+        if not sede_res:
+            sede_txt = _detectar_sede_en_texto(s)
+            if sede_txt:
+                datos["sede"]    = sede_txt[0]
+                datos["jornada"] = sede_txt[1]
+                sede_res = (sede_txt[0], sede_txt[1], f"{sede_txt[0]} – {sede_txt[1]}")
+            else:
+                return (
+                    "No reconocí esa sede. Por favor responde con el *número* del 1 al 6:\n\n"
+                    + MENU_SEDES
+                )
+        datos["sede"]           = sede_res[0]
+        datos["jornada"]        = sede_res[1]
+        form["esperando_sede"]  = False
+
+        faltantes = _campos_faltantes(datos)
+        if not faltantes:
+            return await _finalizar_reporte(telefono, nombre)
+
+        confirmacion = f"✅ Sede: *{sede_res[2]}*\n\n"
+
+        # Si lo que falta es solo descripcion, activar modo directo
+        if faltantes == ["descripcion"]:
+            form["esperando_descripcion"] = True
+            return confirmacion + "📝 *Describe con detalle qué ocurrió:*\n_(Puedes escribir todo lo que quieras)_"
+
+        return confirmacion + _mensaje_pedir_faltantes(faltantes)
+
+    # ══════════════════════════════════════════
+    # PASO B — Captura directa de descripción
+    # Cuando el sistema sabe que el usuario está
+    # respondiendo solo la descripción
+    # ══════════════════════════════════════════
+    if form.get("esperando_descripcion"):
+        texto_desc = mensaje.strip()
+        if len(texto_desc) >= 5 and not re.match(r'^[1-6]$', texto_desc):
+            datos["descripcion"] = texto_desc
+            form["esperando_descripcion"] = False
+            print(f"DEBUG descripcion capturada directamente: {texto_desc[:80]}")
+
+            # Verificar si falta la sede
+            if not datos.get("sede"):
+                form["esperando_sede"] = True
+                return "✅ Descripción guardada.\n\n" + MENU_SEDES
+
+            faltantes = _campos_faltantes(datos)
+            if not faltantes:
+                return await _finalizar_reporte(telefono, nombre)
+            return "✅ Descripción guardada.\n\n" + _mensaje_pedir_faltantes(faltantes)
+        else:
+            return "📝 Por favor escribe la descripción de lo ocurrido (mínimo una oración):"
+
+    # ══════════════════════════════════════════
+    # PASO C — Extracción inteligente (primer mensaje o actualizaciones)
+    # ══════════════════════════════════════════
+    extraidos = await _extraer_datos_gemini(
+        mensaje, datos,
+        nombre_reportante=form.get("reportante", ""),
+        es_respuesta_descripcion=False
+    )
+
+    if extraidos.get("cancelar"):
+        del formularios_activos[telefono]
+        return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
+
+    # Fusionar datos nuevos sin sobreescribir con null
+    for campo in CAMPOS_REPORTE:
+        val = extraidos.get(campo)
+        if val and val != "null" and str(val).strip():
+            datos[campo] = val
+
+    # Detectar sede en texto libre
+    if not datos.get("sede"):
+        sede_txt = _detectar_sede_en_texto(s)
+        if sede_txt:
+            datos["sede"]    = sede_txt[0]
+            datos["jornada"] = sede_txt[1]
+
+    if not datos.get("sede"):
+        sede_num = _resolver_sede_por_numero(mensaje)
+        if sede_num:
+            datos["sede"]    = sede_num[0]
+            datos["jornada"] = sede_num[1]
+
+    # ══════════════════════════════════════════
+    # PASO D — ¿Falta la sede?
+    # ══════════════════════════════════════════
+    if not datos.get("sede"):
+        form["esperando_sede"] = True
+        faltantes_sin_sede = _campos_faltantes(datos)
+        if faltantes_sin_sede:
+            msg_campos = _mensaje_pedir_faltantes(faltantes_sin_sede)
+            resumen_conocido = _resumen_parcial(datos)
+            return (
+                f"📋 *Iniciando reporte*\n{resumen_conocido}\n\n"
+                + msg_campos
+            )
+        else:
+            return "Casi listo ✅ Solo falta la sede:\n\n" + MENU_SEDES
+
+    # ══════════════════════════════════════════
+    # PASO E — ¿Faltan otros campos?
+    # ══════════════════════════════════════════
+    faltantes = _campos_faltantes(datos)
+
+    if faltantes:
+        resumen_conocido = _resumen_parcial(datos)
+
+        # Si solo falta descripcion → activar captura directa
+        if faltantes == ["descripcion"]:
+            form["esperando_descripcion"] = True
+            return (
+                f"📋 *Ya tengo estos datos:*\n{resumen_conocido}\n\n"
+                "📝 *Describe con detalle qué ocurrió:*\n"
+                "_(Escribe libremente, con todo el detalle que quieras)_"
+            )
+
+        return (
+            f"📋 *Ya tengo estos datos:*\n{resumen_conocido}\n\n"
+            + _mensaje_pedir_faltantes(faltantes)
+        )
+
+    # ══════════════════════════════════════════
+    # PASO F — Todo completo → guardar
+    # ══════════════════════════════════════════
+    return await _finalizar_reporte(telefono, nombre)
+
+
+def _resumen_parcial(datos):
+    lineas = []
+    mapa = {
+        "sede":        ("🏫", "Sede"),
+        "jornada":     ("🕐", "Jornada"),
+        "estudiante":  ("👤", "Estudiante"),
+        "grado":       ("🎒", "Grado"),
+        "tipo_falta":  ("⚠️", "Tipo"),
+        "descripcion": ("📝", "Descripción"),
+    }
+    for clave, (emoji, label) in mapa.items():
+        val = datos.get(clave)
+        if val and val != "null":
+            lineas.append(f"{emoji} *{label}:* {val}")
+    return "\n".join(lineas) if lineas else "_(aún sin datos)_"
+
+
+async def _finalizar_reporte(telefono, nombre):
+    global contador_reportes
+    form  = formularios_activos.get(telefono, {})
+    datos = form.get("datos", {})
+
+    contador_reportes += 1
+    ahora      = datetime.now(COL_TZ)
+    num_caso   = "RPT-" + ahora.strftime("%Y%m%d") + "-" + str(contador_reportes).zfill(3)
+    fecha_str  = ahora.strftime("%d/%m/%Y")
+    hora_str   = ahora.strftime("%I:%M %p")
+    reportante = form.get("reportante", telefono)
+    tipo       = datos.get("tipo_falta", "")
+    emoji      = EMOJIS_TIPO.get(tipo, "📋")
+
+    # 11 columnas: N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
+    #              Tipo | Descripción | Reportante | Teléfono
+    fila = [
+        num_caso,
+        fecha_str,
+        hora_str,
+        datos.get("sede", ""),
+        datos.get("jornada", ""),
+        datos.get("estudiante", ""),
+        datos.get("grado", ""),
+        tipo,
+        datos.get("descripcion", ""),
+        reportante,
+        limpiar_tel(telefono),
+    ]
+
+    asyncio.create_task(agregar_fila_sheets(fila))
+
+    if telefono in formularios_activos:
+        del formularios_activos[telefono]
+
+    protocolo = PROTOCOLOS.get(tipo, "")
+
+    resumen = (
+        f"{emoji} *Reporte Registrado Exitosamente*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📌 *N° Caso:* {num_caso}\n"
+        f"📅 *Fecha:* {fecha_str}  {hora_str}\n"
+        f"🏫 *Sede:* {datos.get('sede','')} – {datos.get('jornada','')}\n"
+        f"👤 *Estudiante:* {datos.get('estudiante','')}\n"
+        f"🎒 *Grado:* {datos.get('grado','')}\n"
+        f"{emoji} *Tipo de falta:* {tipo}\n"
+        f"📝 *Descripción:* {datos.get('descripcion','')}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        + protocolo + "\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ Caso registrado en el sistema.\n"
+        f"📎 Número de caso: *{num_caso}*"
+    )
+
+    print(f"REPORTE GUARDADO: {num_caso} | {datos.get('estudiante','')} | {tipo}")
+    return resumen
+
+
+# ══════════════════════════════════════════════
+#  ENLACES WEB
+# ══════════════════════════════════════════════
+WEB_BASE = "https://gestionacademicaco.wixsite.com/colbolivar1"
+WEB_LINKS = {
+    "inicio":                    (WEB_BASE, "Pagina principal"),
+    "planes de area":            (WEB_BASE + "/planesdearea2026", "Planes de Area 2026"),
+    "recursos academicos":       (WEB_BASE + "/documentosdocentes2026", "Recursos Academicos"),
+    "proyectos transversales":   (WEB_BASE + "/proyectostransversales", "Proyectos Transversales"),
+    "documentos institucionales":(WEB_BASE + "/documentosinstitucionales2026", "Documentos Institucionales"),
+    "gestiones":                 (WEB_BASE + "/calidad", "Gestion de Calidad"),
+    "san martin":                (WEB_BASE + "/sanmart%C3%ADn", "Sede San Martin"),
+    "biblioteca":                (WEB_BASE + "/biblioteca", "Biblioteca"),
+    "facebook":                  ("https://www.facebook.com/share/1NM1mkhhcc/", "Facebook oficial"),
+    "youtube":                   ("https://www.youtube.com/@colbolivar", "Canal YouTube"),
+    "webcolegios":               ("https://www.webcolegios.com/simon/", "Portal Webcolegios - notas"),
+    "calendario":                ("https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t", "Calendario escolar"),
+}
+
+# ══════════════════════════════════════════════
+#  DOCUMENTOS PDF
+# ══════════════════════════════════════════════
+BASE_PDF = "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_"
+CATALOGO = {
+    "pei":                     ("PEI - Proyecto Educativo Institucional",   BASE_PDF + "a9f081d3d6da48eebcdbfde82e4ab0af.pdf"),
+    "siee":                    ("SIEE - Sistema de Evaluacion",             BASE_PDF + "f245afe526dd49d097d9417251ec1adc.pdf"),
+    "manual de convivencia":   ("Manual de Convivencia",                    BASE_PDF + "793cfd61ebe14c7cade9feafd6828d3b.pdf"),
+    "manual de funciones":     ("Manual de Funciones",                      BASE_PDF + "711c1ffb30334ea9b10163d87aaed4ba.pdf"),
+    "propuesta intercultural": ("Propuesta Intercultural Yukpa",            BASE_PDF + "a29820f94ee5437abff3787c8f77a79b.pdf"),
+    "salas de informatica":    ("Manual Salas de Informatica",              BASE_PDF + "e6e7265c3d7c4132925b62267253521d.pdf"),
+    "matricula":               ("Manual de Matricula",                      BASE_PDF + "122543af3a0e474eab079ec1038e7c63.pdf"),
+    "contratacion":            ("Manual de Contratacion",                   BASE_PDF + "a9a9bececa6044d4a69978f81484735b.pdf"),
+    "practicas empresariales": ("Manual Practicas Empresariales SENA",     BASE_PDF + "7e73596b192e47f2bbd0b1ea0ad2c049.pdf"),
+    "practicas de laboratorio":("Manual Practicas de Laboratorio",         BASE_PDF + "802a094d6ecd450891f62be4f10f7f01.pdf"),
+    "baterias sanitarias":     ("Manual Baterias Sanitarias",              BASE_PDF + "f30bc178fce5422a847addebb144f696.pdf"),
+}
+
+ALIAS_DOC = {
+    "convivencia":"manual de convivencia", "reglamento":"manual de convivencia",
+    "proyecto educativo":"pei", "resignificacion":"pei",
+    "evaluacion":"siee", "calificaciones":"siee",
+    "yukpa":"propuesta intercultural", "intercultural":"propuesta intercultural",
+    "informatica":"salas de informatica", "tecnologia":"salas de informatica",
+    "inscripcion":"matricula", "contrato":"contratacion",
+    "sena":"practicas empresariales", "laboratorio":"practicas de laboratorio",
+    "sanitarias":"baterias sanitarias", "funciones":"manual de funciones",
+}
+
+PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido","que habla","habla sobre","describe","como funciona","cual es","cuales son"]
+PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf"]
+PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay","actividades","bimestral","receso","periodo","semana","mes","hoy","manana","proximo","vacaciones","boletin","dia civico","reunion","padres","clausura","graduacion"]
+PALABRAS_REPORTE = ["reportar","reporte","incidente","queja","denuncia","problema de convivencia","agresion","bullying","conflicto","falta","reportar un caso","hacer un reporte"]
+
+# Palabras que indican que la pregunta es de tipo institucional/educativa
+# y deberían consultar el PEI como contexto base
+PALABRAS_PEI_CONTEXT = [
+    "mision","vision","filosofia","modelo pedagogico","proyecto educativo",
+    "horizonte institucional","principios","objetivos institucionales",
+    "enfoque pedagogico","metodologia","perfiles","competencias",
+    "gobierno escolar","personero","contralor escolar","consejo directivo",
+    "consejo academico","manual","convivencia","reglamento","normas"
+]
+
+pdf_cache       = {}
+historiales     = {}
+conocimiento_extra = []
+docentes_admin  = []
+
+formularios_activos = {}
+contador_reportes   = 0
+
+
+# ══════════════════════════════════════════════
 #  GOOGLE SHEETS — TOKEN JWT
 # ══════════════════════════════════════════════
 def base64url(data):
@@ -710,11 +723,6 @@ async def obtener_token_sheets():
         return resp.json().get("access_token", "")
 
 async def agregar_fila_sheets(fila):
-    """
-    Guarda 12 columnas en Sheets:
-    N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
-    Tipo Falta | Conducta | Descripción | Testigo | Reportante | Teléfono
-    """
     try:
         token = await obtener_token_sheets()
         if not token:
@@ -722,7 +730,7 @@ async def agregar_fila_sheets(fila):
             return False
 
         url = ("https://sheets.googleapis.com/v4/spreadsheets/"
-               + SHEETS_ID + "/values/A1:M1:append"
+               + SHEETS_ID + "/values/A1:K1:append"
                "?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
 
         headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
@@ -739,7 +747,7 @@ async def agregar_fila_sheets(fila):
 
 
 # ══════════════════════════════════════════════
-#  ENLACES WEB
+#  GOOGLE CALENDAR
 # ══════════════════════════════════════════════
 async def obtener_eventos(dias=60):
     key = os.getenv("GOOGLE_API_KEY","")
@@ -784,22 +792,142 @@ def formatear_eventos(eventos):
 
 
 # ══════════════════════════════════════════════
-#  DESCARGA PDF
+#  DESCARGA PDF (con reintentos)
 # ══════════════════════════════════════════════
 async def descargar_pdf_b64(url):
     if url in pdf_cache:
+        print(f"PDF desde cache: {url[-30:]}")
         return pdf_cache[url]
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as c:
-        r = await c.get(url)
-        if r.status_code == 200:
-            b64 = base64.b64encode(r.content).decode()
-            pdf_cache[url] = b64
-            return b64
-        raise Exception("HTTP " + str(r.status_code))
+    
+    for intento in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=35, follow_redirects=True) as c:
+                r = await c.get(url)
+                if r.status_code == 200 and len(r.content) > 1000:
+                    b64 = base64.b64encode(r.content).decode()
+                    pdf_cache[url] = b64
+                    print(f"PDF descargado OK ({len(r.content)//1024}KB): {url[-30:]}")
+                    return b64
+                raise Exception(f"HTTP {r.status_code} / size {len(r.content)}")
+        except Exception as e:
+            if intento < 2:
+                print(f"PDF intento {intento+1} fallo: {e}. Reintentando...")
+                await asyncio.sleep(2)
+            else:
+                raise Exception(f"No se pudo descargar PDF tras 3 intentos: {e}")
 
 
 # ══════════════════════════════════════════════
-#  GEMINI
+#  GEMINI — ANÁLISIS PROFUNDO DE PDF
+#  NUEVA ESTRATEGIA: siempre incluir el PEI como
+#  contexto institucional base + análisis exhaustivo
+# ══════════════════════════════════════════════
+async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usuario, pdf_pei_b64=None):
+    """
+    Analiza un documento PDF con Gemini de forma exhaustiva.
+    Si se provee pdf_pei_b64, lo incluye como contexto institucional adicional.
+    """
+    api_key = os.getenv("GEMINI_API_KEY","")
+    modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
+    url = "https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+api_key
+
+    instruccion = (
+        "Eres ColBot, asistente oficial de la Institución Educativa Simón Bolívar (ColBolivar) de Cúcuta.\n\n"
+        "INSTRUCCIONES DE ANÁLISIS:\n"
+        "1. Lee el documento completo de forma EXHAUSTIVA, no te limites a las primeras páginas.\n"
+        "2. Busca la información en TODOS los artículos, capítulos, secciones, anexos y párrafos.\n"
+        "3. Si la información está en el documento, SIEMPRE responde con ella. NUNCA digas 'no encontré' si está ahí.\n"
+        "4. Cita el artículo, capítulo o página exacta cuando sea posible.\n"
+        "5. Si la pregunta toca varios temas, responde todos.\n"
+        "6. Responde en español colombiano, de forma clara y organizada.\n"
+        "7. Máximo 5 párrafos o 400 palabras. Sin formato Markdown.\n\n"
+        f"DOCUMENTO ANALIZADO: {nombre_doc}\n\n"
+        f"PREGUNTA DEL USUARIO: {pregunta}\n\n"
+        "Responde ÚNICAMENTE con información del documento. Si un tema específico NO está en el documento, "
+        "indícalo brevemente y ofrece la información más cercana que sí encontraste."
+    )
+
+    # Construir partes del mensaje
+    partes = []
+
+    # Documento principal
+    partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}})
+
+    # PEI como contexto adicional si está disponible y no es el doc principal
+    if pdf_pei_b64 and "pei" not in nombre_doc.lower():
+        partes.append({
+            "text": "A continuación también tienes el PEI (Proyecto Educativo Institucional) como contexto institucional de referencia:"
+        })
+        partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_pei_b64}})
+
+    partes.append({"text": instruccion})
+
+    payload = {
+        "contents": [{"parts": partes}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 1000,
+            "topP": 0.8,
+        }
+    }
+
+    async with httpx.AsyncClient(timeout=60) as c:
+        r = await c.post(url, json=payload)
+        d = r.json()
+
+    if "candidates" not in d:
+        err = d.get("error",{})
+        raise Exception("Gemini PDF ["+str(err.get("code","?"))+"]: "+err.get("message","error"))
+
+    return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
+
+
+async def llamar_gemini_pdf_multiturno(pregunta, documentos, telefono, nombre_usuario):
+    """
+    Versión para consultas que requieren múltiples documentos.
+    documentos = [(nombre, pdf_b64), ...]
+    """
+    api_key = os.getenv("GEMINI_API_KEY","")
+    modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
+    url = "https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+api_key
+
+    partes = []
+    nombres = []
+    for nombre_doc, pdf_b64 in documentos:
+        partes.append({"text": f"--- Documento: {nombre_doc} ---"})
+        partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}})
+        nombres.append(nombre_doc)
+
+    instruccion = (
+        "Eres ColBot de la IE Simón Bolívar. Tienes acceso a estos documentos institucionales:\n"
+        + "\n".join(f"- {n}" for n in nombres) + "\n\n"
+        "INSTRUCCIONES:\n"
+        "- Analiza TODOS los documentos de forma exhaustiva.\n"
+        "- Responde con información ESPECÍFICA y PRECISA de los documentos.\n"
+        "- Cita artículos y capítulos cuando sea posible.\n"
+        "- Si la información está en uno o más documentos, SIEMPRE respóndela.\n"
+        "- Máximo 5 párrafos. Sin Markdown.\n\n"
+        f"PREGUNTA: {pregunta}"
+    )
+    partes.append({"text": instruccion})
+
+    payload = {
+        "contents": [{"parts": partes}],
+        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1000}
+    }
+
+    async with httpx.AsyncClient(timeout=90) as c:
+        r = await c.post(url, json=payload)
+        d = r.json()
+
+    if "candidates" not in d:
+        raise Exception("Gemini multiPDF: " + d.get("error",{}).get("message","error"))
+
+    return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
+
+
+# ══════════════════════════════════════════════
+#  GEMINI — CONVERSACIÓN NORMAL
 # ══════════════════════════════════════════════
 async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
     api_key = os.getenv("GEMINI_API_KEY","")
@@ -827,24 +955,6 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
     if "candidates" not in d:
         err = d.get("error",{})
         raise Exception("Gemini ["+str(err.get("code","?"))+"]: "+err.get("message","error"))
-    return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
-
-async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usuario):
-    api_key = os.getenv("GEMINI_API_KEY","")
-    modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
-    url = "https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+api_key
-    instruccion = ("Eres ColBot del "+SCHOOL_NAME+". Lee: "+nombre_doc+"\n"
-                   "Responde SOLO con info del documento. Cita articulos. Max 4 parrafos. Sin Markdown.\n"
-                   "PREGUNTA: "+pregunta)
-    payload = {"contents":[{"parts":[
-        {"inline_data":{"mime_type":"application/pdf","data":pdf_b64}},
-        {"text":instruccion}
-    ]}],"generationConfig":{"temperature":0.3,"maxOutputTokens":700}}
-    async with httpx.AsyncClient(timeout=45) as c:
-        r = await c.post(url, json=payload)
-        d = r.json()
-    if "candidates" not in d:
-        raise Exception("Gemini PDF: "+d.get("error",{}).get("message","error"))
     return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
 
 
@@ -994,37 +1104,111 @@ async def procesar(mensaje, telefono, nombre):
             guardar_hist(telefono,"a",resp); return resp
         except: return "No pude consultar el calendario. Intentalo de nuevo."
 
-    # DOCUMENTOS PDF
+    # ══════════════════════════════════════════
+    #  DOCUMENTOS PDF — ANÁLISIS PROFUNDO
+    #  Nueva lógica: siempre cargar PEI como contexto base
+    # ══════════════════════════════════════════
     clave_doc, nom_doc, url_doc = buscar_doc(mensaje)
+    
+    # Detectar si la pregunta requiere contexto del PEI aunque no lo pidan explícitamente
+    necesita_pei_ctx = (
+        clave_doc and clave_doc != "pei" and
+        any(p in s for p in PALABRAS_PEI_CONTEXT)
+    )
+    
     if clave_doc:
-        if any(p in s for p in PALABRAS_LEER) or not any(p in s for p in PALABRAS_ENLACE):
-            guardar_hist(telefono,"u",mensaje)
-            try:
-                pdf_b64  = await asyncio.wait_for(descargar_pdf_b64(url_doc), timeout=28)
-                resp = await asyncio.wait_for(llamar_gemini_pdf(mensaje,nom_doc,pdf_b64,telefono,nombre), timeout=40)
-                resp = "(Segun el "+nom_doc+")\n\n"+resp
-            except asyncio.TimeoutError:
-                resp = "No pude leer el doc ahora. Descargalo:\n"+url_doc
-            except Exception as e:
-                print("ERROR PDF: "+str(e)); resp = "No pude leer el doc. Descargalo:\n"+url_doc
-            guardar_hist(telefono,"a",resp); return resp
-        return nom_doc+"\n\nDescarga:\n"+url_doc
+        # Siempre intentar leer el documento (no solo con palabras_leer)
+        # Solo dar enlace si el usuario explícitamente pide descarga
+        solo_enlace = (
+            any(p in s for p in PALABRAS_ENLACE) and
+            not any(p in s for p in PALABRAS_LEER)
+        )
+        
+        if solo_enlace:
+            return nom_doc + "\n\nDescarga:\n" + url_doc
+
+        guardar_hist(telefono, "u", mensaje)
+        try:
+            # Descargar documento principal
+            pdf_b64 = await asyncio.wait_for(descargar_pdf_b64(url_doc), timeout=35)
+            
+            # Intentar cargar PEI como contexto adicional si aplica
+            pdf_pei = None
+            if necesita_pei_ctx or any(p in s for p in ["contexto","institucional","objetivo","mision","vision"]):
+                try:
+                    url_pei = CATALOGO["pei"][1]
+                    pdf_pei = await asyncio.wait_for(descargar_pdf_b64(url_pei), timeout=30)
+                    print("PEI cargado como contexto adicional")
+                except Exception as ep:
+                    print(f"No se pudo cargar PEI como contexto: {ep}")
+
+            resp = await asyncio.wait_for(
+                llamar_gemini_pdf(mensaje, nom_doc, pdf_b64, telefono, nombre, pdf_pei_b64=pdf_pei),
+                timeout=55
+            )
+            resp = f"(Según el {nom_doc})\n\n" + resp
+
+        except asyncio.TimeoutError:
+            resp = f"El documento tardó demasiado en cargar. Puedes descargarlo directamente:\n{url_doc}"
+        except Exception as e:
+            print("ERROR PDF: " + str(e))
+            resp = f"No pude leer el documento en este momento. Descárgalo aquí:\n{url_doc}"
+
+        guardar_hist(telefono, "a", resp)
+        return resp
+
+    # ══════════════════════════════════════════
+    #  PREGUNTAS INSTITUCIONALES SIN DOC ESPECÍFICO
+    #  → Enviar PEI + Manual de Convivencia como contexto
+    # ══════════════════════════════════════════
+    if any(p in s for p in PALABRAS_PEI_CONTEXT):
+        guardar_hist(telefono, "u", mensaje)
+        try:
+            docs_a_cargar = []
+            url_pei = CATALOGO["pei"][1]
+            pdf_pei = await asyncio.wait_for(descargar_pdf_b64(url_pei), timeout=30)
+            docs_a_cargar.append(("PEI - Proyecto Educativo Institucional", pdf_pei))
+            
+            # Si la pregunta es sobre convivencia/normas, agregar también el manual
+            if any(p in s for p in ["convivencia","manual","norma","reglamento","gobierno escolar"]):
+                try:
+                    url_conv = CATALOGO["manual de convivencia"][1]
+                    pdf_conv = await asyncio.wait_for(descargar_pdf_b64(url_conv), timeout=30)
+                    docs_a_cargar.append(("Manual de Convivencia", pdf_conv))
+                except Exception as ec:
+                    print(f"No se pudo cargar Manual Convivencia: {ec}")
+            
+            if docs_a_cargar:
+                resp = await asyncio.wait_for(
+                    llamar_gemini_pdf_multiturno(mensaje, docs_a_cargar, telefono, nombre),
+                    timeout=70
+                )
+            else:
+                resp = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre), timeout=25)
+                
+            guardar_hist(telefono, "a", resp)
+            return resp
+        except Exception as e:
+            print(f"ERROR PEI context: {e}")
+            # Fallback a Gemini normal
+            pass
 
     # ENLACE WEB
     if any(p in s for p in PALABRAS_ENLACE):
         url_w, desc_w = buscar_web(mensaje)
-        if url_w: return desc_w+":\n"+url_w
+        if url_w: return desc_w + ":\n" + url_w
 
     # GEMINI NORMAL
-    guardar_hist(telefono,"u",mensaje)
+    guardar_hist(telefono, "u", mensaje)
     try:
-        resp = await asyncio.wait_for(llamar_gemini(mensaje,telefono,nombre), timeout=25)
+        resp = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre), timeout=25)
     except asyncio.TimeoutError:
-        resp = "La consulta tardo demasiado. Intentalo de nuevo."
+        resp = "La consulta tardó demasiado. Intentalo de nuevo."
     except Exception as e:
-        print("ERROR GEMINI: "+str(e)); resp = "Tuve un problema. Intentalo de nuevo."
-    guardar_hist(telefono,"a",resp)
-    print("OK -> "+(nombre or telefono))
+        print("ERROR GEMINI: " + str(e))
+        resp = "Tuve un problema. Intentalo de nuevo."
+    guardar_hist(telefono, "a", resp)
+    print("OK -> " + (nombre or telefono))
     return resp
 
 
