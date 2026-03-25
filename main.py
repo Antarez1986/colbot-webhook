@@ -989,7 +989,7 @@ BASE_PDF = "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de
 CATALOGO = {
     "pei":                     ("PEI - Proyecto Educativo Institucional",   BASE_PDF + "a9f081d3d6da48eebcdbfde82e4ab0af.pdf"),
     "siee":                    ("SIEE - Sistema de Evaluacion",             BASE_PDF + "f245afe526dd49d097d9417251ec1adc.pdf"),
-    "manual de convivencia":   ("Manual de Convivencia",                    BASE_PDF + "793cfd61ebe14c7cade9feafd6828d3b.pdf"),
+    "manual de convivencia":   ("Manual de Convivencia",                    "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
     "manual de funciones":     ("Manual de Funciones",                      BASE_PDF + "711c1ffb30334ea9b10163d87aaed4ba.pdf"),
     "propuesta intercultural": ("Propuesta Intercultural Yukpa",            BASE_PDF + "a29820f94ee5437abff3787c8f77a79b.pdf"),
     "salas de informatica":    ("Manual Salas de Informatica",              BASE_PDF + "e6e7265c3d7c4132925b62267253521d.pdf"),
@@ -1012,8 +1012,75 @@ ALIAS_DOC = {
 PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido","que habla","como funciona","cual es"]
 PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf"]
 PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay","actividades","bimestral","receso","periodo","semana","mes","hoy","manana","proximo","vacaciones","boletin","dia civico","reunion","padres","clausura","graduacion"]
-PALABRAS_REPORTE = ["reportar","reporte","incidente","queja","denuncia","problema de convivencia","agresion","bullying","conflicto","falta","reportar un caso","hacer un reporte","registrar falta","anotar falta"]
+
+# ══════════════════════════════════════════════
+#  DETECCIÓN SEMÁNTICA DE INTENCIÓN DE REPORTE
+#  Tres capas: bloqueo informativo → acción explícita → narrativa de hecho
+# ══════════════════════════════════════════════
+def es_intencion_reporte(mensaje: str) -> bool:
+    s = norm(mensaje)
+
+    # CAPA 1 — BLOQUEO: consultas informativas tienen prioridad absoluta
+    BLOQUEO = [
+        "que dice","que establece","que indica","que habla","que contiene",
+        "cuales son","como se clasifica","que tipo","que son las",
+        "explica","explique","defin","describe","resume","segun el manual",
+        "segun la ley","segun el reglamento","en el manual","manual dice",
+        "articulo","capitulo","norma","reglamento","ley 1620",
+        "dame ejemplos","da ejemplo","ejemplo de","diferencia entre",
+        "informacion sobre","que es una falta","que es el bullying",
+        "protocolo de","como funciona","para que sirve",
+    ]
+    if any(p in s for p in BLOQUEO):
+        return False
+
+    # CAPA 2 — SEÑALES INEQUÍVOCAS DE ACCIÓN DE REPORTE
+    ACCION_DIRECTA = [
+        "quiero reportar","voy a reportar","necesito reportar",
+        "hacer un reporte","hacer reporte","registrar un reporte",
+        "registrar un incidente","levantar un acta","levantar acta",
+        "abrir un caso","abrir caso","reportar una falta",
+        "reportar a ","reporte de convivencia","reporte disciplinario",
+        "anotar una falta","anotar falta","subir una falta",
+        "iniciar reporte","nuevo reporte",
+    ]
+    if any(p in s for p in ACCION_DIRECTA):
+        return True
+
+    # CAPA 3 — NARRATIVA DE INCIDENTE REAL
+    # Requiere: verbo de acción pasada + palabra de incidente + no es pregunta
+    VERBOS_INCIDENTE = [
+        "golpeo","golpeó","agredio","agredió","insulto","insultó",
+        "mordio","mordió","empujo","empujó","amenazo","amenazó",
+        "peleo","peleó","robo","robó","daño","dañó","vandali",
+        "acoso","acosar","hostig","maltrat","lesion","lesionó",
+    ]
+    PALABRAS_INCIDENTE = [
+        "incidente","agresion","agresión","bullying","conflicto",
+        "pelea","situacion","situación","caso","hecho",
+    ]
+    es_pregunta = s.endswith("?") or s.startswith(("que ","como ","cual ","cuando ","donde ","quien ","cuanto "))
+    tiene_verbo = any(v in s for v in VERBOS_INCIDENTE)
+    tiene_incidente = any(p in s for p in PALABRAS_INCIDENTE)
+
+    if tiene_verbo and tiene_incidente and not es_pregunta:
+        return True
+
+    return False
+
+PALABRAS_MANUAL_CONV = [
+    "falta leve","falta grave","falta gravisima","falta gravísima",
+    "manual de convivencia","manual convivencia","reglamento convivencia",
+    "tipos de faltas","clasificacion de faltas","clasificación",
+    "conducta","comportamiento","sancion","sanción","correctivo",
+    "comite de convivencia","comité","ruta de atencion","ruta de atención",
+    "suspension","suspensión","acta de compromiso","acudiente",
+    "derechos del estudiante","deberes del estudiante",
+    "uso del uniforme","presentacion personal","normas de convivencia",
+    "ley 1620","decreto 1965","matoneo","acoso escolar",
+]
 PALABRAS_PEI_CTX = ["mision","vision","filosofia","modelo pedagogico","proyecto educativo","horizonte institucional","principios","objetivos institucionales","enfoque pedagogico","perfiles","competencias","gobierno escolar","personero","contralor escolar","consejo directivo","consejo academico"]
+
 
 def buscar_doc(texto):
     s = norm(texto)
@@ -1097,8 +1164,11 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
     extra   = "\nDATOS EXTRA:\n"+"\n".join(["- "+d for d in conocimiento_extra])+"\n" if conocimiento_extra else ""
     prompt  = (
         "Eres ColBot, asistente oficial del "+SCHOOL_NAME+" en Cucuta.\n"
-        "Personalidad: amigable, calido, profesional. Maximo 3 parrafos. 1-2 emojis. URLs en texto plano.\n"
-        "Si ya te presentaste, NO te presentes de nuevo.\n\n"
+        "Personalidad: amigable, cálido, profesional. Máximo 3 párrafos. 1-2 emojis. URLs en texto plano.\n"
+        "Si ya te presentaste, NO te presentes de nuevo.\n"
+        "Si la pregunta es sobre convivencia, faltas o disciplina y no tienes el dato exacto, "
+        "dile al usuario que puede consultarlo en el Manual de Convivencia escribiendo: 'manual de convivencia'.\n"
+        "NUNCA inventes artículos, cifras ni normas que no estén en los datos.\n\n"
         + INFO_INSTITUCIONAL + extra + (ctx if ctx else "")
         + "\nCONVERSACION:\n" + ("(primera vez)\n" if primera else hist+"\n")
         + ("Presentate brevemente.\n" if primera else "Responde directamente.\n")
@@ -1198,7 +1268,7 @@ async def procesar(mensaje, telefono, nombre):
         b_check = await borrador_cargar(telefono)
         tiene_borrador = b_check is not None
 
-    if tiene_borrador or any(p in s for p in PALABRAS_REPORTE):
+    if tiene_borrador or es_intencion_reporte(mensaje):
         return await gestionar_reporte(mensaje, telefono, nombre)
 
     # ADMIN
@@ -1210,17 +1280,18 @@ async def procesar(mensaje, telefono, nombre):
     saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start"]
     if s in saludos:
         tiene_hist = bool(historiales.get(telefono))
-        nombre_txt = nombre or ""
+        nombre_txt = (" " + nombre) if nombre else ""
         if tiene_hist:
-            return "Hola de nuevo"+(f", {nombre_txt}" if nombre_txt else "")+"! ¿En qué te ayudo?"
-        return ("Hola"+(f", {nombre_txt}" if nombre_txt else "")+"! Soy ColBot del "+SCHOOL_NAME+".\n\n"
-                "Puedo ayudarte con:\n"
-                "• Información del colegio\n"
-                "• Calendario escolar y eventos\n"
-                "• Documentos y planes de área\n"
-                "• Notas (portal Webcolegios)\n"
-                "• Reportar faltas de convivencia\n\n"
-                "¿En qué te ayudo?")
+            return f"¡Hola de nuevo{nombre_txt}! ¿En qué te ayudo? 😊"
+        return (
+            f"¡Hola{nombre_txt}! Soy *ColBot* 🤖, asistente de la IE Simón Bolívar.\n\n"
+            "Puedo:\n"
+            "📚 Consultar documentos y manuales\n"
+            "📅 Revisar el calendario escolar\n"
+            "📋 Registrar reportes de convivencia\n"
+            "🔗 Darte enlaces y contactos\n\n"
+            "¿Qué necesitas?"
+        )
 
     # RESPUESTA RAPIDA
     rapida = respuesta_rapida(mensaje)
@@ -1293,6 +1364,24 @@ async def procesar(mensaje, telefono, nombre):
     if any(p in s for p in PALABRAS_ENLACE):
         url_w, desc_w = buscar_web(mensaje)
         if url_w: return desc_w + ":\n" + url_w
+
+    # MANUAL DE CONVIVENCIA — Documento central
+    # Se consulta automáticamente si el tema es convivencia/faltas/disciplina
+    if any(p in s for p in PALABRAS_MANUAL_CONV):
+        guardar_hist(telefono,"u",mensaje)
+        try:
+            pdf_mc = await asyncio.wait_for(
+                descargar_pdf_b64(CATALOGO["manual de convivencia"][1]), timeout=35)
+            resp = await asyncio.wait_for(
+                llamar_gemini_pdf(mensaje, "Manual de Convivencia", pdf_mc, telefono, nombre),
+                timeout=55
+            )
+            resp = "(Según el Manual de Convivencia)\n\n" + resp
+            guardar_hist(telefono,"a",resp); return resp
+        except asyncio.TimeoutError:
+            pass  # si tarda mucho, cae a Gemini normal con INFO_INSTITUCIONAL
+        except Exception as e:
+            print(f"ERROR MC auto: {e}")
 
     # GEMINI NORMAL
     guardar_hist(telefono,"u",mensaje)
