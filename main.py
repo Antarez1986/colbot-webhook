@@ -1011,7 +1011,7 @@ WEB_LINKS = {
 # ══════════════════════════════════════════════
 BASE_PDF = "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_"
 CATALOGO = {
-    "pei":                     ("PEI - Proyecto Educativo Institucional",   BASE_PDF + "a9f081d3d6da48eebcdbfde82e4ab0af.pdf"),
+    "pei":                     ("PEI - Proyecto Educativo Institucional",   "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
     "siee":                    ("SIEE - Sistema de Evaluacion",             BASE_PDF + "f245afe526dd49d097d9417251ec1adc.pdf"),
     "manual de convivencia":   ("Manual de Convivencia",                    "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
     "manual de funciones":     ("Manual de Funciones",                      BASE_PDF + "711c1ffb30334ea9b10163d87aaed4ba.pdf"),
@@ -1104,6 +1104,38 @@ PALABRAS_MANUAL_CONV = [
     "ley 1620","decreto 1965","matoneo","acoso escolar",
 ]
 PALABRAS_PEI_CTX = ["mision","vision","filosofia","modelo pedagogico","proyecto educativo","horizonte institucional","principios","objetivos institucionales","enfoque pedagogico","perfiles","competencias","gobierno escolar","personero","contralor escolar","consejo directivo","consejo academico"]
+
+# Palabras que indican que la pregunta es sobre el colegio y debe consultarse
+# el documento central antes de responder con Gemini solo
+PALABRAS_DOC_CENTRAL = [
+    # gestión y procesos
+    "proceso","procesos","gestion","subproceso","mapa de procesos",
+    "gestion academica","gestion directiva","gestion administrativa","gestion comunitaria",
+    "plan de estudios","enfoque metodologico","practicas pedagogicas","practica pedagogica",
+    "recursos para el aprendizaje","jornada escolar","seguimiento","evaluacion de aula",
+    # convivencia y disciplina
+    "falta leve","falta grave","falta gravisima","falta gravísima",
+    "manual de convivencia","manual convivencia","reglamento convivencia",
+    "tipos de faltas","clasificacion de faltas","conducta","comportamiento",
+    "sancion","sanción","correctivo","comite de convivencia","comité",
+    "ruta de atencion","suspension","acta de compromiso","acudiente",
+    "derechos del estudiante","deberes del estudiante",
+    "uso del uniforme","presentacion personal","normas de convivencia",
+    "ley 1620","decreto 1965","matoneo","acoso escolar",
+    # institucional / PEI
+    "mision","vision","filosofia","modelo pedagogico","proyecto educativo",
+    "horizonte institucional","principios","objetivos institucionales",
+    "enfoque pedagogico","perfiles","competencias","gobierno escolar",
+    "personero","contralor escolar","consejo directivo","consejo academico",
+    # otros temas del PEI
+    "resignificacion","resignificación","plan de mejoramiento","pei",
+    "area fundamental","area transversal","intensidad horaria","pensum",
+    "proyecto transversal","proyecto de vida","escuela de padres",
+    "manual de funciones","cargo","funciones del","rol del",
+    "matricula","admision","admisión","requisitos de ingreso",
+    "convenio","sena","universidad de pamplona","ufps",
+    "sede","sedes del colegio","cuantos estudiantes","cuantos docentes",
+]
 
 
 def buscar_doc(texto):
@@ -1371,41 +1403,30 @@ async def procesar(mensaje, telefono, nombre):
             print("ERROR PDF: "+str(e)); resp = f"No pude leer el documento ahora. Descárgalo:\n{url_doc}"
         guardar_hist(telefono,"a",resp); return resp
 
-    # PREGUNTAS INSTITUCIONALES → PEI automático
-    if any(p in s for p in PALABRAS_PEI_CTX):
-        guardar_hist(telefono,"u",mensaje)
-        try:
-            pdf_pei = await asyncio.wait_for(descargar_pdf_b64(CATALOGO["pei"][1]), timeout=30)
-            resp = await asyncio.wait_for(
-                llamar_gemini_pdf(mensaje, "PEI - Proyecto Educativo Institucional", pdf_pei, telefono, nombre),
-                timeout=55
-            )
-            guardar_hist(telefono,"a",resp); return resp
-        except Exception as e:
-            print(f"ERROR PEI auto: {e}")
-
     # ENLACE WEB
     if any(p in s for p in PALABRAS_ENLACE):
         url_w, desc_w = buscar_web(mensaje)
         if url_w: return desc_w + ":\n" + url_w
 
-    # MANUAL DE CONVIVENCIA — Documento central
-    # Se consulta automáticamente si el tema es convivencia/faltas/disciplina
-    if any(p in s for p in PALABRAS_MANUAL_CONV):
+    # DOCUMENTO CENTRAL (PEI completo, 497 págs)
+    # Se consulta para CUALQUIER pregunta sobre temas institucionales:
+    # procesos, gestión, convivencia, disciplina, faltas, filosofía, etc.
+    # Es la fuente de verdad antes de responder con Gemini solo.
+    if any(p in s for p in PALABRAS_DOC_CENTRAL):
         guardar_hist(telefono,"u",mensaje)
+        URL_CENTRAL = CATALOGO["pei"][1]
+        print(f"[DOC CENTRAL] activado para: {mensaje[:80]}")
         try:
-            pdf_mc = await asyncio.wait_for(
-                descargar_pdf_b64(CATALOGO["manual de convivencia"][1]), timeout=35)
+            pdf_central = await asyncio.wait_for(descargar_pdf_b64(URL_CENTRAL), timeout=40)
             resp = await asyncio.wait_for(
-                llamar_gemini_pdf(mensaje, "Manual de Convivencia", pdf_mc, telefono, nombre),
-                timeout=55
+                llamar_gemini_pdf(mensaje, "PEI y Documentos Institucionales ColBolívar", pdf_central, telefono, nombre),
+                timeout=60
             )
-            resp = "(Según el Manual de Convivencia)\n\n" + resp
             guardar_hist(telefono,"a",resp); return resp
         except asyncio.TimeoutError:
-            pass  # si tarda mucho, cae a Gemini normal con INFO_INSTITUCIONAL
+            print("WARN DOC CENTRAL timeout — cayendo a Gemini normal")
         except Exception as e:
-            print(f"ERROR MC auto: {e}")
+            print(f"ERROR DOC CENTRAL: {e}")
 
     # GEMINI NORMAL
     guardar_hist(telefono,"u",mensaje)
