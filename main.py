@@ -194,61 +194,118 @@ def _resolver_sede_por_numero(texto):
     return None
 
 
-async def _extraer_datos_gemini(mensaje_completo, datos_actuales):
+def _extraer_sin_gemini(mensaje, nombre_reportante=""):
     """
-    Llama a Gemini UNA SOLA VEZ para extraer todos los campos del mensaje.
-    Retorna dict con los campos encontrados (null si no se menciona).
+    Extracción local con regex — no depende de Gemini, nunca falla.
+    Se usa como primer intento y como fallback.
     """
-    prompt = f"""Eres un asistente escolar. Extrae datos de convivencia del siguiente mensaje.
+    s     = norm(mensaje)
+    datos = {}
 
-Mensaje del docente: "{mensaje_completo}"
-Datos ya conocidos: {json.dumps(datos_actuales, ensure_ascii=False)}
+    # ── Tipo de falta ──────────────────────────────────────────────
+    if re.search(r'\bgravis[ií]ma?\b|\btipo\s*3\b|\bfalta\s*3\b', s):
+        datos["tipo_falta"] = "Gravisima"
+    elif re.search(r'\bgrave\b|\btipo\s*2\b|\bfalta\s*2\b', s):
+        datos["tipo_falta"] = "Grave"
+    elif re.search(r'\bleve\b|\btipo\s*1\b|\bfalta\s*1\b|\btipo\s*uno\b', s):
+        datos["tipo_falta"] = "Leve"
 
-Reglas de extracción:
-- "tipo 1", "falta 1", "leve" → tipo_falta = "Leve"
-- "tipo 2", "falta 2", "grave" → tipo_falta = "Grave"  
-- "tipo 3", "falta 3", "gravísima", "gravisima" → tipo_falta = "Gravisima"
-- Si el docente dice "yo soy el testigo" o "soy testigo" → testigo = nombre del docente (usa "el docente reportante" si no hay nombre)
-- Si dice "sin testigo" o "ninguno" → testigo = "ninguno"
-- conducta: resume en máximo 8 palabras lo que hizo el estudiante
-- descripcion: lo que ocurrió con más detalle
-- grado: acepta "402", "4-02", "4°2", "decimo A", "10A" etc.
-- cancelar: true solo si explícitamente quiere cancelar el reporte
+    # ── Grado ─────────────────────────────────────────────────────
+    # Acepta: 10A, 4°2, 402, 4-02, grado 7b, decimo a, etc.
+    m = re.search(r'\bgrado\s*([0-9]{1,2}[-°]?[0-9a-zA-Z]{1,2})\b', s)
+    if not m:
+        m = re.search(r'\b([0-9]{1,2}[-°]?[0-9]?[a-zA-Z])\b', mensaje)
+    if m:
+        datos["grado"] = m.group(1).upper().replace("°","").replace("-","")
 
-Devuelve SOLO este JSON (sin texto adicional, sin backticks):
-{{
-  "estudiante": "nombre o null",
-  "grado": "grado o null",
-  "tipo_falta": "Leve|Grave|Gravisima|null",
-  "conducta": "resumen conducta o null",
-  "descripcion": "descripcion o null",
-  "testigo": "nombre testigo o null",
-  "cancelar": false
-}}"""
+    # ── Testigo ───────────────────────────────────────────────────
+    if re.search(r'\byo\s+soy\s+(el\s+)?testigo\b|\bsoy\s+(el\s+)?testigo\b', s):
+        datos["testigo"] = nombre_reportante or "El docente reportante"
+    elif re.search(r'\bsin\s+testigo\b|\bninguno\b|\bno\s+hay\s+testigo\b', s):
+        datos["testigo"] = "ninguno"
 
-    try:
-        api_key = os.getenv("GEMINI_API_KEY", "")
-        modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.1,
-                "maxOutputTokens": 300,
-                "responseMimeType": "application/json",
+    # ── Cancelar ──────────────────────────────────────────────────
+    if re.search(r'\bcancelar\b|\bsalir\b|\bcancel\b', s):
+        datos["cancelar"] = True
+
+    return datos
+
+
+async def _extraer_datos_gemini(mensaje_completo, datos_actuales, nombre_reportante=""):
+    """
+    Extracción de datos en dos capas:
+      1. Regex local (rápido, sin red, infalible)
+      2. Gemini con prompt estricto y parser blindado (obtiene estudiante, descripción, conducta)
+    Combina ambos resultados. NUNCA lanza excepción.
+    """
+    # Capa 1 — regex local siempre
+    extraidos = _extraer_sin_gemini(mensaje_completo, nombre_reportante)
+
+    # Capa 2 — Gemini para campos de texto libre (estudiante, descripcion, conducta)
+    # Solo llamamos si faltan esos campos
+    necesita_gemini = any(
+        not datos_actuales.get(c) and not extraidos.get(c)
+        for c in ["estudiante", "descripcion", "conducta"]
+    )
+
+    if necesita_gemini:
+        # Prompt ultra-estricto: claves simples, sin caracteres especiales en valores
+        prompt = (
+            "Extrae datos del siguiente mensaje de un docente colombiano.\n"
+            "Mensaje: " + mensaje_completo + "\n\n"
+            "Responde UNICAMENTE con lineas en este formato exacto (sin llaves, sin comillas):\n"
+            "estudiante: valor\n"
+            "grado: valor\n"
+            "tipo_falta: Leve o Grave o Gravisima\n"
+            "conducta: valor\n"
+            "descripcion: valor\n"
+            "testigo: valor\n\n"
+            "Reglas:\n"
+            "- tipo 1 / falta 1 / leve = Leve\n"
+            "- tipo 2 / falta 2 / grave = Grave\n"
+            "- tipo 3 / falta 3 / gravisima = Gravisima\n"
+            "- Si no se menciona un campo escribe: null\n"
+            "- yo soy testigo -> testigo = " + (nombre_reportante or "docente reportante") + "\n"
+            "- conducta: maximo 8 palabras resumiendo que hizo el estudiante\n"
+            "- NO uses comillas, NO uses llaves, solo texto plano"
+        )
+
+        try:
+            api_key = os.getenv("GEMINI_API_KEY", "")
+            modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+            url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                   f"{modelo}:generateContent?key={api_key}")
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.1,
+                    "maxOutputTokens": 250,
+                    # NO usamos responseMimeType json para evitar JSON malformado
+                }
             }
-        }
-        async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.post(url, json=payload)
-            d = r.json()
-        if "candidates" not in d:
-            return {}
-        raw = d["candidates"][0]["content"]["parts"][0]["text"]
-        raw = re.sub(r"```json|```", "", raw).strip()
-        return json.loads(raw)
-    except Exception as e:
-        print("ERROR extraccion Gemini: " + str(e))
-        return {}
+            async with httpx.AsyncClient(timeout=18) as c:
+                r = await c.post(url, json=payload)
+                d = r.json()
+
+            if "candidates" in d:
+                raw = d["candidates"][0]["content"]["parts"][0]["text"]
+                # Parser de texto plano: lee "clave: valor" línea por línea
+                for linea in raw.splitlines():
+                    linea = linea.strip()
+                    if ":" not in linea:
+                        continue
+                    clave, _, valor = linea.partition(":")
+                    clave  = clave.strip().lower().replace(" ", "_")
+                    valor  = valor.strip().strip('"').strip("'")
+                    if clave in CAMPOS_REPORTE and valor and valor.lower() not in ("null", "ninguno mencionado", "no mencionado", ""):
+                        extraidos[clave] = valor
+                    elif clave == "testigo" and valor.lower() not in ("null", ""):
+                        extraidos["testigo"] = valor
+        except Exception as e:
+            print("WARN extraccion Gemini (usando solo regex): " + str(e))
+            # Continúa con lo que ya tiene extraidos del regex
+
+    return extraidos
 
 
 def _campos_faltantes(datos):
@@ -330,11 +387,14 @@ async def gestionar_reporte_inteligente(mensaje, telefono, nombre):
         return confirmacion + _mensaje_pedir_faltantes(faltantes)
 
     # ══════════════════════════════════════════
-    # PASO B — Extraer datos con Gemini
+    # PASO B — Extraer datos con Gemini + regex
     # ══════════════════════════════════════════
-    extraidos = await _extraer_datos_gemini(mensaje, datos)
+    extraidos = await _extraer_datos_gemini(
+        mensaje, datos,
+        nombre_reportante=form.get("reportante", "")
+    )
 
-    # Cancelar si Gemini lo detectó
+    # Cancelar si fue detectado
     if extraidos.get("cancelar"):
         del formularios_activos[telefono]
         return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
