@@ -140,12 +140,13 @@ PROTOCOLOS = {
 #  Columnas: telefono | reportante | estado |
 #            estudiante | grado | tipo_falta |
 #            sede | jornada | detalle_del_hecho |
-#            timestamp
-#  (10 columnas, índices 0-9)
+#            detalle_profesional | accion_reparadora | timestamp
+#  (12 columnas, índices 0-11)
 # ══════════════════════════════════════════════
 COL_B = ["telefono","reportante","estado",
          "estudiante","grado","tipo_falta",
-         "sede","jornada","detalle_del_hecho","timestamp"]
+         "sede","jornada","detalle_del_hecho",
+         "detalle_profesional","accion_reparadora","timestamp"]
 
 def _borrador_a_dict(fila):
     """Convierte una fila de Sheets (lista) a dict de borrador."""
@@ -324,18 +325,22 @@ def _mensaje_pedir_faltantes(faltantes):
     return "\n".join(lineas)
 
 def _resumen_borrador(b):
+    """Resumen visual del borrador para mostrar al docente."""
     mapa = [
-        ("sede",       "🏫", "Sede"),
-        ("jornada",    "🕐", "Jornada"),
-        ("estudiante", "👤", "Estudiante"),
-        ("grado",      "🎒", "Grado"),
-        ("tipo_falta", "⚠️", "Tipo"),
-        ("detalle_del_hecho", "📝", "Detalle"),
+        ("sede",                "🏫", "Sede"),
+        ("jornada",             "🕐", "Jornada"),
+        ("estudiante",          "👤", "Estudiante"),
+        ("grado",               "🎒", "Grado"),
+        ("tipo_falta",          "⚠️", "Tipo de falta"),
+        ("detalle_del_hecho",   "📝", "Hecho reportado"),
     ]
     lineas = []
     for clave, emoji, label in mapa:
         val = b.get(clave, "")
         if val and val not in ("null", ""):
+            # Truncar el detalle para que no sea interminable en el chat
+            if clave == "detalle_del_hecho" and len(val) > 120:
+                val = val[:120] + "..."
             lineas.append(f"{emoji} *{label}:* {val}")
     return "\n".join(lineas) if lineas else "_(aún sin datos)_"
 
@@ -420,7 +425,7 @@ async def _sheets_borrar_fila(fila_num, token=None):
         token = await obtener_token_sheets()
     if not token:
         return False
-    rango = f"{SHEET_BORRADORES}!A{fila_num}:J{fila_num}"
+    rango = f"{SHEET_BORRADORES}!A{fila_num}:L{fila_num}"
     url = (f"https://sheets.googleapis.com/v4/spreadsheets/{SHEETS_ID}"
            f"/values/{rango}:clear")
     headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
@@ -467,7 +472,7 @@ async def _borrador_buscar_fila(telefono, token=None):
     Busca en la hoja Borradores la fila correspondiente al telefono.
     Retorna (numero_de_fila, dict_datos) o (None, None).
     """
-    filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:J", token)
+    filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:L", token)
     for i, fila in enumerate(filas, start=1):
         if fila and limpiar_tel(fila[0]) == limpiar_tel(telefono):
             return i, _borrador_a_dict(fila)
@@ -490,7 +495,7 @@ async def borrador_guardar(telefono, b: dict):
         fila_datos = _dict_a_borrador(b)
 
         if fila_num:
-            rango = f"{SHEET_BORRADORES}!A{fila_num}:J{fila_num}"
+            rango = f"{SHEET_BORRADORES}!A{fila_num}:L{fila_num}"
             await _sheets_escribir_rango(rango, [fila_datos], token)
         else:
             await _sheets_append(SHEET_BORRADORES, fila_datos, token)
@@ -536,7 +541,7 @@ async def cargar_todos_borradores():
     Carga todos los borradores activos de Sheets al cache en memoria.
     """
     try:
-        filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:J")
+        filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:L")
         n = 0
         for fila in filas:
             if not fila or not fila[0]:
@@ -557,10 +562,9 @@ async def cargar_todos_borradores():
 async def guardar_reporte_final(fila):
     """
     Guarda la fila final en la hoja 'Reportes'.
-    13 columnas:
+    12 columnas:
     N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
-    Tipo | Detalle Original | Detalle Profesional | Accion Reparadora |
-    Reportante | Teléfono
+    Tipo | Detalle Original | Detalle Profesional | Accion Reparadora | Reportante
     """
     try:
         token = await obtener_token_sheets()
@@ -592,18 +596,591 @@ def _extraer_local(mensaje):
     return datos
 
 
+# ══════════════════════════════════════════════════════════════════
+#  MÓDULO DE REPORTES — ESTRATEGIA NUEVA (v4)
+#
+#  PRINCIPIO: Una sola llamada Gemini hace TODO:
+#    1. Extrae los datos del mensaje
+#    2. Redacta el hecho profesionalmente
+#    3. Genera la acción reparadora
+#
+#  FLUJO SIMPLIFICADO (máximo 2 turnos):
+#    Turno 1: El docente escribe cualquier cosa describiendo el caso
+#             → Gemini extrae todo y devuelve JSON + redacción
+#             → Si falta algo crítico, se pregunta TODO junto en un mensaje
+#    Turno 2: El docente completa lo que faltaba
+#             → Se finaliza el reporte
+#
+#  La sede se pregunta con menú SOLO si no se mencionó.
+#  NUNCA se pregunta campo por campo.
+# ══════════════════════════════════════════════════════════════════
+
+# ── Constantes del módulo de reportes ─────────────────────────────
+CAMPOS_OBLIGATORIOS = ["estudiante", "grado", "tipo_falta", "detalle_del_hecho"]
+
+MANUAL_CONVIVENCIA_CTX = """
+CONTEXTO DEL MANUAL DE CONVIVENCIA — IE SIMÓN BOLÍVAR (Cúcuta, Colombia):
+- Art. 161 — Faltas LEVES: llegar tarde reiteradamente, salir del aula sin permiso,
+  no usar correctamente el uniforme, comer en clase, usar dispositivos sin autorización.
+  Protocolo: diálogo, acta de compromiso, notificación al acudiente.
+  ACUMULACIÓN: 3 faltas leves = 1 falta GRAVE.
+- Art. 162 — Faltas GRAVES: irrespeto verbal o gestual al docente, plagio, agresiones
+  físicas leves, daño a bienes ajenos, reincidencia en faltas leves.
+  Protocolo: citación formal al acudiente, suspensión 1-3 días, acta de compromiso,
+  remisión a orientación.
+- Art. 163 — Faltas GRAVÍSIMAS (Ley 1620/2013, Dec. 1965/2013): porte de armas,
+  consumo de sustancias, violencia sexual, vandalismo grave, acoso escolar sostenido.
+  Protocolo: activación inmediata Ruta de Atención Integral, notificación Comité
+  de Convivencia, posible remisión a ICBF/Policía/Fiscalía, suspensión mientras se
+  investiga.
+- Enfoque restaurativo: las acciones reparadoras deben orientarse a la reflexión,
+  la reparación del daño y la reconciliación, no al castigo.
+"""
+
+
+async def _gemini_analizar_reporte_completo(mensaje_docente: str,
+                                             datos_previos: dict = None) -> dict:
+    """
+    FUNCIÓN CENTRAL DEL MÓDULO DE REPORTES.
+
+    Hace TODO en una sola llamada Gemini:
+    - Extrae: estudiante, grado, tipo_falta, sede, jornada
+    - Redacta: detalle profesional para acta oficial
+    - Genera: acción reparadora restaurativa
+    - Devuelve: dict JSON con todos los campos
+
+    Retorna dict con claves:
+      estudiante, grado, tipo_falta, sede, jornada,
+      detalle_original, detalle_profesional, accion_reparadora,
+      campos_faltantes (lista), confianza (alta/media/baja)
+    """
+    previos_txt = ""
+    if datos_previos:
+        previos_txt = "\nDATOS YA CONOCIDOS (no re-preguntes estos):\n"
+        for k, v in datos_previos.items():
+            if v and str(v).strip():
+                previos_txt += f"- {k}: {v}\n"
+
+    prompt = (
+        "Eres el secretario académico experto en convivencia escolar de la "
+        "IE Simón Bolívar de Cúcuta (Colombia), con dominio absoluto de la "
+        "Ley 1620 de 2013, el Decreto 1965 de 2013 y el Manual de Convivencia "
+        "institucional.\n\n"
+        + MANUAL_CONVIVENCIA_CTX
+        + previos_txt
+        + "\nMENSAJE DEL DOCENTE:\n\"" + mensaje_docente + "\"\n\n"
+        "═══════════════════════════════════════════════════\n"
+        "INSTRUCCIONES — LEE CON ATENCIÓN:\n"
+        "═══════════════════════════════════════════════════\n\n"
+        "PASO 1 — EXTRACCIÓN DE DATOS:\n"
+        "Extrae del mensaje del docente:\n"
+        "- estudiante: nombre completo (busca nombres propios, puede estar escrito con errores)\n"
+        "- grado: grado y grupo (ej: 5A, 10B, 7°, grado quinto → 5)\n"
+        "- tipo_falta: clasifica como Leve, Grave o Gravisima según el Manual\n"
+        "  * Si dice 'tipo 1', 'falta 1', 'leve' → Leve\n"
+        "  * Si dice 'tipo 2', 'falta 2', 'grave' → Grave\n"
+        "  * Si dice 'tipo 3', 'falta 3', 'gravisima' → Gravisima\n"
+        "  * Si describe el hecho pero no nombra el tipo, clasifícalo tú según el Manual\n"
+        "- sede: Simon Bolivar, San Martin, o Hernando Acevedo\n"
+        "  * 'san martin', 'sanmartin' → San Martin\n"
+        "  * 'simon bolivar', 'bolivar', 'central' → Simon Bolivar\n"
+        "  * 'hernando', 'acevedo' → Hernando Acevedo\n"
+        "- jornada: Mañana o Tarde\n"
+        "- detalle_original: COPIA LITERAL lo que el docente describió como la conducta "
+        "  o motivo de la falta. No resumas, copia tal cual.\n\n"
+        "PASO 2 — REDACCIÓN PROFESIONAL (solo si tienes el detalle de la falta):\n"
+        "Redacta el hecho como aparecería en un ACTA OFICIAL DE CONVIVENCIA ESCOLAR.\n"
+        "Requisitos OBLIGATORIOS:\n"
+        "* Tercera persona gramatical\n"
+        "* Vocabulario técnico-pedagógico y jurídico (Ley 1620, Manual de Convivencia)\n"
+        "* Menciona: nombre completo del estudiante, grado, sede, jornada\n"
+        "* Cita el artículo del Manual que corresponde a la falta (Art. 161/162/163)\n"
+        "* Mínimo 6 oraciones bien estructuradas\n"
+        "* Tono formal institucional, sin abreviaciones\n"
+        "* NO inventes hechos no mencionados por el docente\n"
+        "* USA vocabulario como: 'el educando', 'en reiteradas ocasiones', "
+        "  'incumplimiento del deber escolar', 'contraviniendo lo estipulado', "
+        "  'se hace constar', 'la conducta observada', 'norma convivencial'\n\n"
+        "PASO 3 — ACCIÓN REPARADORA (solo si tienes el detalle):\n"
+        "Propón una acción reparadora restaurativa ESPECÍFICA para este caso.\n"
+        "Requisitos:\n"
+        "* Enmarcada en el enfoque restaurativo de la Ley 1620 de 2013\n"
+        "* Práctica y aplicable en el colegio colombiano\n"
+        "* Orientada a reflexión y cambio de conducta, no al castigo\n"
+        "* Incluye: actividad concreta, participantes, tiempo estimado\n"
+        "* Mínimo 4 oraciones\n\n"
+        "PASO 4 — CAMPOS FALTANTES:\n"
+        "Lista SOLO los campos que NO pudiste extraer del mensaje "
+        "y que son estrictamente necesarios. Los campos obligatorios son: "
+        "estudiante, grado, tipo_falta, detalle_del_hecho.\n"
+        "La sede es deseable pero no bloquea el reporte.\n\n"
+        "═══════════════════════════════════════════════════\n"
+        "FORMATO DE RESPUESTA — USA EXACTAMENTE ESTAS ETIQUETAS:\n"
+        "═══════════════════════════════════════════════════\n"
+        "ESTUDIANTE: [nombre completo o DESCONOCIDO]\n"
+        "GRADO: [grado o DESCONOCIDO]\n"
+        "TIPO: [Leve o Grave o Gravisima o DESCONOCIDO]\n"
+        "SEDE: [Simon Bolivar o San Martin o Hernando Acevedo o DESCONOCIDO]\n"
+        "JORNADA: [Mañana o Tarde o DESCONOCIDO]\n"
+        "DETALLE_ORIGINAL: [texto literal del docente o DESCONOCIDO]\n"
+        "DETALLE_PROFESIONAL: [redacción completa del acta o PENDIENTE]\n"
+        "ACCION_REPARADORA: [acción completa o PENDIENTE]\n"
+        "CAMPOS_FALTANTES: [lista separada por comas, o NINGUNO]\n\n"
+        "REGLAS CRÍTICAS:\n"
+        "- NUNCA omitas ninguna etiqueta\n"
+        "- Si un campo tiene información, úsala aunque esté con errores ortográficos\n"
+        "- DETALLE_PROFESIONAL y ACCION_REPARADORA pueden ocupar múltiples líneas\n"
+        "- Si falta el detalle del hecho, escribe PENDIENTE en ambas secciones\n"
+        "- No uses asteriscos, markdown, ni viñetas dentro de las etiquetas"
+    )
+
+    try:
+        raw = await asyncio.wait_for(
+            _gemini_base(prompt, max_tokens=1800, temperature=0.3,
+                         timeout=GEMINI_TIMEOUT_REDACCION),
+            timeout=GEMINI_TIMEOUT_REDACCION + 5
+        )
+        return _parsear_respuesta_reporte(raw, mensaje_docente)
+    except Exception as e:
+        _warn(f"_gemini_analizar_reporte_completo: {e}")
+        return {
+            "estudiante": "", "grado": "", "tipo_falta": "", "sede": "",
+            "jornada": "", "detalle_original": mensaje_docente,
+            "detalle_profesional": "", "accion_reparadora": "",
+            "campos_faltantes": ["estudiante", "grado", "tipo_falta"],
+            "error": str(e)
+        }
+
+
+def _parsear_respuesta_reporte(raw: str, mensaje_original: str) -> dict:
+    """
+    Parsea la respuesta estructurada de Gemini con las etiquetas definidas.
+    Robusto ante variaciones de formato y contenido multilínea.
+    """
+    # Las etiquetas en orden — usamos split secuencial para capturar multilínea
+    ETIQUETAS = [
+        "ESTUDIANTE", "GRADO", "TIPO", "SEDE", "JORNADA",
+        "DETALLE_ORIGINAL", "DETALLE_PROFESIONAL", "ACCION_REPARADORA",
+        "CAMPOS_FALTANTES"
+    ]
+
+    def _extraer_campo_secuencial(texto: str, etiqueta: str) -> str:
+        """
+        Extrae el valor de una etiqueta capturando todo hasta la siguiente etiqueta.
+        Soporta contenido de múltiples párrafos.
+        """
+        # Construir patrón que busca la etiqueta y captura hasta la próxima
+        otras = [e for e in ETIQUETAS if e != etiqueta]
+        patron_fin = "|".join(rf"^{e}\s*:" for e in otras)
+        patron = rf'(?im)^{re.escape(etiqueta)}\s*:\s*(.+?)(?=(?:{patron_fin})|$)'
+        m = re.search(patron, texto, re.MULTILINE | re.DOTALL)
+        if m:
+            return m.group(1).strip()
+        # Fallback simple — una sola línea
+        m2 = re.search(rf'(?im)^{re.escape(etiqueta)}\s*:\s*(.+)$', texto)
+        if m2:
+            return m2.group(1).strip()
+        return ""
+
+    def _limpiar(val: str) -> str:
+        if not val:
+            return ""
+        val = val.strip()
+        if val.upper() in ("DESCONOCIDO", "PENDIENTE", "N/A", "NULL", "NO DISPONIBLE",
+                            "NO MENCIONADO", "NO SE MENCIONA", "SIN INFORMACIÓN", ""):
+            return ""
+        return val
+
+    estudiante       = _limpiar(_extraer_campo_secuencial(raw, "ESTUDIANTE"))
+    grado            = _limpiar(_extraer_campo_secuencial(raw, "GRADO"))
+    tipo_raw         = _limpiar(_extraer_campo_secuencial(raw, "TIPO"))
+    sede_raw         = _limpiar(_extraer_campo_secuencial(raw, "SEDE"))
+    jornada_raw      = _limpiar(_extraer_campo_secuencial(raw, "JORNADA"))
+    detalle_orig     = _limpiar(_extraer_campo_secuencial(raw, "DETALLE_ORIGINAL"))
+    detalle_prof     = _limpiar(_extraer_campo_secuencial(raw, "DETALLE_PROFESIONAL"))
+    accion_rep       = _limpiar(_extraer_campo_secuencial(raw, "ACCION_REPARADORA"))
+    faltantes_raw    = _extraer_campo_secuencial(raw, "CAMPOS_FALTANTES")
+
+    # ── Normalizar tipo_falta ──────────────────────────────────────
+    tipo_falta = ""
+    if tipo_raw:
+        t = norm(tipo_raw)
+        if "gravis" in t or "3" in t:
+            tipo_falta = "Gravisima"
+        elif "grave" in t or "2" in t:
+            tipo_falta = "Grave"
+        elif "leve" in t or "1" in t:
+            tipo_falta = "Leve"
+        # Si Gemini escribió directamente el nombre
+        elif tipo_raw[0].isupper() and tipo_raw in ("Leve", "Grave", "Gravisima"):
+            tipo_falta = tipo_raw
+
+    # ── Normalizar sede ────────────────────────────────────────────
+    sede = ""
+    if sede_raw:
+        s_n = norm(sede_raw)
+        if "martin" in s_n:
+            sede = "San Martin"
+        elif "acevedo" in s_n or "hernando" in s_n:
+            sede = "Hernando Acevedo"
+        elif "bolivar" in s_n or "simon" in s_n or "central" in s_n:
+            sede = "Simon Bolivar"
+
+    # ── Normalizar jornada ─────────────────────────────────────────
+    jornada = ""
+    if jornada_raw:
+        jornada = "Tarde" if "tarde" in norm(jornada_raw) else "Mañana"
+
+    # ── Fallback detalle_original: usar mensaje completo si vacío ──
+    if not detalle_orig and len(mensaje_original.strip()) > 15:
+        detalle_orig = mensaje_original.strip()
+
+    # ── Determinar campos faltantes reales ─────────────────────────
+    faltantes = []
+    if faltantes_raw and norm(faltantes_raw) not in ("ninguno", "none", ""):
+        for f in faltantes_raw.replace(";", ",").split(","):
+            f = f.strip().lower().replace(" ", "_")
+            if f and f not in ("ninguno", "none", ""):
+                faltantes.append(f)
+
+    # Verificar siempre los obligatorios
+    if not estudiante and "estudiante" not in faltantes:
+        faltantes.append("estudiante")
+    if not grado and "grado" not in faltantes:
+        faltantes.append("grado")
+    if not tipo_falta and "tipo_falta" not in faltantes:
+        faltantes.append("tipo_falta")
+    if not detalle_orig and "detalle_del_hecho" not in faltantes:
+        faltantes.append("detalle_del_hecho")
+
+    _info(
+        f"[PARSEO] est='{estudiante}' grado='{grado}' tipo='{tipo_falta}' "
+        f"sede='{sede}' falt={faltantes} "
+        f"prof_len={len(detalle_prof)} acc_len={len(accion_rep)}"
+    )
+
+    return {
+        "estudiante":          estudiante,
+        "grado":               grado,
+        "tipo_falta":          tipo_falta,
+        "sede":                sede,
+        "jornada":             jornada,
+        "detalle_original":    detalle_orig,
+        "detalle_profesional": detalle_prof,
+        "accion_reparadora":   accion_rep,
+        "campos_faltantes":    faltantes,
+    }
+
+
+def _construir_pregunta_faltantes(faltantes: list, b: dict) -> str:
+    """
+    Construye UN SOLO mensaje preguntando todo lo que falta.
+    Nunca pregunta campo por campo.
+    """
+    tiene_algo = _resumen_borrador(b)
+    partes = []
+
+    if "estudiante" in faltantes:
+        partes.append("👤 *Nombre completo del estudiante*")
+    if "grado" in faltantes:
+        partes.append("🎒 *Grado y grupo* (ej: 5A, 9B, 10°)")
+    if "tipo_falta" in faltantes:
+        partes.append("⚠️ *Tipo de falta:* leve, grave o gravísima\n"
+                      "   _(tipo 1 = leve, tipo 2 = grave, tipo 3 = gravísima)_")
+    if "detalle_del_hecho" in faltantes:
+        partes.append("📝 *¿Qué ocurrió?* Descríbelo con tus palabras")
+
+    if not partes:
+        return ""
+
+    msg = ""
+    if tiene_algo and tiene_algo != "_(aún sin datos)_":
+        msg += f"📋 *Lo que ya tengo:*\n{tiene_algo}\n\n"
+
+    msg += "❓ *Necesito que me indiques:*\n"
+    for p in partes:
+        msg += f"• {p}\n"
+    msg += "\n_Puedes escribir todo en un solo mensaje._\n_(Escribe CANCELAR para salir)_"
+    return msg
+
+
 # ══════════════════════════════════════════════
-#  EXTRACCION CON GEMINI
-#  Extrae TODOS los campos posibles del mensaje:
-#  estudiante, grado, tipo_falta, sede, jornada,
-#  detalle_del_hecho
+#  GESTOR DE REPORTE — FLUJO SIMPLIFICADO
+#  Máximo 2-3 turnos en el caso más complejo
 # ══════════════════════════════════════════════
+async def gestionar_reporte(mensaje, telefono, nombre):
+    global contador_reportes
+    s = norm(mensaje)
+    tel = limpiar_tel(telefono)
+
+    # ── Cancelar en cualquier momento ─────────────────────────────
+    if s in ["cancelar", "salir", "cancel", "menu", "0"]:
+        await borrador_eliminar(telefono)
+        return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
+
+    # ── Cargar borrador existente ──────────────────────────────────
+    b = await borrador_cargar(telefono)
+    if b is None:
+        b = {c: "" for c in COL_B}
+        b["reportante"] = nombre or telefono
+        b["estado"]     = "activo"
+
+    estado = b.get("estado", "activo")
+
+    # ══════════════════════════════════════════════════════════════
+    # ESTADO: esperando_confirmacion
+    # ══════════════════════════════════════════════════════════════
+    if estado == "esperando_confirmacion":
+        if s in ("si", "sí", "s", "yes", "confirmar", "ok", "correcto",
+                 "guardar", "listo", "esta bien", "está bien"):
+            b["estado"] = "confirmado"
+            await borrador_guardar(telefono, b)
+            return await _finalizar_reporte(telefono, b)
+        if s in ("no", "cancelar", "salir", "cancel"):
+            await borrador_eliminar(telefono)
+            return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
+        # Corrección: re-analizar el mensaje de corrección con Gemini
+        datos_previos = {
+            "estudiante": b.get("estudiante", ""),
+            "grado":      b.get("grado", ""),
+            "tipo_falta": b.get("tipo_falta", ""),
+            "sede":       b.get("sede", ""),
+            "jornada":    b.get("jornada", ""),
+        }
+        resultado = await _gemini_analizar_reporte_completo(mensaje, datos_previos)
+        _aplicar_resultado_a_borrador(b, resultado, sobrescribir=True)
+        resumen_prev = _resumen_borrador(b)
+        b["estado"] = "esperando_confirmacion"
+        await borrador_guardar(telefono, b)
+        return (
+            "✅ *Actualizado.*\n\n"
+            "📋 *Confirma el reporte corregido:*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"{resumen_prev}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "¿Correcto? Responde *SÍ* para guardar o *CANCELAR* para descartar."
+        )
+
+    # ══════════════════════════════════════════════════════════════
+    # ESTADO: esperando_sede (menú numérico 1-6)
+    # ══════════════════════════════════════════════════════════════
+    if estado == "esperando_sede":
+        sede_res = _resolver_sede_por_numero(mensaje)
+        if not sede_res:
+            sede_txt = _detectar_sede_en_texto(s)
+            if sede_txt:
+                sede_res = (sede_txt[0], sede_txt[1], f"{sede_txt[0]} – {sede_txt[1]}")
+            else:
+                return "No reconocí esa sede. Responde con el número del *1 al 6*:\n\n" + MENU_SEDES
+
+        b["sede"]    = sede_res[0]
+        b["jornada"] = sede_res[1]
+        b["estado"]  = "completo"
+        await borrador_guardar(telefono, b)
+        return await _finalizar_reporte(telefono, b)
+
+    # ══════════════════════════════════════════════════════════════
+    # ESTADO: activo o esperando_complemento
+    # → LLAMADA GEMINI COMPLETA: extrae + redacta + acción reparadora
+    # ══════════════════════════════════════════════════════════════
+
+    # Si hay datos previos del borrador, pasarlos como contexto
+    datos_previos = None
+    if estado == "esperando_complemento" and any(b.get(c) for c in COL_B):
+        datos_previos = {
+            "estudiante": b.get("estudiante", ""),
+            "grado":      b.get("grado", ""),
+            "tipo_falta": b.get("tipo_falta", ""),
+            "sede":       b.get("sede", ""),
+            "jornada":    b.get("jornada", ""),
+            "detalle":    b.get("detalle_del_hecho", ""),
+        }
+
+    # ── Llamada Gemini completa ────────────────────────────────────
+    _info(f"[REPORTE] llamada Gemini completa para tel={tel}")
+    resultado = await _gemini_analizar_reporte_completo(mensaje, datos_previos)
+
+    # ── Aplicar resultado al borrador ──────────────────────────────
+    _aplicar_resultado_a_borrador(b, resultado, sobrescribir=(estado == "activo"))
+
+    faltantes = resultado.get("campos_faltantes", [])
+    tiene_sede = bool(b.get("sede"))
+
+    # ── CASO IDEAL: Todo completo ──────────────────────────────────
+    if not faltantes and tiene_sede:
+        b["estado"] = "completo"
+        await borrador_guardar(telefono, b)
+        return await _finalizar_reporte(telefono, b)
+
+    # ── Solo falta la sede (menú numérico) ────────────────────────
+    if not faltantes and not tiene_sede:
+        b["estado"] = "esperando_sede"
+        await borrador_guardar(telefono, b)
+        resumen = _resumen_borrador(b)
+        return (
+            f"📋 *Datos registrados:*\n{resumen}\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Solo me falta la *sede y jornada*:\n\n"
+            + MENU_SEDES
+        )
+
+    # ── Faltan campos obligatorios: preguntar TODO junto ──────────
+    b["estado"] = "esperando_complemento"
+    await borrador_guardar(telefono, b)
+    pregunta = _construir_pregunta_faltantes(faltantes, b)
+    return pregunta
+
+
+def _aplicar_resultado_a_borrador(b: dict, resultado: dict, sobrescribir: bool = False):
+    """
+    Aplica el resultado del análisis Gemini al borrador.
+    sobrescribir=True: reemplaza campos existentes (primer mensaje)
+    sobrescribir=False: solo rellena campos vacíos (complementos)
+    Los campos detalle_profesional y accion_reparadora siempre se actualizan
+    si vienen con contenido, ya que son generados — no ingresados por el usuario.
+    """
+    mapeo = {
+        "estudiante":       "estudiante",
+        "grado":            "grado",
+        "tipo_falta":       "tipo_falta",
+        "sede":             "sede",
+        "jornada":          "jornada",
+        "detalle_original": "detalle_del_hecho",
+    }
+    for clave_res, clave_b in mapeo.items():
+        valor = resultado.get(clave_res, "")
+        if valor:
+            if sobrescribir or not b.get(clave_b):
+                b[clave_b] = valor
+
+    # Redacción profesional y acción reparadora: siempre actualizar si hay contenido
+    if resultado.get("detalle_profesional"):
+        b["detalle_profesional"] = resultado["detalle_profesional"]
+    if resultado.get("accion_reparadora"):
+        b["accion_reparadora"] = resultado["accion_reparadora"]
+
+
 # ══════════════════════════════════════════════
-#  EXTRACCION CON GEMINI — TODOS LOS CAMPOS
-#  Usa _gemini_base. Extrae: estudiante, grado,
-#  tipo_falta, sede, jornada, detalle_del_hecho
+#  FINALIZAR REPORTE — GUARDA EN SHEETS Y RESPONDE
 # ══════════════════════════════════════════════
-async def _extraer_con_gemini(mensaje):
+async def _finalizar_reporte(telefono, b: dict):
+    global contador_reportes
+
+    _info(f"[FINALIZAR] tel={limpiar_tel(telefono)} | "
+          f"estudiante={b.get('estudiante')} | tipo={b.get('tipo_falta')}")
+
+    # ── MEJORA 7: Confirmación configurable ───────────────────────
+    if CONFIRMAR_REPORTE and b.get("estado") != "confirmado":
+        resumen_prev = _resumen_borrador(b)
+        b["estado"] = "esperando_confirmacion"
+        await borrador_guardar(telefono, b)
+        return (
+            "📋 *Confirma el reporte antes de guardar:*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"{resumen_prev}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "¿Todo correcto? Responde:\n"
+            "• *SÍ* para guardar\n"
+            "• *CANCELAR* para descartar\n"
+            "• O corrígeme lo que esté mal"
+        )
+
+    contador_reportes += 1
+    ahora      = datetime.now(COL_TZ)
+    num_caso   = "RPT-" + ahora.strftime("%Y%m%d") + "-" + str(contador_reportes).zfill(3)
+    fecha_str  = ahora.strftime("%d/%m/%Y")
+    hora_str   = ahora.strftime("%I:%M %p")
+    tipo       = b.get("tipo_falta", "")
+    emoji_t    = EMOJIS_TIPO.get(tipo, "📋")
+
+    # ── Recuperar redacción y acción desde el borrador (campo de COL_B) ──
+    detalle_original  = (b.get("detalle_del_hecho") or "").strip()
+    detalle_prof      = (b.get("detalle_profesional") or "").strip()
+    accion_rep        = (b.get("accion_reparadora") or "").strip()
+
+    # Si la redacción está vacía (no se generó aún), generarla ahora
+    if not detalle_prof and detalle_original and len(detalle_original) > 5:
+        _warn("[FINALIZAR] redacción faltante — generando ahora")
+        try:
+            resultado_extra = await _gemini_analizar_reporte_completo(
+                detalle_original,
+                {"estudiante": b.get("estudiante",""),
+                 "grado":      b.get("grado",""),
+                 "tipo_falta": b.get("tipo_falta",""),
+                 "sede":       b.get("sede",""),
+                 "jornada":    b.get("jornada","")}
+            )
+            detalle_prof = resultado_extra.get("detalle_profesional", "") or detalle_original
+            accion_rep   = resultado_extra.get("accion_reparadora", "") or accion_rep
+        except Exception as e:
+            _warn(f"regenerar redacción: {e}")
+            detalle_prof = detalle_original
+
+    # ── Guardar en hoja Reportes (12 columnas) ────────────────────
+    # N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
+    # Tipo | Detalle Original | Detalle Profesional | Accion Reparadora | Reportante
+    fila_final = [
+        num_caso,
+        fecha_str,
+        hora_str,
+        b.get("sede", ""),
+        b.get("jornada", ""),
+        b.get("estudiante", ""),
+        b.get("grado", ""),
+        tipo,
+        detalle_original,
+        detalle_prof,
+        accion_rep,
+        b.get("reportante", limpiar_tel(telefono)),
+    ]
+    _info(f"[SHEETS] guardando fila: {fila_final[:8]}")
+    asyncio.create_task(guardar_reporte_final(fila_final))
+    asyncio.create_task(borrador_eliminar(telefono))
+
+    # ── MEJORA 9: Notificación admin en faltas graves/gravísimas ──
+    if tipo in ("Grave", "Gravisima"):
+        asyncio.create_task(_notificar_admin_falta_grave(
+            num_caso, tipo, b.get("estudiante", ""),
+            b.get("grado", ""), b.get("sede", ""),
+            b.get("reportante", limpiar_tel(telefono)),
+            fecha_str, hora_str
+        ))
+
+    # ── MEJORA 6 extra: Verificar acumulación de leves ────────────
+    if tipo == "Leve":
+        asyncio.create_task(_verificar_acumulacion_leves(
+            b.get("estudiante", ""), telefono
+        ))
+
+    # ── Respuesta al docente ──────────────────────────────────────
+    protocolo = PROTOCOLOS.get(tipo, "")
+    resumen = (
+        f"{emoji_t} *Reporte Registrado Exitosamente*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📌 *N° Caso:* {num_caso}\n"
+        f"📅 *Fecha:* {fecha_str}  {hora_str}\n"
+        f"🏫 *Sede:* {b.get('sede', '')} – {b.get('jornada', '')}\n"
+        f"👤 *Estudiante:* {b.get('estudiante', '')}\n"
+        f"🎒 *Grado:* {b.get('grado', '')}\n"
+        f"{emoji_t} *Tipo de falta:* {tipo}\n\n"
+        f"📝 *Acta registrada:*\n{detalle_prof or detalle_original}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        + protocolo
+    )
+    if accion_rep:
+        resumen += (
+            "\n━━━━━━━━━━━━━━━━━━━━━━\n"
+            "💡 *Acción Reparadora Sugerida:*\n"
+            + accion_rep
+        )
+    resumen += (
+        "\n━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ Caso guardado correctamente.\n"
+        f"📎 *N° Caso: {num_caso}*"
+    )
+
+    _info(f"REPORTE OK: {num_caso} | {b.get('estudiante', '')} | {tipo}")
+    return resumen
     prompt = (
         "Eres un extractor de datos para un sistema escolar colombiano.\n"
         "Analiza el siguiente mensaje de un docente y extrae TODA la información disponible.\n"
@@ -720,401 +1297,6 @@ async def _procesar_detalle(detalle_raw, estudiante, grado, tipo_falta, sede, jo
         _warn(f"_procesar_detalle: {e}")
         return detalle_raw, ""
 
-
-# ══════════════════════════════════════════════
-#  GESTOR DEL REPORTE (Opción C — estado en Sheets)
-#
-#  Estados posibles (campo "estado" en borrador):
-#    "esperando_detalle"  → el siguiente mensaje ES el detalle
-#    "esperando_sede"     → el siguiente mensaje es número 1-6 de sede
-#    "esperando_resto"    → faltan varios campos, se piden juntos
-#    "activo"             → formulario en curso (primer mensaje ya procesado)
-#
-#  Flujo:
-#  1. Primer mensaje: extracción completa → se guarda borrador → se pide lo que falta
-#  2. Si solo falta detalle → estado="esperando_detalle" → msg siguiente = detalle directo
-#  3. Si falta sede → estado="esperando_sede"
-#  4. Al completar todo → _finalizar_reporte
-# ══════════════════════════════════════════════
-async def gestionar_reporte(mensaje, telefono, nombre):
-    global contador_reportes
-    s = norm(mensaje)
-    tel = limpiar_tel(telefono)
-
-    # ── Cancelar en cualquier momento ─────────────────────────────
-    if s in ["cancelar", "salir", "cancel", "menu", "0"]:
-        await borrador_eliminar(telefono)
-        return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
-
-    # ── Cargar borrador existente (memoria o Sheets) ───────────────
-    b = await borrador_cargar(telefono)
-
-    # ── Si no hay borrador, es el primer mensaje ───────────────────
-    if b is None:
-        b = {c: "" for c in COL_B}
-        b["reportante"] = nombre or telefono
-        b["estado"]     = "activo"
-
-    estado = b.get("estado", "activo")
-
-    # ══════════════════════════════════════════════════════════════
-    # ESTADO: esperando_confirmacion (MEJORA 7 — CONFIRMAR_REPORTE=true)
-    # El docente revisa el resumen y responde SÍ, CANCELAR o corrección
-    # ══════════════════════════════════════════════════════════════
-    if estado == "esperando_confirmacion":
-        if s in ("si", "sí", "s", "yes", "confirmar", "ok", "correcto", "guardar", "listo"):
-            b["estado"] = "confirmado"
-            await borrador_guardar(telefono, b)
-            return await _finalizar_reporte(telefono, b)
-        if s in ("no", "cancelar", "salir", "cancel"):
-            await borrador_eliminar(telefono)
-            return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
-        # Intentar corregir un campo con lo que escribió
-        local = _extraer_local(mensaje)
-        try:
-            gext = await asyncio.wait_for(_extraer_con_gemini(mensaje), timeout=12)
-            for campo in ("estudiante", "grado", "tipo_falta", "sede", "jornada", "detalle_del_hecho"):
-                if gext.get(campo):
-                    b[campo] = gext[campo]
-        except Exception:
-            pass
-        for campo in ("grado", "tipo_falta"):
-            if local.get(campo):
-                b[campo] = local[campo]
-        resumen_prev = _resumen_borrador(b)
-        b["estado"] = "esperando_confirmacion"
-        await borrador_guardar(telefono, b)
-        return (
-            f"✅ Actualizado.\n\n📋 *Confirma el reporte:*\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"{resumen_prev}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            "¿Todo correcto? Responde *SÍ* para guardar o *CANCELAR* para descartar."
-        )
-
-    # ══════════════════════════════════════════════════════════════
-    # ESTADO: esperando_detalle
-    # El mensaje completo ES el detalle. Captura directa, sin Gemini.
-    # ══════════════════════════════════════════════════════════════
-    if estado == "esperando_detalle":
-        texto = mensaje.strip()
-
-        if re.match(r'^[1-6]$', texto):
-            return "📝 Por favor escribe el detalle de lo ocurrido (no un número):"
-
-        if len(texto) < 8:
-            return "📝 Por favor cuéntame un poco más sobre lo que ocurrió:"
-
-        # ✅ GUARDAR DETALLE DIRECTAMENTE EN BORRADOR
-        b["detalle_del_hecho"] = texto
-        _info(f"[DETALLE CAPTURADO] tel={tel} | '{texto[:100]}'")
-
-        # ¿Falta la sede?
-        if not b.get("sede"):
-            b["estado"] = "esperando_sede"
-            await borrador_guardar(telefono, b)
-            return "✅ Detalle guardado.\n\n" + MENU_SEDES
-
-        faltantes = _campos_faltantes(b)
-        if faltantes:
-            b["estado"] = "esperando_resto"
-            await borrador_guardar(telefono, b)
-            return "✅ Detalle guardado.\n\n" + _mensaje_pedir_faltantes(faltantes)
-
-        b["estado"] = "completo"
-        await borrador_guardar(telefono, b)
-        return await _finalizar_reporte(telefono, b)
-
-    # ══════════════════════════════════════════════════════════════
-    # ESTADO: esperando_sede
-    # ══════════════════════════════════════════════════════════════
-    if estado == "esperando_sede":
-        sede_res = _resolver_sede_por_numero(mensaje)
-        if not sede_res:
-            sede_txt = _detectar_sede_en_texto(s)
-            if sede_txt:
-                sede_res = (sede_txt[0], sede_txt[1], f"{sede_txt[0]} – {sede_txt[1]}")
-            else:
-                return "No reconocí esa sede. Responde con el número del *1 al 6*:\n\n" + MENU_SEDES
-
-        b["sede"]    = sede_res[0]
-        b["jornada"] = sede_res[1]
-        confirmacion = f"✅ Sede: *{sede_res[2]}*\n\n"
-
-        faltantes = _campos_faltantes(b)
-        if not faltantes:
-            b["estado"] = "completo"
-            await borrador_guardar(telefono, b)
-            return await _finalizar_reporte(telefono, b)
-
-        if faltantes == ["detalle_del_hecho"]:
-            b["estado"] = "esperando_detalle"
-            await borrador_guardar(telefono, b)
-            return (confirmacion +
-                    "📝 *¿Qué ocurrió?* Escríbelo con tus palabras:\n"
-                    "_(Puedes escribir todo lo que quieras)_")
-
-        b["estado"] = "esperando_resto"
-        await borrador_guardar(telefono, b)
-        return confirmacion + _mensaje_pedir_faltantes(faltantes)
-
-    # ══════════════════════════════════════════════════════════════
-    # ESTADO: esperando_resto
-    # Respuesta a campos múltiples faltantes
-    # ══════════════════════════════════════════════════════════════
-    if estado == "esperando_resto":
-        local = _extraer_local(mensaje)
-        for campo in ("grado", "tipo_falta"):
-            if local.get(campo) and not b.get(campo):
-                b[campo] = local[campo]
-
-        try:
-            gext = await asyncio.wait_for(_extraer_con_gemini(mensaje), timeout=12)
-            for campo in ("estudiante", "grado", "tipo_falta", "sede", "jornada", "detalle_del_hecho"):
-                if gext.get(campo) and not b.get(campo):
-                    b[campo] = gext[campo]
-        except Exception as e:
-            _warn(f"gemini esperando_resto: {e}")
-
-        # Fallback sede en texto
-        if not b.get("sede"):
-            sede_txt = _detectar_sede_en_texto(s)
-            if sede_txt:
-                b["sede"]    = sede_txt[0]
-                b["jornada"] = b.get("jornada") or sede_txt[1]
-        if not b.get("sede"):
-            sede_num = _resolver_sede_por_numero(mensaje)
-            if sede_num:
-                b["sede"]    = sede_num[0]
-                b["jornada"] = sede_num[1]
-
-        faltantes = _campos_faltantes(b)
-        if not faltantes:
-            b["estado"] = "completo"
-            await borrador_guardar(telefono, b)
-            return await _finalizar_reporte(telefono, b)
-
-        if faltantes == ["detalle_del_hecho"]:
-            b["estado"] = "esperando_detalle"
-            await borrador_guardar(telefono, b)
-            return ("📝 *¿Qué ocurrió?* Escríbelo con tus palabras:\n"
-                    "_(Puedes escribir todo lo que quieras)_")
-
-        await borrador_guardar(telefono, b)
-        return _mensaje_pedir_faltantes(faltantes)
-
-    # ══════════════════════════════════════════════════════════════
-    # ESTADO: activo — Primer mensaje del reporte
-    # Gemini extrae TODOS los campos inteligentemente de una vez:
-    # estudiante, grado, tipo_falta, sede, jornada, detalle_del_hecho
-    # ══════════════════════════════════════════════════════════════
-
-    # Extracción local (regex rápida — nunca falla)
-    local = _extraer_local(mensaje)
-    if local.get("cancelar"):
-        await borrador_eliminar(telefono)
-        return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
-    for campo in ("grado", "tipo_falta"):
-        if local.get(campo):
-            b[campo] = local[campo]
-
-    # Extracción Gemini — extrae TODOS los campos del mensaje de una vez
-    try:
-        gext = await asyncio.wait_for(_extraer_con_gemini(mensaje), timeout=14)
-        for campo in ("estudiante", "grado", "tipo_falta", "sede", "jornada", "detalle_del_hecho"):
-            if gext.get(campo) and not b.get(campo):
-                b[campo] = gext[campo]
-    except Exception as e:
-        _warn(f"gemini primer msg: {e}")
-
-    # Fallback sede: detectar por texto o número si Gemini no la encontró
-    if not b.get("sede"):
-        sede_txt = _detectar_sede_en_texto(s)
-        if sede_txt:
-            b["sede"]    = sede_txt[0]
-            b["jornada"] = b.get("jornada") or sede_txt[1]
-
-    if not b.get("sede"):
-        sede_num = _resolver_sede_por_numero(mensaje)
-        if sede_num:
-            b["sede"]    = sede_num[0]
-            b["jornada"] = sede_num[1]
-
-    # Fallback detalle: si el mensaje tiene suficiente contenido y Gemini
-    # no extrajo detalle, usar el mensaje completo
-    if not b.get("detalle_del_hecho") and len(mensaje.strip()) > 30:
-        b["detalle_del_hecho"] = mensaje.strip()
-        _info(f"[DETALLE FALLBACK mensaje completo] '{mensaje[:80]}'")
-
-    _info(f"[EXTRACCION COMPLETA] estudiante={b.get('estudiante')} | grado={b.get('grado')} | "
-          f"tipo={b.get('tipo_falta')} | sede={b.get('sede')} | jornada={b.get('jornada')} | "
-          f"detalle='{str(b.get('detalle_del_hecho',''))[:60]}'")
-
-    # Verificar campos faltantes
-    faltantes = _campos_faltantes(b)
-
-    # ✅ Todo completo desde el primer mensaje → registrar directamente sin preguntar nada
-    if not faltantes and b.get("sede"):
-        b["estado"] = "completo"
-        await borrador_guardar(telefono, b)
-        return await _finalizar_reporte(telefono, b)
-
-    # Falta la sede
-    if not b.get("sede"):
-        b["estado"] = "esperando_sede"
-        await borrador_guardar(telefono, b)
-        resumen = _resumen_borrador(b)
-        otros = [f for f in faltantes if f not in ("detalle_del_hecho", "sede")]
-        if otros:
-            return (f"📋 *Iniciando reporte*\n{resumen}\n\n"
-                    + _mensaje_pedir_faltantes(otros)
-                    + "\n\n_(Después te preguntaré la sede)_")
-        return "Casi listo ✅ Solo falta la sede:\n\n" + MENU_SEDES
-
-    resumen = _resumen_borrador(b)
-
-    # Solo falta el detalle
-    if faltantes == ["detalle_del_hecho"]:
-        b["estado"] = "esperando_detalle"
-        await borrador_guardar(telefono, b)
-        return (
-            f"📋 *Ya tengo estos datos:*\n{resumen}\n\n"
-            "📝 *¿Qué ocurrió?* Escríbelo con tus palabras:\n"
-            "_(Puedes escribir todo lo que quieras)_"
-        )
-
-    # Varios campos faltantes
-    b["estado"] = "esperando_resto"
-    await borrador_guardar(telefono, b)
-    return (
-        f"📋 *Ya tengo estos datos:*\n{resumen}\n\n"
-        + _mensaje_pedir_faltantes(faltantes)
-    )
-
-
-# ══════════════════════════════════════════════
-#  FINALIZAR REPORTE
-#  1. Redactar detalle profesionalmente con Gemini
-#  2. Guardar fila final en hoja "Reportes"
-#  3. Eliminar borrador de hoja "Borradores"
-#  4. Devolver resumen al docente
-# ══════════════════════════════════════════════
-async def _finalizar_reporte(telefono, b: dict):
-    global contador_reportes
-
-    detalle_original = (b.get("detalle_del_hecho") or "").strip()
-    _info(f"[FINALIZAR] tel={limpiar_tel(telefono)} | "
-          f"estudiante={b.get('estudiante')} | tipo={b.get('tipo_falta')} | "
-          f"detalle='{detalle_original[:80]}'")
-
-    contador_reportes += 1
-    ahora      = datetime.now(COL_TZ)
-    num_caso   = "RPT-" + ahora.strftime("%Y%m%d") + "-" + str(contador_reportes).zfill(3)
-    fecha_str  = ahora.strftime("%d/%m/%Y")
-    hora_str   = ahora.strftime("%I:%M %p")
-    tipo       = b.get("tipo_falta", "")
-    emoji_t    = EMOJIS_TIPO.get(tipo, "📋")
-
-    # ── MEJORA 7: Confirmación configurable ───────────────────────
-    if CONFIRMAR_REPORTE and b.get("estado") != "confirmado":
-        resumen_prev = _resumen_borrador(b)
-        b["estado"] = "esperando_confirmacion"
-        await borrador_guardar(telefono, b)
-        return (
-            f"📋 *Confirma el reporte antes de guardar:*\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"{resumen_prev}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            "¿Todo correcto? Responde:\n"
-            "• *SÍ* para guardar\n"
-            "• *CANCELAR* para descartar\n"
-            "• O escribe el campo que quieres corregir (ej: 'el grado es 9B')"
-        )
-
-    # ── Redacción profesional + acción reparadora ─────────────────
-    detalle_prof = detalle_original
-    accion_rep   = ""
-    if detalle_original and len(detalle_original) > 5:
-        try:
-            detalle_prof, accion_rep = await asyncio.wait_for(
-                _procesar_detalle(
-                    detalle_original,
-                    b.get("estudiante",""),
-                    b.get("grado",""),
-                    tipo,
-                    b.get("sede",""),
-                    b.get("jornada","")
-                ),
-                timeout=GEMINI_TIMEOUT_REDACCION + 5
-            )
-            _info(f"[DETALLE PROF] '{detalle_prof[:80]}'")
-        except asyncio.TimeoutError:
-            _warn("timeout redacción profesional — usando detalle original")
-        except Exception as e:
-            _warn(f"_finalizar_reporte procesar_detalle: {e}")
-
-    # ── Guardar en hoja Reportes ──────────────────────────────────
-    fila_final = [
-        num_caso, fecha_str, hora_str,
-        b.get("sede",""), b.get("jornada",""),
-        b.get("estudiante",""), b.get("grado",""),
-        tipo,
-        detalle_original,
-        detalle_prof,
-        accion_rep,
-        b.get("reportante", limpiar_tel(telefono)),
-    ]
-    asyncio.create_task(guardar_reporte_final(fila_final))
-
-    # ── Eliminar borrador ─────────────────────────────────────────
-    asyncio.create_task(borrador_eliminar(telefono))
-
-    protocolo = PROTOCOLOS.get(tipo, "")
-
-    # ── MEJORA 9: Notificación al admin en faltas graves/gravísimas ──
-    if tipo in ("Grave", "Gravisima"):
-        asyncio.create_task(_notificar_admin_falta_grave(
-            num_caso, tipo, b.get("estudiante",""),
-            b.get("grado",""), b.get("sede",""),
-            b.get("reportante", limpiar_tel(telefono)),
-            fecha_str, hora_str
-        ))
-
-    # ── MEJORA 6 extra: Detectar acumulación de leves ────────────
-    alerta_acum = ""
-    if tipo == "Leve":
-        asyncio.create_task(_verificar_acumulacion_leves(
-            b.get("estudiante",""), telefono
-        ))
-
-    # ── Respuesta al docente ──────────────────────────────────────
-    resumen = (
-        f"{emoji_t} *Reporte Registrado Exitosamente*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📌 *N° Caso:* {num_caso}\n"
-        f"📅 *Fecha:* {fecha_str}  {hora_str}\n"
-        f"🏫 *Sede:* {b.get('sede','')} – {b.get('jornada','')}\n"
-        f"👤 *Estudiante:* {b.get('estudiante','')}\n"
-        f"🎒 *Grado:* {b.get('grado','')}\n"
-        f"{emoji_t} *Tipo de falta:* {tipo}\n\n"
-        f"📝 *Hecho registrado:*\n{detalle_prof}\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        + protocolo
-    )
-    if accion_rep:
-        resumen += (
-            "\n━━━━━━━━━━━━━━━━━━━━━━\n"
-            "💡 *Acción Reparadora Sugerida:*\n"
-            + accion_rep
-        )
-    resumen += (
-        "\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"✅ Caso guardado en el sistema.\n"
-        f"📎 *N° Caso: {num_caso}*"
-    )
-
-    _info(f"REPORTE OK: {num_caso} | {b.get('estudiante','')} | {tipo}")
-    return resumen
 
 
 async def _notificar_admin_falta_grave(num_caso, tipo, estudiante, grado,
