@@ -534,19 +534,34 @@ def _extraer_local(mensaje):
 
 # ══════════════════════════════════════════════
 #  EXTRACCION CON GEMINI
-#  Solo para: estudiante, grado, tipo_falta
-#  detalle_del_hecho se captura SIEMPRE directo
+#  Extrae TODOS los campos posibles del mensaje:
+#  estudiante, grado, tipo_falta, sede, jornada,
+#  detalle_del_hecho
 # ══════════════════════════════════════════════
 async def _extraer_con_gemini(mensaje):
     prompt = (
-        "Extrae datos de este mensaje de un docente colombiano.\n"
+        "Eres un extractor de datos para un sistema escolar colombiano.\n"
+        "Analiza el siguiente mensaje de un docente y extrae TODA la información disponible.\n"
         "Mensaje: \"" + mensaje + "\"\n\n"
-        "Responde SOLO estas líneas (texto plano, sin comillas):\n"
-        "estudiante: [nombre completo o null]\n"
-        "grado: [ej: 10A, 7B, 402 o null]\n"
-        "tipo_falta: [Leve o Grave o Gravisima o null]\n\n"
-        "Reglas: tipo1=Leve tipo2=Grave tipo3=Gravisima\n"
-        "NO extraigas descripción ni detalle."
+        "Responde SOLO estas líneas exactas (texto plano, sin comillas, sin explicaciones):\n"
+        "estudiante: [nombre completo del estudiante o null]\n"
+        "grado: [grado y grupo ej: 10A, 7B, 5°, 402 o null]\n"
+        "tipo_falta: [Leve o Grave o Gravisima o null]\n"
+        "sede: [Simon Bolivar o San Martin o Hernando Acevedo o null]\n"
+        "jornada: [Mañana o Tarde o null]\n"
+        "detalle_del_hecho: [descripción completa de lo que ocurrió, con todas las palabras que el docente usó para describir el hecho, o null]\n\n"
+        "REGLAS IMPORTANTES:\n"
+        "- tipo1 o falta1 o falta leve = Leve\n"
+        "- tipo2 o falta2 o falta grave = Grave\n"
+        "- tipo3 o falta3 o falta gravisima = Gravisima\n"
+        "- san martin o sanmartin = San Martin\n"
+        "- simon bolivar o bolivar o central = Simon Bolivar\n"
+        "- hernando acevedo o hernando = Hernando Acevedo\n"
+        "- Para detalle_del_hecho: extrae la RAZÓN o MOTIVO de la falta y cualquier descripción del comportamiento. "
+        "Si el docente escribió 'por no traer uniformemente el uniforme', eso es el detalle. "
+        "Si el docente describe un comportamiento o incidente, eso es el detalle. "
+        "Solo pon null si el mensaje NO contiene ninguna descripción del hecho.\n"
+        "- Si un campo no aparece en el mensaje, escribe null."
     )
     try:
         api_key = os.getenv("GEMINI_API_KEY", "")
@@ -554,7 +569,7 @@ async def _extraer_con_gemini(mensaje):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 120}
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 300}
         }
         async with httpx.AsyncClient(timeout=14) as c:
             r = await c.post(url, json=payload)
@@ -568,10 +583,11 @@ async def _extraer_con_gemini(mensaje):
                 clave, _, valor = linea.partition(":")
                 clave = clave.strip().lower().replace(" ","_")
                 valor = valor.strip().strip('"').strip("'")
-                if valor.lower() in ("null","no se menciona",""):
+                if valor.lower() in ("null","no se menciona","no menciona","no hay",""):
                     continue
-                if clave in ("estudiante","grado","tipo_falta"):
+                if clave in ("estudiante","grado","tipo_falta","sede","jornada","detalle_del_hecho"):
                     extraidos[clave] = valor
+        print(f"[GEMINI EXTRACCION] {extraidos}")
         return extraidos
     except Exception as e:
         print(f"WARN _extraer_con_gemini: {e}")
@@ -778,11 +794,23 @@ async def gestionar_reporte(mensaje, telefono, nombre):
 
         try:
             gext = await asyncio.wait_for(_extraer_con_gemini(mensaje), timeout=12)
-            for campo in ("estudiante", "grado", "tipo_falta"):
+            for campo in ("estudiante", "grado", "tipo_falta", "sede", "jornada", "detalle_del_hecho"):
                 if gext.get(campo) and not b.get(campo):
                     b[campo] = gext[campo]
         except Exception as e:
             print(f"WARN gemini esperando_resto: {e}")
+
+        # Fallback sede en texto
+        if not b.get("sede"):
+            sede_txt = _detectar_sede_en_texto(s)
+            if sede_txt:
+                b["sede"]    = sede_txt[0]
+                b["jornada"] = b.get("jornada") or sede_txt[1]
+        if not b.get("sede"):
+            sede_num = _resolver_sede_por_numero(mensaje)
+            if sede_num:
+                b["sede"]    = sede_num[0]
+                b["jornada"] = sede_num[1]
 
         faltantes = _campos_faltantes(b)
         if not faltantes:
@@ -801,10 +829,11 @@ async def gestionar_reporte(mensaje, telefono, nombre):
 
     # ══════════════════════════════════════════════════════════════
     # ESTADO: activo — Primer mensaje del reporte
-    # Extracción completa, guardar borrador, determinar qué falta
+    # Gemini extrae TODOS los campos inteligentemente de una vez:
+    # estudiante, grado, tipo_falta, sede, jornada, detalle_del_hecho
     # ══════════════════════════════════════════════════════════════
 
-    # Extracción local
+    # Extracción local (regex rápida — nunca falla)
     local = _extraer_local(mensaje)
     if local.get("cancelar"):
         await borrador_eliminar(telefono)
@@ -813,21 +842,21 @@ async def gestionar_reporte(mensaje, telefono, nombre):
         if local.get(campo):
             b[campo] = local[campo]
 
-    # Extracción Gemini
+    # Extracción Gemini — extrae TODOS los campos del mensaje de una vez
     try:
         gext = await asyncio.wait_for(_extraer_con_gemini(mensaje), timeout=14)
-        for campo in ("estudiante", "grado", "tipo_falta"):
+        for campo in ("estudiante", "grado", "tipo_falta", "sede", "jornada", "detalle_del_hecho"):
             if gext.get(campo) and not b.get(campo):
                 b[campo] = gext[campo]
     except Exception as e:
         print(f"WARN gemini primer msg: {e}")
 
-    # Detectar sede en texto
+    # Fallback sede: detectar por texto o número si Gemini no la encontró
     if not b.get("sede"):
         sede_txt = _detectar_sede_en_texto(s)
         if sede_txt:
             b["sede"]    = sede_txt[0]
-            b["jornada"] = sede_txt[1]
+            b["jornada"] = b.get("jornada") or sede_txt[1]
 
     if not b.get("sede"):
         sede_num = _resolver_sede_por_numero(mensaje)
@@ -835,23 +864,20 @@ async def gestionar_reporte(mensaje, telefono, nombre):
             b["sede"]    = sede_num[0]
             b["jornada"] = sede_num[1]
 
-    # Detectar si el mensaje ya contiene un detalle narrativo
-    palabras_narrativas = [
-        "golpeo","golpeó","agredio","agredió","insulto","insultó","mordio","mordió",
-        "empujo","empujó","robo","robó","daño","dañó","amenazó","amenazo","peleo","peleó",
-        "ocurrio","ocurrió","sucedió","sin razon","sin razón","en clase","en el salon",
-        "en el patio","mientras","cuando","fue","estaba","habia","había","presento","presentó",
-        "reporta","informo","informó","describio","notifico","encontró","hizo","dijo"
-    ]
-    tiene_narrativa = any(p in s for p in palabras_narrativas)
-    if tiene_narrativa and len(mensaje) > 50 and not b.get("detalle_del_hecho"):
-        b["detalle_del_hecho"] = mensaje
-        print(f"[DETALLE DETECTADO en 1er msg] '{mensaje[:80]}'")
+    # Fallback detalle: si el mensaje tiene suficiente contenido y Gemini
+    # no extrajo detalle, usar el mensaje completo
+    if not b.get("detalle_del_hecho") and len(mensaje.strip()) > 30:
+        b["detalle_del_hecho"] = mensaje.strip()
+        print(f"[DETALLE FALLBACK mensaje completo] '{mensaje[:80]}'")
+
+    print(f"[EXTRACCION COMPLETA] estudiante={b.get('estudiante')} | grado={b.get('grado')} | "
+          f"tipo={b.get('tipo_falta')} | sede={b.get('sede')} | jornada={b.get('jornada')} | "
+          f"detalle='{str(b.get('detalle_del_hecho',''))[:60]}'")
 
     # Verificar campos faltantes
     faltantes = _campos_faltantes(b)
 
-    # Todo completo desde el primer mensaje
+    # ✅ Todo completo desde el primer mensaje → registrar directamente sin preguntar nada
     if not faltantes and b.get("sede"):
         b["estado"] = "completo"
         await borrador_guardar(telefono, b)
@@ -862,7 +888,7 @@ async def gestionar_reporte(mensaje, telefono, nombre):
         b["estado"] = "esperando_sede"
         await borrador_guardar(telefono, b)
         resumen = _resumen_borrador(b)
-        otros = [f for f in faltantes if f != "detalle_del_hecho" and f != "sede"]
+        otros = [f for f in faltantes if f not in ("detalle_del_hecho", "sede")]
         if otros:
             return (f"📋 *Iniciando reporte*\n{resumen}\n\n"
                     + _mensaje_pedir_faltantes(otros)
