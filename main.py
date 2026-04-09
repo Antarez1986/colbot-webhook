@@ -18,6 +18,7 @@ ADMIN_PHONES_EXTRA = [
     "573103493495",  # Coordinadora Claudia Tamayo
     "573159263064",  # Coordinador Homero Cuevas
     "573118085572",  # Coordinador Salvador Peña
+    "573158469699",  # Irma Ortega ColBolívar
 ]
 # Todos los admins (maestro + directivos) para notificaciones push
 TODOS_ADMINS = [ADMIN_PHONE] + ADMIN_PHONES_EXTRA
@@ -1586,6 +1587,41 @@ async def panel_estadisticas(periodo: str = "semana") -> str:
 def procesar_admin(mensaje):
     global conocimiento_extra, docentes_admin
     s = norm(mensaje)
+
+    # Si un admin escribe "menu", "hola", "inicio", "ayuda" → menú admin
+    # (evita que Gemini responda con texto genérico)
+    SALUDOS_ADMIN = ["menu","hola","inicio","ayuda","help","start","buenas",
+                     "buenos dias","buenas tardes","buenas noches","hello"]
+    if s in SALUDOS_ADMIN:
+        return (
+            "🔐 *Menú Admin — ColBot*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "📊 *ESTADÍSTICAS*\n"
+            "   resumen\n"
+            "   resumen hoy\n"
+            "   resumen semana\n"
+            "   resumen mes\n"
+            "   resumen todo\n\n"
+            "📋 *REPORTES*\n"
+            "   ver reportes\n"
+            "   ver borradores\n\n"
+            "📅 *CALENDARIO*\n"
+            "   agregar evento\n\n"
+            "🧠 *CONOCIMIENTO*\n"
+            "   aprende: [texto]\n"
+            "   que sabes\n"
+            "   olvida: [numero]\n"
+            "   olvida todo\n\n"
+            "👥 *ADMINS*\n"
+            "   agregar docente: [numero]\n"
+            "   quitar docente: [numero]\n"
+            "   ver docentes\n\n"
+            "🔧 *SISTEMA*\n"
+            "   limpiar cache\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Escribe el comando tal cual\n"
+            "aparece aqui, sin tildes."
+        )
     if s.startswith("aprende:"):
         dato = mensaje[8:].strip()
         if dato: conocimiento_extra.append(dato); return f"Aprendi: \"{dato}\"\nTotal: {len(conocimiento_extra)}"
@@ -1607,21 +1643,27 @@ def procesar_admin(mensaje):
         tel = re.sub(r"[^0-9]","",mensaje[15:].strip())
         if tel in docentes_admin: docentes_admin.remove(tel); return f"Docente {tel} removido."
         return "No estaba en la lista."
-    if s == "ver docentes": return "Autorizados:\n"+("\n".join(docentes_admin) if docentes_admin else "Ninguno")
-    if s == "ver reportes":
+    if s == "ver docentes" or s in ["ver admins","docentes autorizados","admins","ver administradores"]:
+        return "Autorizados:\n"+("\n".join(docentes_admin) if docentes_admin else "Ninguno")
+    if s == "ver reportes" or s in ["reportes","ver hoja","ver sheets","link reportes"]:
         return f"Reportes: {contador_reportes}\nhttps://docs.google.com/spreadsheets/d/{SHEETS_ID}"
-    if s == "limpiar cache":
+    if s == "limpiar cache" or s in ["limpiar pdf","borrar cache","borrar pdf"]:
         n = len(pdf_cache); pdf_cache.clear(); return f"Cache: {n} PDF(s) eliminados."
-    if s == "ver borradores":
+    if s == "ver borradores" or s in ["borradores","reportes pendientes","ver pendientes"]:
         if not borradores_cache:
             return "No hay borradores activos."
         lineas = [f"Borradores activos: {len(borradores_cache)}"]
         for tel, b in borradores_cache.items():
             lineas.append(f"• {tel} → estado={b.get('estado','')} estudiante={b.get('estudiante','?')}")
         return "\n".join(lineas)
-    # Menú admin
-    if s in ["menu admin","admin","admin menu"]:
-        es_maestro = limpiar_tel(mensaje) == limpiar_tel(ADMIN_PHONE) or True  # todos los admin ven el menú
+    # ── Menú admin — detección robusta (mayúsculas, tildes, espacios extra) ──
+    TRIGGERS_MENU = [
+        "menu admin","admin menu","menuadmin","adminmenu",
+        "menu de admin","menu administrador","admin ayuda",
+        "comandos admin","ayuda admin","que puedo hacer",
+        "opciones admin","panel admin","mis opciones",
+    ]
+    if any(t in s for t in TRIGGERS_MENU) or s in ["admin","comandos"]:
         return (
             "🔐 *Menú Admin — ColBot*\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -1639,20 +1681,28 @@ def procesar_admin(mensaje):
             "🧠 *CONOCIMIENTO*\n"
             "   aprende: [texto]\n"
             "   que sabes\n"
-            "   olvida: [número]\n"
+            "   olvida: [numero]\n"
             "   olvida todo\n\n"
-            "👥 *GESTIÓN ADMINS*\n"
-            "   agregar docente: [número]\n"
-            "   quitar docente: [número]\n"
+            "👥 *ADMINS*\n"
+            "   agregar docente: [numero]\n"
+            "   quitar docente: [numero]\n"
             "   ver docentes\n\n"
             "🔧 *SISTEMA*\n"
             "   limpiar cache\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "⚠️ Escribe los comandos en\n"
-            "minúscula, exactamente así."
+            "Escribe el comando tal cual\n"
+            "aparece aqui, sin tildes."
         )
     # Panel de estadísticas — sentinel tuple para resolver async en procesar()
-    if s in ["resumen","panel","estadisticas","estadísticas","resumen hoy","resumen semana","resumen mes","resumen todo"]:
+    TRIGGERS_STATS = [
+        "resumen","panel","estadisticas","estadísticas",
+        "resumen hoy","resumen semana","resumen mes","resumen todo",
+        "ver estadisticas","ver estadísticas","ver resumen",
+        "estadisticas hoy","estadisticas semana","estadisticas mes",
+        "cuantos reportes","cuántos reportes","ver casos","casos hoy",
+        "casos semana","casos mes","reporte semanal","reporte hoy",
+    ]
+    if any(t == s for t in TRIGGERS_STATS) or any(s.startswith(t) for t in ["resumen","estadis","panel"]):
         if "hoy" in s:
             return ("__STATS__", "hoy")
         elif "mes" in s:
@@ -1807,7 +1857,7 @@ async def procesar(mensaje, telefono, nombre):
     if tiene_borrador or es_intencion_reporte(mensaje):
         return await gestionar_reporte(mensaje, telefono, nombre)
 
-    # ADMIN
+    # ADMIN — va ANTES del saludo para interceptar comandos como "menu admin"
     if es_admin(telefono):
         resp_admin = procesar_admin(mensaje)
         if resp_admin is not None:
@@ -1815,7 +1865,7 @@ async def procesar(mensaje, telefono, nombre):
                 return await panel_estadisticas(resp_admin[1])
             return resp_admin
 
-    # SALUDO
+    # SALUDO — "menu" solo aplica a no-admins (los admins ya fueron interceptados arriba)
     saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start"]
     if s in saludos:
         tiene_hist = bool(historiales.get(telefono))
