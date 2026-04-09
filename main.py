@@ -140,13 +140,12 @@ PROTOCOLOS = {
 #  Columnas: telefono | reportante | estado |
 #            estudiante | grado | tipo_falta |
 #            sede | jornada | detalle_del_hecho |
-#            detalle_profesional | accion_reparadora | timestamp
-#  (12 columnas, índices 0-11)
+#            timestamp
+#  (10 columnas, índices 0-9)
 # ══════════════════════════════════════════════
 COL_B = ["telefono","reportante","estado",
          "estudiante","grado","tipo_falta",
-         "sede","jornada","detalle_del_hecho",
-         "detalle_profesional","accion_reparadora","timestamp"]
+         "sede","jornada","detalle_del_hecho","timestamp"]
 
 def _borrador_a_dict(fila):
     """Convierte una fila de Sheets (lista) a dict de borrador."""
@@ -162,46 +161,7 @@ def _dict_a_borrador(d):
 # ══════════════════════════════════════════════
 #  ESTADO EN MEMORIA
 # ══════════════════════════════════════════════
-# ── LRU Cache de PDFs (máx 4 entradas, TTL 2 horas) ──────────
-from collections import OrderedDict
-import time as _time
-
-class _PDFCache:
-    """LRU cache con TTL para PDFs en base64. Evita OOM en Render."""
-    MAX   = int(os.getenv("PDF_CACHE_MAX", "4"))
-    TTL_S = int(os.getenv("PDF_CACHE_TTL", "7200"))  # 2 horas
-
-    def __init__(self):
-        self._cache: OrderedDict = OrderedDict()
-
-    def get(self, url):
-        if url not in self._cache:
-            return None
-        b64, ts = self._cache[url]
-        if _time.time() - ts > self.TTL_S:
-            del self._cache[url]
-            return None
-        self._cache.move_to_end(url)
-        return b64
-
-    def set(self, url, b64):
-        if url in self._cache:
-            self._cache.move_to_end(url)
-        self._cache[url] = (b64, _time.time())
-        while len(self._cache) > self.MAX:
-            evicted = next(iter(self._cache))
-            del self._cache[evicted]
-            _info(f"[PDF CACHE] evicted: {evicted[:60]}")
-
-    def clear(self):
-        n = len(self._cache)
-        self._cache.clear()
-        return n
-
-    def __len__(self):
-        return len(self._cache)
-
-pdf_cache           = _PDFCache()
+pdf_cache           = {}
 historiales         = {}
 conocimiento_extra  = []
 docentes_admin      = []
@@ -210,27 +170,6 @@ contador_reportes   = 0
 # Cache en memoria del estado de borradores
 # { telefono: { dict con campos del borrador } }
 borradores_cache: dict = {}
-
-# ── Rate limiting (mensajes por minuto por teléfono) ──────────
-import collections as _collections
-_rate_timestamps: dict = {}
-RATE_LIMIT_NORMAL = int(os.getenv("RATE_LIMIT_NORMAL", "12"))
-RATE_LIMIT_ADMIN  = int(os.getenv("RATE_LIMIT_ADMIN",  "40"))
-
-def _check_rate_limit(telefono: str, es_admin_user: bool) -> bool:
-    """Retorna True si se puede procesar, False si excede el límite."""
-    tel   = limpiar_tel(telefono)
-    ahora = _time.time()
-    limite = RATE_LIMIT_ADMIN if es_admin_user else RATE_LIMIT_NORMAL
-    if tel not in _rate_timestamps:
-        _rate_timestamps[tel] = _collections.deque()
-    q = _rate_timestamps[tel]
-    while q and ahora - q[0] > 60:
-        q.popleft()
-    if len(q) >= limite:
-        return False
-    q.append(ahora)
-    return True
 
 
 # ══════════════════════════════════════════════
@@ -260,8 +199,8 @@ def guardar_hist(telefono, rol, msg):
     if telefono not in historiales:
         historiales[telefono] = []
     historiales[telefono].append({"r": rol, "m": msg[:500]})
-    if len(historiales[telefono]) > GEMINI_MAX_HISTORIAL:
-        historiales[telefono] = historiales[telefono][-GEMINI_MAX_HISTORIAL:]
+    if len(historiales[telefono]) > 10:
+        historiales[telefono] = historiales[telefono][-10:]
 
 def get_hist_txt(telefono):
     h = historiales.get(telefono, [])
@@ -325,22 +264,18 @@ def _mensaje_pedir_faltantes(faltantes):
     return "\n".join(lineas)
 
 def _resumen_borrador(b):
-    """Resumen visual del borrador para mostrar al docente."""
     mapa = [
-        ("sede",                "🏫", "Sede"),
-        ("jornada",             "🕐", "Jornada"),
-        ("estudiante",          "👤", "Estudiante"),
-        ("grado",               "🎒", "Grado"),
-        ("tipo_falta",          "⚠️", "Tipo de falta"),
-        ("detalle_del_hecho",   "📝", "Hecho reportado"),
+        ("sede",       "🏫", "Sede"),
+        ("jornada",    "🕐", "Jornada"),
+        ("estudiante", "👤", "Estudiante"),
+        ("grado",      "🎒", "Grado"),
+        ("tipo_falta", "⚠️", "Tipo"),
+        ("detalle_del_hecho", "📝", "Detalle"),
     ]
     lineas = []
     for clave, emoji, label in mapa:
         val = b.get(clave, "")
         if val and val not in ("null", ""):
-            # Truncar el detalle para que no sea interminable en el chat
-            if clave == "detalle_del_hecho" and len(val) > 120:
-                val = val[:120] + "..."
             lineas.append(f"{emoji} *{label}:* {val}")
     return "\n".join(lineas) if lineas else "_(aún sin datos)_"
 
@@ -399,7 +334,7 @@ async def _sheets_leer_rango(rango, token=None):
             d = r.json()
         return d.get("values", [])
     except Exception as e:
-        _warn(f"SHEETS leer: {e}")
+        print(f"SHEETS leer error: {e}")
         return []
 
 async def _sheets_escribir_rango(rango, valores, token=None):
@@ -416,7 +351,7 @@ async def _sheets_escribir_rango(rango, valores, token=None):
             r = await c.put(url, headers=headers, json={"values": valores})
             return r.status_code == 200
     except Exception as e:
-        _warn(f"SHEETS escribir: {e}")
+        print(f"SHEETS escribir error: {e}")
         return False
 
 async def _sheets_borrar_fila(fila_num, token=None):
@@ -425,7 +360,7 @@ async def _sheets_borrar_fila(fila_num, token=None):
         token = await obtener_token_sheets()
     if not token:
         return False
-    rango = f"{SHEET_BORRADORES}!A{fila_num}:L{fila_num}"
+    rango = f"{SHEET_BORRADORES}!A{fila_num}:J{fila_num}"
     url = (f"https://sheets.googleapis.com/v4/spreadsheets/{SHEETS_ID}"
            f"/values/{rango}:clear")
     headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
@@ -434,7 +369,7 @@ async def _sheets_borrar_fila(fila_num, token=None):
             r = await c.post(url, headers=headers, json={})
             return r.status_code == 200
     except Exception as e:
-        _warn(f"SHEETS borrar fila: {e}")
+        print(f"SHEETS borrar fila error: {e}")
         return False
 
 async def _sheets_append(hoja, fila, token=None):
@@ -442,7 +377,7 @@ async def _sheets_append(hoja, fila, token=None):
     if not token:
         token = await obtener_token_sheets()
     if not token:
-        _warn(f"SHEETS append '{hoja}': sin token")
+        print(f"SHEETS append '{hoja}': sin token")
         return False
     # Sin comillas simples en la URL — causan ERROR 400 en algunos casos
     url = (f"https://sheets.googleapis.com/v4/spreadsheets/{SHEETS_ID}"
@@ -457,14 +392,14 @@ async def _sheets_append(hoja, fila, token=None):
             if not ok:
                 try:
                     detail = r.json()
-                    _error(f"SHEETS append '{hoja}': {r.status_code} → {detail.get('error',{}).get('message','?')}")
+                    print(f"SHEETS append '{hoja}': ERROR {r.status_code} -> {detail.get('error',{}).get('message','?')}")
                 except:
-                    _error(f"SHEETS append '{hoja}': {r.status_code} → {r.text[:200]}")
+                    print(f"SHEETS append '{hoja}': ERROR {r.status_code} -> {r.text[:200]}")
             else:
-                _info(f"SHEETS append '{hoja}': OK ({len(fila_str)} cols)")
+                print(f"SHEETS append '{hoja}': OK ({len(fila_str)} cols)")
             return ok
     except Exception as e:
-        _warn(f"SHEETS append '{hoja}' excepcion: {e}")
+        print(f"SHEETS append '{hoja}' excepcion: {e}")
         return False
 
 async def _borrador_buscar_fila(telefono, token=None):
@@ -472,7 +407,7 @@ async def _borrador_buscar_fila(telefono, token=None):
     Busca en la hoja Borradores la fila correspondiente al telefono.
     Retorna (numero_de_fila, dict_datos) o (None, None).
     """
-    filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:L", token)
+    filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:J", token)
     for i, fila in enumerate(filas, start=1):
         if fila and limpiar_tel(fila[0]) == limpiar_tel(telefono):
             return i, _borrador_a_dict(fila)
@@ -495,12 +430,12 @@ async def borrador_guardar(telefono, b: dict):
         fila_datos = _dict_a_borrador(b)
 
         if fila_num:
-            rango = f"{SHEET_BORRADORES}!A{fila_num}:L{fila_num}"
+            rango = f"{SHEET_BORRADORES}!A{fila_num}:J{fila_num}"
             await _sheets_escribir_rango(rango, [fila_datos], token)
         else:
             await _sheets_append(SHEET_BORRADORES, fila_datos, token)
     except Exception as e:
-        _warn(f"borrador_guardar: {e}")
+        print(f"WARN borrador_guardar: {e}")
 
 async def borrador_eliminar(telefono):
     """Elimina el borrador de Sheets y del cache en memoria."""
@@ -512,7 +447,7 @@ async def borrador_eliminar(telefono):
         if fila_num:
             await _sheets_borrar_fila(fila_num, token)
     except Exception as e:
-        _warn(f"borrador_eliminar: {e}")
+        print(f"WARN borrador_eliminar: {e}")
 
 async def borrador_cargar(telefono):
     """
@@ -529,10 +464,10 @@ async def borrador_cargar(telefono):
         _, b = await _borrador_buscar_fila(telefono)
         if b and b.get("estado"):
             borradores_cache[tel] = b
-            _info(f"[RECUPERADO] borrador restaurado para {tel} desde Sheets")
+            print(f"[RECUPERADO] borrador restaurado para {tel} desde Sheets")
             return b
     except Exception as e:
-        _warn(f"borrador_cargar desde Sheets: {e}")
+        print(f"WARN borrador_cargar desde Sheets: {e}")
     return None
 
 async def cargar_todos_borradores():
@@ -541,7 +476,7 @@ async def cargar_todos_borradores():
     Carga todos los borradores activos de Sheets al cache en memoria.
     """
     try:
-        filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:L")
+        filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:J")
         n = 0
         for fila in filas:
             if not fila or not fila[0]:
@@ -551,9 +486,9 @@ async def cargar_todos_borradores():
             if tel and b.get("estado"):
                 borradores_cache[tel] = b
                 n += 1
-        _info(f"[STARTUP] {n} borrador(es) recuperado(s) de Sheets")
+        print(f"[STARTUP] {n} borrador(es) recuperado(s) de Sheets")
     except Exception as e:
-        _warn(f"cargar_todos_borradores: {e}")
+        print(f"WARN cargar_todos_borradores: {e}")
 
 
 # ══════════════════════════════════════════════
@@ -562,15 +497,16 @@ async def cargar_todos_borradores():
 async def guardar_reporte_final(fila):
     """
     Guarda la fila final en la hoja 'Reportes'.
-    12 columnas:
+    13 columnas:
     N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
-    Tipo | Detalle Original | Detalle Profesional | Accion Reparadora | Reportante
+    Tipo | Detalle Original | Detalle Profesional | Accion Reparadora |
+    Reportante | Teléfono
     """
     try:
         token = await obtener_token_sheets()
         return await _sheets_append(SHEET_REPORTES, fila, token)
     except Exception as e:
-        _error(f"SHEETS reporte final: {e}")
+        print(f"SHEETS reporte final error: {e}")
         return False
 
 
@@ -596,317 +532,168 @@ def _extraer_local(mensaje):
     return datos
 
 
-# ══════════════════════════════════════════════════════════════════
-#  MÓDULO DE REPORTES — ESTRATEGIA NUEVA (v4)
-#
-#  PRINCIPIO: Una sola llamada Gemini hace TODO:
-#    1. Extrae los datos del mensaje
-#    2. Redacta el hecho profesionalmente
-#    3. Genera la acción reparadora
-#
-#  FLUJO SIMPLIFICADO (máximo 2 turnos):
-#    Turno 1: El docente escribe cualquier cosa describiendo el caso
-#             → Gemini extrae todo y devuelve JSON + redacción
-#             → Si falta algo crítico, se pregunta TODO junto en un mensaje
-#    Turno 2: El docente completa lo que faltaba
-#             → Se finaliza el reporte
-#
-#  La sede se pregunta con menú SOLO si no se mencionó.
-#  NUNCA se pregunta campo por campo.
-# ══════════════════════════════════════════════════════════════════
-
-# ── Constantes del módulo de reportes ─────────────────────────────
-CAMPOS_OBLIGATORIOS = ["estudiante", "grado", "tipo_falta", "detalle_del_hecho"]
-
-MANUAL_CONVIVENCIA_CTX = """
-CONTEXTO DEL MANUAL DE CONVIVENCIA — IE SIMÓN BOLÍVAR (Cúcuta, Colombia):
-- Art. 161 — Faltas LEVES: llegar tarde reiteradamente, salir del aula sin permiso,
-  no usar correctamente el uniforme, comer en clase, usar dispositivos sin autorización.
-  Protocolo: diálogo, acta de compromiso, notificación al acudiente.
-  ACUMULACIÓN: 3 faltas leves = 1 falta GRAVE.
-- Art. 162 — Faltas GRAVES: irrespeto verbal o gestual al docente, plagio, agresiones
-  físicas leves, daño a bienes ajenos, reincidencia en faltas leves.
-  Protocolo: citación formal al acudiente, suspensión 1-3 días, acta de compromiso,
-  remisión a orientación.
-- Art. 163 — Faltas GRAVÍSIMAS (Ley 1620/2013, Dec. 1965/2013): porte de armas,
-  consumo de sustancias, violencia sexual, vandalismo grave, acoso escolar sostenido.
-  Protocolo: activación inmediata Ruta de Atención Integral, notificación Comité
-  de Convivencia, posible remisión a ICBF/Policía/Fiscalía, suspensión mientras se
-  investiga.
-- Enfoque restaurativo: las acciones reparadoras deben orientarse a la reflexión,
-  la reparación del daño y la reconciliación, no al castigo.
-"""
-
-
-async def _gemini_analizar_reporte_completo(mensaje_docente: str,
-                                             datos_previos: dict = None) -> dict:
-    """
-    FUNCIÓN CENTRAL DEL MÓDULO DE REPORTES.
-
-    Hace TODO en una sola llamada Gemini:
-    - Extrae: estudiante, grado, tipo_falta, sede, jornada
-    - Redacta: detalle profesional para acta oficial
-    - Genera: acción reparadora restaurativa
-    - Devuelve: dict JSON con todos los campos
-
-    Retorna dict con claves:
-      estudiante, grado, tipo_falta, sede, jornada,
-      detalle_original, detalle_profesional, accion_reparadora,
-      campos_faltantes (lista), confianza (alta/media/baja)
-    """
-    previos_txt = ""
-    if datos_previos:
-        previos_txt = "\nDATOS YA CONOCIDOS (no re-preguntes estos):\n"
-        for k, v in datos_previos.items():
-            if v and str(v).strip():
-                previos_txt += f"- {k}: {v}\n"
-
+# ══════════════════════════════════════════════
+#  EXTRACCION CON GEMINI
+#  Extrae TODOS los campos posibles del mensaje:
+#  estudiante, grado, tipo_falta, sede, jornada,
+#  detalle_del_hecho
+# ══════════════════════════════════════════════
+async def _extraer_con_gemini(mensaje):
     prompt = (
-        "Eres el secretario académico experto en convivencia escolar de la "
-        "IE Simón Bolívar de Cúcuta (Colombia), con dominio absoluto de la "
-        "Ley 1620 de 2013, el Decreto 1965 de 2013 y el Manual de Convivencia "
-        "institucional.\n\n"
-        + MANUAL_CONVIVENCIA_CTX
-        + previos_txt
-        + "\nMENSAJE DEL DOCENTE:\n\"" + mensaje_docente + "\"\n\n"
-        "═══════════════════════════════════════════════════\n"
-        "INSTRUCCIONES — LEE CON ATENCIÓN:\n"
-        "═══════════════════════════════════════════════════\n\n"
-        "PASO 1 — EXTRACCIÓN DE DATOS:\n"
-        "Extrae del mensaje del docente:\n"
-        "- estudiante: nombre completo (busca nombres propios, puede estar escrito con errores)\n"
-        "- grado: grado y grupo (ej: 5A, 10B, 7°, grado quinto → 5)\n"
-        "- tipo_falta: clasifica como Leve, Grave o Gravisima según el Manual\n"
-        "  * Si dice 'tipo 1', 'falta 1', 'leve' → Leve\n"
-        "  * Si dice 'tipo 2', 'falta 2', 'grave' → Grave\n"
-        "  * Si dice 'tipo 3', 'falta 3', 'gravisima' → Gravisima\n"
-        "  * Si describe el hecho pero no nombra el tipo, clasifícalo tú según el Manual\n"
-        "- sede: Simon Bolivar, San Martin, o Hernando Acevedo\n"
-        "  * 'san martin', 'sanmartin' → San Martin\n"
-        "  * 'simon bolivar', 'bolivar', 'central' → Simon Bolivar\n"
-        "  * 'hernando', 'acevedo' → Hernando Acevedo\n"
-        "- jornada: Mañana o Tarde\n"
-        "- detalle_original: COPIA LITERAL lo que el docente describió como la conducta "
-        "  o motivo de la falta. No resumas, copia tal cual.\n\n"
-        "PASO 2 — REDACCIÓN PROFESIONAL (solo si tienes el detalle de la falta):\n"
-        "Redacta el hecho como aparecería en un ACTA OFICIAL DE CONVIVENCIA ESCOLAR.\n"
-        "Requisitos OBLIGATORIOS:\n"
-        "* Tercera persona gramatical\n"
-        "* Vocabulario técnico-pedagógico y jurídico (Ley 1620, Manual de Convivencia)\n"
-        "* Menciona: nombre completo del estudiante, grado, sede, jornada\n"
-        "* Cita el artículo del Manual que corresponde a la falta (Art. 161/162/163)\n"
-        "* Mínimo 6 oraciones bien estructuradas\n"
-        "* Tono formal institucional, sin abreviaciones\n"
-        "* NO inventes hechos no mencionados por el docente\n"
-        "* USA vocabulario como: 'el educando', 'en reiteradas ocasiones', "
-        "  'incumplimiento del deber escolar', 'contraviniendo lo estipulado', "
-        "  'se hace constar', 'la conducta observada', 'norma convivencial'\n\n"
-        "PASO 3 — ACCIÓN REPARADORA (solo si tienes el detalle):\n"
-        "Propón una acción reparadora restaurativa ESPECÍFICA para este caso.\n"
-        "Requisitos:\n"
-        "* Enmarcada en el enfoque restaurativo de la Ley 1620 de 2013\n"
-        "* Práctica y aplicable en el colegio colombiano\n"
-        "* Orientada a reflexión y cambio de conducta, no al castigo\n"
-        "* Incluye: actividad concreta, participantes, tiempo estimado\n"
-        "* Mínimo 4 oraciones\n\n"
-        "PASO 4 — CAMPOS FALTANTES:\n"
-        "Lista SOLO los campos que NO pudiste extraer del mensaje "
-        "y que son estrictamente necesarios. Los campos obligatorios son: "
-        "estudiante, grado, tipo_falta, detalle_del_hecho.\n"
-        "La sede es deseable pero no bloquea el reporte.\n\n"
-        "═══════════════════════════════════════════════════\n"
-        "FORMATO DE RESPUESTA — USA EXACTAMENTE ESTAS ETIQUETAS:\n"
-        "═══════════════════════════════════════════════════\n"
-        "ESTUDIANTE: [nombre completo o DESCONOCIDO]\n"
-        "GRADO: [grado o DESCONOCIDO]\n"
-        "TIPO: [Leve o Grave o Gravisima o DESCONOCIDO]\n"
-        "SEDE: [Simon Bolivar o San Martin o Hernando Acevedo o DESCONOCIDO]\n"
-        "JORNADA: [Mañana o Tarde o DESCONOCIDO]\n"
-        "DETALLE_ORIGINAL: [texto literal del docente o DESCONOCIDO]\n"
-        "DETALLE_PROFESIONAL: [redacción completa del acta o PENDIENTE]\n"
-        "ACCION_REPARADORA: [acción completa o PENDIENTE]\n"
-        "CAMPOS_FALTANTES: [lista separada por comas, o NINGUNO]\n\n"
-        "REGLAS CRÍTICAS:\n"
-        "- NUNCA omitas ninguna etiqueta\n"
-        "- Si un campo tiene información, úsala aunque esté con errores ortográficos\n"
-        "- DETALLE_PROFESIONAL y ACCION_REPARADORA pueden ocupar múltiples líneas\n"
-        "- Si falta el detalle del hecho, escribe PENDIENTE en ambas secciones\n"
-        "- No uses asteriscos, markdown, ni viñetas dentro de las etiquetas"
+        "Eres un extractor de datos para un sistema escolar colombiano.\n"
+        "Analiza el siguiente mensaje de un docente y extrae TODA la información disponible.\n"
+        "Mensaje: \"" + mensaje + "\"\n\n"
+        "Responde SOLO estas líneas exactas (texto plano, sin comillas, sin explicaciones):\n"
+        "estudiante: [nombre completo del estudiante o null]\n"
+        "grado: [grado y grupo ej: 10A, 7B, 5°, 402 o null]\n"
+        "tipo_falta: [Leve o Grave o Gravisima o null]\n"
+        "sede: [Simon Bolivar o San Martin o Hernando Acevedo o null]\n"
+        "jornada: [Mañana o Tarde o null]\n"
+        "detalle_del_hecho: [descripción completa de lo que ocurrió, con todas las palabras que el docente usó para describir el hecho, o null]\n\n"
+        "REGLAS IMPORTANTES:\n"
+        "- tipo1 o falta1 o falta leve = Leve\n"
+        "- tipo2 o falta2 o falta grave = Grave\n"
+        "- tipo3 o falta3 o falta gravisima = Gravisima\n"
+        "- san martin o sanmartin = San Martin\n"
+        "- simon bolivar o bolivar o central = Simon Bolivar\n"
+        "- hernando acevedo o hernando = Hernando Acevedo\n"
+        "- Para detalle_del_hecho: extrae la RAZÓN o MOTIVO de la falta y cualquier descripción del comportamiento. "
+        "Si el docente escribió 'por no traer uniformemente el uniforme', eso es el detalle. "
+        "Si el docente describe un comportamiento o incidente, eso es el detalle. "
+        "Solo pon null si el mensaje NO contiene ninguna descripción del hecho.\n"
+        "- Si un campo no aparece en el mensaje, escribe null."
     )
-
     try:
-        raw = await asyncio.wait_for(
-            _gemini_base(prompt, max_tokens=1800, temperature=0.3,
-                         timeout=GEMINI_TIMEOUT_REDACCION),
-            timeout=GEMINI_TIMEOUT_REDACCION + 5
-        )
-        return _parsear_respuesta_reporte(raw, mensaje_docente)
-    except Exception as e:
-        _warn(f"_gemini_analizar_reporte_completo: {e}")
-        return {
-            "estudiante": "", "grado": "", "tipo_falta": "", "sede": "",
-            "jornada": "", "detalle_original": mensaje_docente,
-            "detalle_profesional": "", "accion_reparadora": "",
-            "campos_faltantes": ["estudiante", "grado", "tipo_falta"],
-            "error": str(e)
+        api_key = os.getenv("GEMINI_API_KEY", "")
+        modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 300}
         }
-
-
-def _parsear_respuesta_reporte(raw: str, mensaje_original: str) -> dict:
-    """
-    Parsea la respuesta estructurada de Gemini con las etiquetas definidas.
-    Robusto ante variaciones de formato y contenido multilínea.
-    """
-    # Las etiquetas en orden — usamos split secuencial para capturar multilínea
-    ETIQUETAS = [
-        "ESTUDIANTE", "GRADO", "TIPO", "SEDE", "JORNADA",
-        "DETALLE_ORIGINAL", "DETALLE_PROFESIONAL", "ACCION_REPARADORA",
-        "CAMPOS_FALTANTES"
-    ]
-
-    def _extraer_campo_secuencial(texto: str, etiqueta: str) -> str:
-        """
-        Extrae el valor de una etiqueta capturando todo hasta la siguiente etiqueta.
-        Soporta contenido de múltiples párrafos.
-        """
-        # Construir patrón que busca la etiqueta y captura hasta la próxima
-        otras = [e for e in ETIQUETAS if e != etiqueta]
-        patron_fin = "|".join(rf"^{e}\s*:" for e in otras)
-        patron = rf'(?im)^{re.escape(etiqueta)}\s*:\s*(.+?)(?=(?:{patron_fin})|$)'
-        m = re.search(patron, texto, re.MULTILINE | re.DOTALL)
-        if m:
-            return m.group(1).strip()
-        # Fallback simple — una sola línea
-        m2 = re.search(rf'(?im)^{re.escape(etiqueta)}\s*:\s*(.+)$', texto)
-        if m2:
-            return m2.group(1).strip()
-        return ""
-
-    def _limpiar(val: str) -> str:
-        if not val:
-            return ""
-        val = val.strip()
-        if val.upper() in ("DESCONOCIDO", "PENDIENTE", "N/A", "NULL", "NO DISPONIBLE",
-                            "NO MENCIONADO", "NO SE MENCIONA", "SIN INFORMACIÓN", ""):
-            return ""
-        return val
-
-    estudiante       = _limpiar(_extraer_campo_secuencial(raw, "ESTUDIANTE"))
-    grado            = _limpiar(_extraer_campo_secuencial(raw, "GRADO"))
-    tipo_raw         = _limpiar(_extraer_campo_secuencial(raw, "TIPO"))
-    sede_raw         = _limpiar(_extraer_campo_secuencial(raw, "SEDE"))
-    jornada_raw      = _limpiar(_extraer_campo_secuencial(raw, "JORNADA"))
-    detalle_orig     = _limpiar(_extraer_campo_secuencial(raw, "DETALLE_ORIGINAL"))
-    detalle_prof     = _limpiar(_extraer_campo_secuencial(raw, "DETALLE_PROFESIONAL"))
-    accion_rep       = _limpiar(_extraer_campo_secuencial(raw, "ACCION_REPARADORA"))
-    faltantes_raw    = _extraer_campo_secuencial(raw, "CAMPOS_FALTANTES")
-
-    # ── Normalizar tipo_falta ──────────────────────────────────────
-    tipo_falta = ""
-    if tipo_raw:
-        t = norm(tipo_raw)
-        if "gravis" in t or "3" in t:
-            tipo_falta = "Gravisima"
-        elif "grave" in t or "2" in t:
-            tipo_falta = "Grave"
-        elif "leve" in t or "1" in t:
-            tipo_falta = "Leve"
-        # Si Gemini escribió directamente el nombre
-        elif tipo_raw[0].isupper() and tipo_raw in ("Leve", "Grave", "Gravisima"):
-            tipo_falta = tipo_raw
-
-    # ── Normalizar sede ────────────────────────────────────────────
-    sede = ""
-    if sede_raw:
-        s_n = norm(sede_raw)
-        if "martin" in s_n:
-            sede = "San Martin"
-        elif "acevedo" in s_n or "hernando" in s_n:
-            sede = "Hernando Acevedo"
-        elif "bolivar" in s_n or "simon" in s_n or "central" in s_n:
-            sede = "Simon Bolivar"
-
-    # ── Normalizar jornada ─────────────────────────────────────────
-    jornada = ""
-    if jornada_raw:
-        jornada = "Tarde" if "tarde" in norm(jornada_raw) else "Mañana"
-
-    # ── Fallback detalle_original: usar mensaje completo si vacío ──
-    if not detalle_orig and len(mensaje_original.strip()) > 15:
-        detalle_orig = mensaje_original.strip()
-
-    # ── Determinar campos faltantes reales ─────────────────────────
-    faltantes = []
-    if faltantes_raw and norm(faltantes_raw) not in ("ninguno", "none", ""):
-        for f in faltantes_raw.replace(";", ",").split(","):
-            f = f.strip().lower().replace(" ", "_")
-            if f and f not in ("ninguno", "none", ""):
-                faltantes.append(f)
-
-    # Verificar siempre los obligatorios
-    if not estudiante and "estudiante" not in faltantes:
-        faltantes.append("estudiante")
-    if not grado and "grado" not in faltantes:
-        faltantes.append("grado")
-    if not tipo_falta and "tipo_falta" not in faltantes:
-        faltantes.append("tipo_falta")
-    if not detalle_orig and "detalle_del_hecho" not in faltantes:
-        faltantes.append("detalle_del_hecho")
-
-    _info(
-        f"[PARSEO] est='{estudiante}' grado='{grado}' tipo='{tipo_falta}' "
-        f"sede='{sede}' falt={faltantes} "
-        f"prof_len={len(detalle_prof)} acc_len={len(accion_rep)}"
-    )
-
-    return {
-        "estudiante":          estudiante,
-        "grado":               grado,
-        "tipo_falta":          tipo_falta,
-        "sede":                sede,
-        "jornada":             jornada,
-        "detalle_original":    detalle_orig,
-        "detalle_profesional": detalle_prof,
-        "accion_reparadora":   accion_rep,
-        "campos_faltantes":    faltantes,
-    }
-
-
-def _construir_pregunta_faltantes(faltantes: list, b: dict) -> str:
-    """
-    Construye UN SOLO mensaje preguntando todo lo que falta.
-    Nunca pregunta campo por campo.
-    """
-    tiene_algo = _resumen_borrador(b)
-    partes = []
-
-    if "estudiante" in faltantes:
-        partes.append("👤 *Nombre completo del estudiante*")
-    if "grado" in faltantes:
-        partes.append("🎒 *Grado y grupo* (ej: 5A, 9B, 10°)")
-    if "tipo_falta" in faltantes:
-        partes.append("⚠️ *Tipo de falta:* leve, grave o gravísima\n"
-                      "   _(tipo 1 = leve, tipo 2 = grave, tipo 3 = gravísima)_")
-    if "detalle_del_hecho" in faltantes:
-        partes.append("📝 *¿Qué ocurrió?* Descríbelo con tus palabras")
-
-    if not partes:
-        return ""
-
-    msg = ""
-    if tiene_algo and tiene_algo != "_(aún sin datos)_":
-        msg += f"📋 *Lo que ya tengo:*\n{tiene_algo}\n\n"
-
-    msg += "❓ *Necesito que me indiques:*\n"
-    for p in partes:
-        msg += f"• {p}\n"
-    msg += "\n_Puedes escribir todo en un solo mensaje._\n_(Escribe CANCELAR para salir)_"
-    return msg
+        async with httpx.AsyncClient(timeout=14) as c:
+            r = await c.post(url, json=payload)
+            d = r.json()
+        extraidos = {}
+        if "candidates" in d:
+            raw = d["candidates"][0]["content"]["parts"][0]["text"]
+            for linea in raw.splitlines():
+                if ":" not in linea:
+                    continue
+                clave, _, valor = linea.partition(":")
+                clave = clave.strip().lower().replace(" ","_")
+                valor = valor.strip().strip('"').strip("'")
+                if valor.lower() in ("null","no se menciona","no menciona","no hay",""):
+                    continue
+                if clave in ("estudiante","grado","tipo_falta","sede","jornada","detalle_del_hecho"):
+                    extraidos[clave] = valor
+        print(f"[GEMINI EXTRACCION] {extraidos}")
+        return extraidos
+    except Exception as e:
+        print(f"WARN _extraer_con_gemini: {e}")
+        return {}
 
 
 # ══════════════════════════════════════════════
-#  GESTOR DE REPORTE — FLUJO SIMPLIFICADO
-#  Máximo 2-3 turnos en el caso más complejo
+#  REDACCION PROFESIONAL + ACCION REPARADORA
+# ══════════════════════════════════════════════
+async def _procesar_detalle(detalle_raw, estudiante, grado, tipo_falta, sede, jornada):
+    """
+    Recibe el detalle tal como lo escribió el docente.
+    Retorna (detalle_profesional, accion_reparadora).
+    Nunca lanza excepción — retorna el original si falla.
+    """
+    if not detalle_raw or len(detalle_raw.strip()) < 5:
+        return detalle_raw, ""
+
+    prompt = (
+        "Eres el secretario académico y experto en convivencia escolar de la IE Simón Bolívar "
+        "de Cúcuta (Colombia). Tienes pleno dominio de la Ley 1620 de 2013, el Decreto 1965 de 2013 "
+        "y el Manual de Convivencia institucional.\n\n"
+        "DATOS DEL CASO:\n"
+        f"- Estudiante: {estudiante}\n"
+        f"- Grado: {grado}\n"
+        f"- Sede: {sede} | Jornada: {jornada}\n"
+        f"- Clasificación de la falta: {tipo_falta}\n"
+        f"- Relato del docente: {detalle_raw}\n\n"
+        "TAREA 1 — REDACCIÓN PROFESIONAL DEL HECHO:\n"
+        "Redacta el hecho como aparecería en un acta oficial de convivencia escolar. "
+        "Requisitos: tercera persona, vocabulario técnico-pedagógico, tono formal e institucional, "
+        "sin faltas ortográficas. Menciona explícitamente el nombre completo del estudiante "
+        f"({estudiante}), el grado ({grado}), la sede y jornada. "
+        "Describe la conducta con precisión, citando si aplica el artículo correspondiente "
+        "del Manual de Convivencia o la Ley 1620. Mínimo 5 oraciones completas y bien estructuradas. "
+        "NO inventes hechos que el docente no mencionó.\n\n"
+        "TAREA 2 — ACCIÓN REPARADORA SUGERIDA:\n"
+        "Propón una acción reparadora restaurativa, pedagógicamente pertinente y específica "
+        "para este caso concreto, enmarcada en el enfoque restaurativo de la Ley 1620 de 2013. "
+        "Debe ser práctica, aplicable en el contexto escolar colombiano y orientada a la "
+        "reflexión y el cambio de conducta, no al castigo. Mínimo 3 oraciones.\n\n"
+        "FORMATO DE RESPUESTA — respeta estas etiquetas exactas al inicio de cada sección:\n"
+        "DETALLE: [aquí la redacción profesional completa]\n"
+        "ACCION: [aquí la acción reparadora completa]\n\n"
+        "No uses asteriscos, no uses comillas, no agregues más secciones."
+    )
+    try:
+        api_key = os.getenv("GEMINI_API_KEY", "")
+        modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 1200}
+        }
+        async with httpx.AsyncClient(timeout=25) as c:
+            r = await c.post(url, json=payload)
+            d = r.json()
+        if "candidates" not in d:
+            return detalle_raw, ""
+
+        raw = d["candidates"][0]["content"]["parts"][0]["text"].strip()
+        detalle_prof = ""
+        accion_rep   = ""
+
+        # Parser robusto: DETALLE y ACCION pueden ocupar múltiples líneas
+        partes_det = re.split(r'(?i)^DETALLE\s*:', raw, maxsplit=1, flags=re.MULTILINE)
+        if len(partes_det) > 1:
+            resto = partes_det[1]
+            partes_acc = re.split(r'(?i)^ACCION\s*:', resto, maxsplit=1, flags=re.MULTILINE)
+            detalle_prof = partes_acc[0].strip()
+            if len(partes_acc) > 1:
+                accion_rep = partes_acc[1].strip()
+
+        # Fallback: buscar sin ancla de inicio de línea
+        if not detalle_prof:
+            partes_det2 = re.split(r'(?i)DETALLE\s*:', raw, maxsplit=1)
+            if len(partes_det2) > 1:
+                resto = partes_det2[1]
+                partes_acc2 = re.split(r'(?i)ACCION\s*:', resto, maxsplit=1)
+                detalle_prof = partes_acc2[0].strip()
+                if len(partes_acc2) > 1:
+                    accion_rep = partes_acc2[1].strip()
+
+        print(f"[DETALLE_PROF len={len(detalle_prof)}] {detalle_prof[:80]}")
+        print(f"[ACCION_REP len={len(accion_rep)}] {accion_rep[:80]}")
+        return detalle_prof or detalle_raw, accion_rep
+
+    except Exception as e:
+        print(f"WARN _procesar_detalle: {e}")
+        return detalle_raw, ""
+
+
+# ══════════════════════════════════════════════
+#  GESTOR DEL REPORTE (Opción C — estado en Sheets)
+#
+#  Estados posibles (campo "estado" en borrador):
+#    "esperando_detalle"  → el siguiente mensaje ES el detalle
+#    "esperando_sede"     → el siguiente mensaje es número 1-6 de sede
+#    "esperando_resto"    → faltan varios campos, se piden juntos
+#    "activo"             → formulario en curso (primer mensaje ya procesado)
+#
+#  Flujo:
+#  1. Primer mensaje: extracción completa → se guarda borrador → se pide lo que falta
+#  2. Si solo falta detalle → estado="esperando_detalle" → msg siguiente = detalle directo
+#  3. Si falta sede → estado="esperando_sede"
+#  4. Al completar todo → _finalizar_reporte
 # ══════════════════════════════════════════════
 async def gestionar_reporte(mensaje, telefono, nombre):
     global contador_reportes
@@ -918,8 +705,10 @@ async def gestionar_reporte(mensaje, telefono, nombre):
         await borrador_eliminar(telefono)
         return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
 
-    # ── Cargar borrador existente ──────────────────────────────────
+    # ── Cargar borrador existente (memoria o Sheets) ───────────────
     b = await borrador_cargar(telefono)
+
+    # ── Si no hay borrador, es el primer mensaje ───────────────────
     if b is None:
         b = {c: "" for c in COL_B}
         b["reportante"] = nombre or telefono
@@ -928,41 +717,40 @@ async def gestionar_reporte(mensaje, telefono, nombre):
     estado = b.get("estado", "activo")
 
     # ══════════════════════════════════════════════════════════════
-    # ESTADO: esperando_confirmacion
+    # ESTADO: esperando_detalle
+    # El mensaje completo ES el detalle. Captura directa, sin Gemini.
     # ══════════════════════════════════════════════════════════════
-    if estado == "esperando_confirmacion":
-        if s in ("si", "sí", "s", "yes", "confirmar", "ok", "correcto",
-                 "guardar", "listo", "esta bien", "está bien"):
-            b["estado"] = "confirmado"
+    if estado == "esperando_detalle":
+        texto = mensaje.strip()
+
+        if re.match(r'^[1-6]$', texto):
+            return "📝 Por favor escribe el detalle de lo ocurrido (no un número):"
+
+        if len(texto) < 8:
+            return "📝 Por favor cuéntame un poco más sobre lo que ocurrió:"
+
+        # ✅ GUARDAR DETALLE DIRECTAMENTE EN BORRADOR
+        b["detalle_del_hecho"] = texto
+        print(f"[DETALLE CAPTURADO] tel={tel} | '{texto[:100]}'")
+
+        # ¿Falta la sede?
+        if not b.get("sede"):
+            b["estado"] = "esperando_sede"
             await borrador_guardar(telefono, b)
-            return await _finalizar_reporte(telefono, b)
-        if s in ("no", "cancelar", "salir", "cancel"):
-            await borrador_eliminar(telefono)
-            return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
-        # Corrección: re-analizar el mensaje de corrección con Gemini
-        datos_previos = {
-            "estudiante": b.get("estudiante", ""),
-            "grado":      b.get("grado", ""),
-            "tipo_falta": b.get("tipo_falta", ""),
-            "sede":       b.get("sede", ""),
-            "jornada":    b.get("jornada", ""),
-        }
-        resultado = await _gemini_analizar_reporte_completo(mensaje, datos_previos)
-        _aplicar_resultado_a_borrador(b, resultado, sobrescribir=True)
-        resumen_prev = _resumen_borrador(b)
-        b["estado"] = "esperando_confirmacion"
+            return "✅ Detalle guardado.\n\n" + MENU_SEDES
+
+        faltantes = _campos_faltantes(b)
+        if faltantes:
+            b["estado"] = "esperando_resto"
+            await borrador_guardar(telefono, b)
+            return "✅ Detalle guardado.\n\n" + _mensaje_pedir_faltantes(faltantes)
+
+        b["estado"] = "completo"
         await borrador_guardar(telefono, b)
-        return (
-            "✅ *Actualizado.*\n\n"
-            "📋 *Confirma el reporte corregido:*\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"{resumen_prev}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            "¿Correcto? Responde *SÍ* para guardar o *CANCELAR* para descartar."
-        )
+        return await _finalizar_reporte(telefono, b)
 
     # ══════════════════════════════════════════════════════════════
-    # ESTADO: esperando_sede (menú numérico 1-6)
+    # ESTADO: esperando_sede
     # ══════════════════════════════════════════════════════════════
     if estado == "esperando_sede":
         sede_res = _resolver_sede_por_numero(mensaje)
@@ -975,115 +763,173 @@ async def gestionar_reporte(mensaje, telefono, nombre):
 
         b["sede"]    = sede_res[0]
         b["jornada"] = sede_res[1]
-        b["estado"]  = "completo"
+        confirmacion = f"✅ Sede: *{sede_res[2]}*\n\n"
+
+        faltantes = _campos_faltantes(b)
+        if not faltantes:
+            b["estado"] = "completo"
+            await borrador_guardar(telefono, b)
+            return await _finalizar_reporte(telefono, b)
+
+        if faltantes == ["detalle_del_hecho"]:
+            b["estado"] = "esperando_detalle"
+            await borrador_guardar(telefono, b)
+            return (confirmacion +
+                    "📝 *¿Qué ocurrió?* Escríbelo con tus palabras:\n"
+                    "_(Puedes escribir todo lo que quieras)_")
+
+        b["estado"] = "esperando_resto"
         await borrador_guardar(telefono, b)
-        return await _finalizar_reporte(telefono, b)
+        return confirmacion + _mensaje_pedir_faltantes(faltantes)
 
     # ══════════════════════════════════════════════════════════════
-    # ESTADO: activo o esperando_complemento
-    # → LLAMADA GEMINI COMPLETA: extrae + redacta + acción reparadora
+    # ESTADO: esperando_resto
+    # Respuesta a campos múltiples faltantes
+    # ══════════════════════════════════════════════════════════════
+    if estado == "esperando_resto":
+        local = _extraer_local(mensaje)
+        for campo in ("grado", "tipo_falta"):
+            if local.get(campo) and not b.get(campo):
+                b[campo] = local[campo]
+
+        try:
+            gext = await asyncio.wait_for(_extraer_con_gemini(mensaje), timeout=12)
+            for campo in ("estudiante", "grado", "tipo_falta", "sede", "jornada", "detalle_del_hecho"):
+                if gext.get(campo) and not b.get(campo):
+                    b[campo] = gext[campo]
+        except Exception as e:
+            print(f"WARN gemini esperando_resto: {e}")
+
+        # Fallback sede en texto
+        if not b.get("sede"):
+            sede_txt = _detectar_sede_en_texto(s)
+            if sede_txt:
+                b["sede"]    = sede_txt[0]
+                b["jornada"] = b.get("jornada") or sede_txt[1]
+        if not b.get("sede"):
+            sede_num = _resolver_sede_por_numero(mensaje)
+            if sede_num:
+                b["sede"]    = sede_num[0]
+                b["jornada"] = sede_num[1]
+
+        faltantes = _campos_faltantes(b)
+        if not faltantes:
+            b["estado"] = "completo"
+            await borrador_guardar(telefono, b)
+            return await _finalizar_reporte(telefono, b)
+
+        if faltantes == ["detalle_del_hecho"]:
+            b["estado"] = "esperando_detalle"
+            await borrador_guardar(telefono, b)
+            return ("📝 *¿Qué ocurrió?* Escríbelo con tus palabras:\n"
+                    "_(Puedes escribir todo lo que quieras)_")
+
+        await borrador_guardar(telefono, b)
+        return _mensaje_pedir_faltantes(faltantes)
+
+    # ══════════════════════════════════════════════════════════════
+    # ESTADO: activo — Primer mensaje del reporte
+    # Gemini extrae TODOS los campos inteligentemente de una vez:
+    # estudiante, grado, tipo_falta, sede, jornada, detalle_del_hecho
     # ══════════════════════════════════════════════════════════════
 
-    # Si hay datos previos del borrador, pasarlos como contexto
-    datos_previos = None
-    if estado == "esperando_complemento" and any(b.get(c) for c in COL_B):
-        datos_previos = {
-            "estudiante": b.get("estudiante", ""),
-            "grado":      b.get("grado", ""),
-            "tipo_falta": b.get("tipo_falta", ""),
-            "sede":       b.get("sede", ""),
-            "jornada":    b.get("jornada", ""),
-            "detalle":    b.get("detalle_del_hecho", ""),
-        }
+    # Extracción local (regex rápida — nunca falla)
+    local = _extraer_local(mensaje)
+    if local.get("cancelar"):
+        await borrador_eliminar(telefono)
+        return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
+    for campo in ("grado", "tipo_falta"):
+        if local.get(campo):
+            b[campo] = local[campo]
 
-    # ── Llamada Gemini completa ────────────────────────────────────
-    _info(f"[REPORTE] llamada Gemini completa para tel={tel}")
-    resultado = await _gemini_analizar_reporte_completo(mensaje, datos_previos)
+    # Extracción Gemini — extrae TODOS los campos del mensaje de una vez
+    try:
+        gext = await asyncio.wait_for(_extraer_con_gemini(mensaje), timeout=14)
+        for campo in ("estudiante", "grado", "tipo_falta", "sede", "jornada", "detalle_del_hecho"):
+            if gext.get(campo) and not b.get(campo):
+                b[campo] = gext[campo]
+    except Exception as e:
+        print(f"WARN gemini primer msg: {e}")
 
-    # ── Aplicar resultado al borrador ──────────────────────────────
-    _aplicar_resultado_a_borrador(b, resultado, sobrescribir=(estado == "activo"))
+    # Fallback sede: detectar por texto o número si Gemini no la encontró
+    if not b.get("sede"):
+        sede_txt = _detectar_sede_en_texto(s)
+        if sede_txt:
+            b["sede"]    = sede_txt[0]
+            b["jornada"] = b.get("jornada") or sede_txt[1]
 
-    faltantes = resultado.get("campos_faltantes", [])
-    tiene_sede = bool(b.get("sede"))
+    if not b.get("sede"):
+        sede_num = _resolver_sede_por_numero(mensaje)
+        if sede_num:
+            b["sede"]    = sede_num[0]
+            b["jornada"] = sede_num[1]
 
-    # ── CASO IDEAL: Todo completo ──────────────────────────────────
-    if not faltantes and tiene_sede:
+    # Fallback detalle: si el mensaje tiene suficiente contenido y Gemini
+    # no extrajo detalle, usar el mensaje completo
+    if not b.get("detalle_del_hecho") and len(mensaje.strip()) > 30:
+        b["detalle_del_hecho"] = mensaje.strip()
+        print(f"[DETALLE FALLBACK mensaje completo] '{mensaje[:80]}'")
+
+    print(f"[EXTRACCION COMPLETA] estudiante={b.get('estudiante')} | grado={b.get('grado')} | "
+          f"tipo={b.get('tipo_falta')} | sede={b.get('sede')} | jornada={b.get('jornada')} | "
+          f"detalle='{str(b.get('detalle_del_hecho',''))[:60]}'")
+
+    # Verificar campos faltantes
+    faltantes = _campos_faltantes(b)
+
+    # ✅ Todo completo desde el primer mensaje → registrar directamente sin preguntar nada
+    if not faltantes and b.get("sede"):
         b["estado"] = "completo"
         await borrador_guardar(telefono, b)
         return await _finalizar_reporte(telefono, b)
 
-    # ── Solo falta la sede (menú numérico) ────────────────────────
-    if not faltantes and not tiene_sede:
+    # Falta la sede
+    if not b.get("sede"):
         b["estado"] = "esperando_sede"
         await borrador_guardar(telefono, b)
         resumen = _resumen_borrador(b)
+        otros = [f for f in faltantes if f not in ("detalle_del_hecho", "sede")]
+        if otros:
+            return (f"📋 *Iniciando reporte*\n{resumen}\n\n"
+                    + _mensaje_pedir_faltantes(otros)
+                    + "\n\n_(Después te preguntaré la sede)_")
+        return "Casi listo ✅ Solo falta la sede:\n\n" + MENU_SEDES
+
+    resumen = _resumen_borrador(b)
+
+    # Solo falta el detalle
+    if faltantes == ["detalle_del_hecho"]:
+        b["estado"] = "esperando_detalle"
+        await borrador_guardar(telefono, b)
         return (
-            f"📋 *Datos registrados:*\n{resumen}\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            "Solo me falta la *sede y jornada*:\n\n"
-            + MENU_SEDES
+            f"📋 *Ya tengo estos datos:*\n{resumen}\n\n"
+            "📝 *¿Qué ocurrió?* Escríbelo con tus palabras:\n"
+            "_(Puedes escribir todo lo que quieras)_"
         )
 
-    # ── Faltan campos obligatorios: preguntar TODO junto ──────────
-    b["estado"] = "esperando_complemento"
+    # Varios campos faltantes
+    b["estado"] = "esperando_resto"
     await borrador_guardar(telefono, b)
-    pregunta = _construir_pregunta_faltantes(faltantes, b)
-    return pregunta
-
-
-def _aplicar_resultado_a_borrador(b: dict, resultado: dict, sobrescribir: bool = False):
-    """
-    Aplica el resultado del análisis Gemini al borrador.
-    sobrescribir=True: reemplaza campos existentes (primer mensaje)
-    sobrescribir=False: solo rellena campos vacíos (complementos)
-    Los campos detalle_profesional y accion_reparadora siempre se actualizan
-    si vienen con contenido, ya que son generados — no ingresados por el usuario.
-    """
-    mapeo = {
-        "estudiante":       "estudiante",
-        "grado":            "grado",
-        "tipo_falta":       "tipo_falta",
-        "sede":             "sede",
-        "jornada":          "jornada",
-        "detalle_original": "detalle_del_hecho",
-    }
-    for clave_res, clave_b in mapeo.items():
-        valor = resultado.get(clave_res, "")
-        if valor:
-            if sobrescribir or not b.get(clave_b):
-                b[clave_b] = valor
-
-    # Redacción profesional y acción reparadora: siempre actualizar si hay contenido
-    if resultado.get("detalle_profesional"):
-        b["detalle_profesional"] = resultado["detalle_profesional"]
-    if resultado.get("accion_reparadora"):
-        b["accion_reparadora"] = resultado["accion_reparadora"]
+    return (
+        f"📋 *Ya tengo estos datos:*\n{resumen}\n\n"
+        + _mensaje_pedir_faltantes(faltantes)
+    )
 
 
 # ══════════════════════════════════════════════
-#  FINALIZAR REPORTE — GUARDA EN SHEETS Y RESPONDE
+#  FINALIZAR REPORTE
+#  1. Redactar detalle profesionalmente con Gemini
+#  2. Guardar fila final en hoja "Reportes"
+#  3. Eliminar borrador de hoja "Borradores"
+#  4. Devolver resumen al docente
 # ══════════════════════════════════════════════
 async def _finalizar_reporte(telefono, b: dict):
     global contador_reportes
 
-    _info(f"[FINALIZAR] tel={limpiar_tel(telefono)} | "
-          f"estudiante={b.get('estudiante')} | tipo={b.get('tipo_falta')}")
-
-    # ── MEJORA 7: Confirmación configurable ───────────────────────
-    if CONFIRMAR_REPORTE and b.get("estado") != "confirmado":
-        resumen_prev = _resumen_borrador(b)
-        b["estado"] = "esperando_confirmacion"
-        await borrador_guardar(telefono, b)
-        return (
-            "📋 *Confirma el reporte antes de guardar:*\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"{resumen_prev}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            "¿Todo correcto? Responde:\n"
-            "• *SÍ* para guardar\n"
-            "• *CANCELAR* para descartar\n"
-            "• O corrígeme lo que esté mal"
-        )
+    detalle_original = (b.get("detalle_del_hecho") or "").strip()
+    print(f"[FINALIZAR] tel={limpiar_tel(telefono)} | "
+          f"estudiante={b.get('estudiante')} | tipo={b.get('tipo_falta')} | "
+          f"detalle='{detalle_original[:80]}'")
 
     contador_reportes += 1
     ahora      = datetime.now(COL_TZ)
@@ -1093,77 +939,61 @@ async def _finalizar_reporte(telefono, b: dict):
     tipo       = b.get("tipo_falta", "")
     emoji_t    = EMOJIS_TIPO.get(tipo, "📋")
 
-    # ── Recuperar redacción y acción desde el borrador (campo de COL_B) ──
-    detalle_original  = (b.get("detalle_del_hecho") or "").strip()
-    detalle_prof      = (b.get("detalle_profesional") or "").strip()
-    accion_rep        = (b.get("accion_reparadora") or "").strip()
-
-    # Si la redacción está vacía (no se generó aún), generarla ahora
-    if not detalle_prof and detalle_original and len(detalle_original) > 5:
-        _warn("[FINALIZAR] redacción faltante — generando ahora")
+    # ── Redacción profesional + acción reparadora ─────────────────
+    detalle_prof = detalle_original
+    accion_rep   = ""
+    if detalle_original and len(detalle_original) > 5:
         try:
-            resultado_extra = await _gemini_analizar_reporte_completo(
-                detalle_original,
-                {"estudiante": b.get("estudiante",""),
-                 "grado":      b.get("grado",""),
-                 "tipo_falta": b.get("tipo_falta",""),
-                 "sede":       b.get("sede",""),
-                 "jornada":    b.get("jornada","")}
+            detalle_prof, accion_rep = await asyncio.wait_for(
+                _procesar_detalle(
+                    detalle_original,
+                    b.get("estudiante",""),
+                    b.get("grado",""),
+                    tipo,
+                    b.get("sede",""),
+                    b.get("jornada","")
+                ),
+                timeout=25
             )
-            detalle_prof = resultado_extra.get("detalle_profesional", "") or detalle_original
-            accion_rep   = resultado_extra.get("accion_reparadora", "") or accion_rep
+            print(f"[DETALLE PROF] '{detalle_prof[:80]}'")
+        except asyncio.TimeoutError:
+            print("WARN timeout redacción profesional")
         except Exception as e:
-            _warn(f"regenerar redacción: {e}")
-            detalle_prof = detalle_original
+            print(f"WARN _finalizar_reporte: {e}")
 
-    # ── Guardar en hoja Reportes (12 columnas) ────────────────────
+    # ── Guardar en hoja Reportes ──────────────────────────────────
+    # 12 columnas:
     # N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
-    # Tipo | Detalle Original | Detalle Profesional | Accion Reparadora | Reportante
+    # Tipo | Detalle Original | Detalle Profesional | Accion Reparadora |
+    # Reportante
     fila_final = [
-        num_caso,
-        fecha_str,
-        hora_str,
-        b.get("sede", ""),
-        b.get("jornada", ""),
-        b.get("estudiante", ""),
-        b.get("grado", ""),
+        num_caso, fecha_str, hora_str,
+        b.get("sede",""), b.get("jornada",""),
+        b.get("estudiante",""), b.get("grado",""),
         tipo,
         detalle_original,
         detalle_prof,
         accion_rep,
         b.get("reportante", limpiar_tel(telefono)),
     ]
-    _info(f"[SHEETS] guardando fila: {fila_final[:8]}")
     asyncio.create_task(guardar_reporte_final(fila_final))
+
+    # ── Eliminar borrador ─────────────────────────────────────────
     asyncio.create_task(borrador_eliminar(telefono))
 
-    # ── MEJORA 9: Notificación admin en faltas graves/gravísimas ──
-    if tipo in ("Grave", "Gravisima"):
-        asyncio.create_task(_notificar_admin_falta_grave(
-            num_caso, tipo, b.get("estudiante", ""),
-            b.get("grado", ""), b.get("sede", ""),
-            b.get("reportante", limpiar_tel(telefono)),
-            fecha_str, hora_str
-        ))
-
-    # ── MEJORA 6 extra: Verificar acumulación de leves ────────────
-    if tipo == "Leve":
-        asyncio.create_task(_verificar_acumulacion_leves(
-            b.get("estudiante", ""), telefono
-        ))
+    protocolo = PROTOCOLOS.get(tipo, "")
 
     # ── Respuesta al docente ──────────────────────────────────────
-    protocolo = PROTOCOLOS.get(tipo, "")
     resumen = (
         f"{emoji_t} *Reporte Registrado Exitosamente*\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📌 *N° Caso:* {num_caso}\n"
         f"📅 *Fecha:* {fecha_str}  {hora_str}\n"
-        f"🏫 *Sede:* {b.get('sede', '')} – {b.get('jornada', '')}\n"
-        f"👤 *Estudiante:* {b.get('estudiante', '')}\n"
-        f"🎒 *Grado:* {b.get('grado', '')}\n"
+        f"🏫 *Sede:* {b.get('sede','')} – {b.get('jornada','')}\n"
+        f"👤 *Estudiante:* {b.get('estudiante','')}\n"
+        f"🎒 *Grado:* {b.get('grado','')}\n"
         f"{emoji_t} *Tipo de falta:* {tipo}\n\n"
-        f"📝 *Acta registrada:*\n{detalle_prof or detalle_original}\n"
+        f"📝 *Hecho registrado:*\n{detalle_prof}\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         + protocolo
     )
@@ -1175,79 +1005,12 @@ async def _finalizar_reporte(telefono, b: dict):
         )
     resumen += (
         "\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"✅ Caso guardado correctamente.\n"
+        f"✅ Caso guardado en el sistema.\n"
         f"📎 *N° Caso: {num_caso}*"
     )
 
-    _info(f"REPORTE OK: {num_caso} | {b.get('estudiante', '')} | {tipo}")
+    print(f"REPORTE OK: {num_caso} | {b.get('estudiante','')} | {tipo}")
     return resumen
-async def _notificar_admin_falta_grave(num_caso, tipo, estudiante, grado,
-                                        sede, reportante, fecha, hora):
-    """
-    Envía notificación al ADMIN_PHONE cuando se registra una falta
-    Grave o Gravísima. Usa el mismo mecanismo de webhook saliente.
-    """
-    emoji = "⚠️" if tipo == "Grave" else "🚨"
-    msg = (
-        f"{emoji} *ALERTA — Falta {tipo} Registrada*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📌 *Caso:* {num_caso}\n"
-        f"👤 *Estudiante:* {estudiante} | Grado {grado}\n"
-        f"🏫 *Sede:* {sede}\n"
-        f"📅 {fecha} — {hora}\n"
-        f"👨‍🏫 *Reportado por:* {reportante}\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"Acción requerida según protocolo Art. {'162' if tipo == 'Grave' else '163'}.\n"
-        f"🔗 Ver en Sheets:\nhttps://docs.google.com/spreadsheets/d/{SHEETS_ID}"
-    )
-    # Intentar enviar vía webhook de notificaciones (configurable por env var)
-    webhook_notif = os.getenv("WEBHOOK_NOTIFICACIONES", "")
-    if not webhook_notif:
-        _info(f"[NOTIF ADMIN] {num_caso} — WEBHOOK_NOTIFICACIONES no configurado")
-        return
-    try:
-        async with httpx.AsyncClient(timeout=10) as c:
-            await c.post(webhook_notif, json={
-                "phone": ADMIN_PHONE,
-                "message": msg
-            })
-        _info(f"[NOTIF ADMIN] enviada para {num_caso}")
-    except Exception as e:
-        _warn(f"_notificar_admin_falta_grave: {e}")
-
-
-async def _verificar_acumulacion_leves(estudiante: str, telefono_docente: str):
-    """
-    Cuenta las faltas leves del estudiante. Si >= 3, avisa al docente.
-    Se ejecuta en background sin bloquear la respuesta principal.
-    """
-    if not estudiante:
-        return
-    try:
-        filas = await _sheets_leer_rango(f"{SHEET_REPORTES}!A:H")
-        nb = norm(estudiante)
-        palabras = [p for p in nb.split() if len(p) > 2]
-        leves = 0
-        for fila in filas[1:]:
-            if len(fila) < 8:
-                continue
-            nombre_fila = norm(fila[5] if len(fila) > 5 else "")
-            tipo_fila   = norm(fila[7] if len(fila) > 7 else "")
-            if palabras and all(p in nombre_fila for p in palabras) and tipo_fila == "leve":
-                leves += 1
-        if leves >= 3:
-            alerta = (
-                f"⚠️ *Aviso automático:*\n"
-                f"El/la estudiante *{estudiante}* acumula *{leves} faltas leves*.\n"
-                "Según el Art. 161 del Manual de Convivencia, "
-                "3 faltas leves equivalen a una falta *Grave*.\n"
-                "Se recomienda citación formal al acudiente."
-            )
-            # Guardar en historial del docente como mensaje del bot
-            guardar_hist(telefono_docente, "a", alerta)
-            _info(f"[ACUM LEVES] {estudiante}: {leves} leves → alerta enviada")
-    except Exception as e:
-        _warn(f"_verificar_acumulacion_leves: {e}")
 
 
 # ══════════════════════════════════════════════
@@ -1329,76 +1092,31 @@ def es_intencion_reporte(mensaje: str) -> bool:
         "abrir un caso","abrir caso","reportar una falta",
         "reportar a ","reporte de convivencia","reporte disciplinario",
         "anotar una falta","anotar falta","subir una falta",
-        "iniciar reporte","nuevo reporte","poner una falta",
-        "colocar una falta","cometio una falta","cometió una falta",
-        "incurrio en una falta","incurrió en una falta",
+        "iniciar reporte","nuevo reporte",
     ]
     if any(p in s for p in ACCION_DIRECTA):
         return True
 
     # CAPA 3 — NARRATIVA DE INCIDENTE REAL
+    # Requiere: verbo de acción pasada + palabra de incidente + no es pregunta
     VERBOS_INCIDENTE = [
         "golpeo","golpeó","agredio","agredió","insulto","insultó",
         "mordio","mordió","empujo","empujó","amenazo","amenazó",
         "peleo","peleó","robo","robó","daño","dañó","vandali",
         "acoso","acosar","hostig","maltrat","lesion","lesionó",
-        "portó mal","porto mal","comporto mal","comportó mal",
-        "faltó el respeto","falto el respeto","irrespeto",
     ]
     PALABRAS_INCIDENTE = [
         "incidente","agresion","agresión","bullying","conflicto",
-        "pelea","situacion","situación","caso","hecho","falta",
-        "problema con un alumno","problema con un estudiante",
+        "pelea","situacion","situación","caso","hecho",
     ]
-    es_pregunta = s.endswith("?") or s.startswith(
-        ("que ","como ","cual ","cuando ","donde ","quien ","cuanto "))
-    tiene_verbo    = any(v in s for v in VERBOS_INCIDENTE)
+    es_pregunta = s.endswith("?") or s.startswith(("que ","como ","cual ","cuando ","donde ","quien ","cuanto "))
+    tiene_verbo = any(v in s for v in VERBOS_INCIDENTE)
     tiene_incidente = any(p in s for p in PALABRAS_INCIDENTE)
 
-    if tiene_verbo and not es_pregunta:
-        return True
     if tiene_verbo and tiene_incidente and not es_pregunta:
         return True
 
     return False
-
-
-async def es_intencion_reporte_gemini(mensaje: str) -> bool:
-    """
-    Fallback semántico: si las capas regex no detectan intención de reporte,
-    pregunta a Gemini (temperatura 0, respuesta binaria).
-    Solo se llama cuando hay indicios pero no certeza.
-    """
-    s = norm(mensaje)
-    # Solo activar si hay al menos alguna señal (longitud mínima, no es saludo)
-    SALUDOS_SKIP = ["hola","buenas","menu","inicio","ayuda","help","hello","start"]
-    if s in SALUDOS_SKIP or len(mensaje.strip()) < 15:
-        return False
-    # Si ya hay señales claras de consulta informativa, no gastar llamada
-    CONSULTA_SKIP = ["que dice","como se","cual es","cuando es","enlace","link","dame el"]
-    if any(p in s for p in CONSULTA_SKIP):
-        return False
-    prompt = (
-        "Eres un clasificador de mensajes para un sistema escolar colombiano.\n"
-        "Un docente envió este mensaje por WhatsApp:\n"
-        f"\"{mensaje}\"\n\n"
-        "¿El docente está intentando REPORTAR una falta disciplinaria de un estudiante?\n"
-        "Responde ÚNICAMENTE con una sola palabra: SI o NO.\n"
-        "- SI: si el mensaje indica que quiere registrar/reportar una falta o incidente real\n"
-        "- NO: si es una pregunta, consulta informativa, saludo, u otra cosa"
-    )
-    try:
-        raw = await asyncio.wait_for(
-            _gemini_base(prompt, max_tokens=5, temperature=0.0,
-                         timeout=8),
-            timeout=10
-        )
-        resultado = norm(raw.strip()) in ("si", "sí", "yes")
-        _info(f"[GEMINI INTENT] '{mensaje[:50]}' → {raw.strip()} → reporte={resultado}")
-        return resultado
-    except Exception as e:
-        _warn(f"es_intencion_reporte_gemini: {e}")
-        return False
 
 PALABRAS_MANUAL_CONV = [
     # Tipos de faltas
@@ -1638,89 +1356,18 @@ def buscar_web(texto):
 
 
 # ══════════════════════════════════════════════
-#  LOGGING ESTRUCTURADO
+#  DESCARGA PDF (con reintentos y cache)
 # ══════════════════════════════════════════════
-import logging as _logging
-_logging.basicConfig(
-    level=_logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
-_log = _logging.getLogger("colbot")
-
-def _info(msg):  _log.info(msg)
-def _warn(msg):  _log.warning(msg)
-def _error(msg): _log.error(msg)
-
-
-# ══════════════════════════════════════════════
-#  GEMINI — FUNCIÓN BASE UNIFICADA
-#  Todas las llamadas pasan por aquí:
-#  extracción, conversación, PDF, detalle
-# ══════════════════════════════════════════════
-GEMINI_TIMEOUT_EXTRACCION  = int(os.getenv("GEMINI_TIMEOUT_EXTRACCION",  "15"))
-GEMINI_TIMEOUT_REDACCION   = int(os.getenv("GEMINI_TIMEOUT_REDACCION",   "28"))
-GEMINI_TIMEOUT_NORMAL      = int(os.getenv("GEMINI_TIMEOUT_NORMAL",      "30"))
-GEMINI_TIMEOUT_PDF         = int(os.getenv("GEMINI_TIMEOUT_PDF",         "65"))
-GEMINI_MAX_HISTORIAL       = int(os.getenv("GEMINI_MAX_HISTORIAL",       "10"))
-CONFIRMAR_REPORTE          = os.getenv("CONFIRMAR_REPORTE", "false").lower() == "true"
-
-async def _gemini_base(
-    prompt: str,
-    max_tokens: int = 800,
-    temperature: float = 0.4,
-    partes_extra: list = None,
-    timeout: int = None,
-) -> str:
-    """
-    Función base para todas las llamadas a Gemini.
-    Maneja construcción de payload, errores y logging.
-    Retorna el texto de la respuesta o lanza Exception.
-    """
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    if not api_key:
-        raise Exception("GEMINI_API_KEY no configurada")
-    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{modelo}:generateContent?key={api_key}")
-    partes = []
-    if partes_extra:
-        partes.extend(partes_extra)
-    partes.append({"text": prompt})
-    payload = {
-        "contents": [{"parts": partes}],
-        "generationConfig": {
-            "temperature": temperature,
-            "maxOutputTokens": max_tokens,
-            "topP": 0.9,
-        }
-    }
-    t_inicio = _time.time()
-    to = timeout or GEMINI_TIMEOUT_NORMAL
-    async with httpx.AsyncClient(timeout=to) as c:
-        r = await c.post(url, json=payload)
-        d = r.json()
-    elapsed = round(_time.time() - t_inicio, 2)
-    if "candidates" not in d:
-        err = d.get("error", {}).get("message", "respuesta inesperada")
-        _error(f"Gemini error ({elapsed}s): {err}")
-        raise Exception(f"Gemini: {err}")
-    texto = d["candidates"][0]["content"]["parts"][0]["text"]
-    _info(f"Gemini OK ({elapsed}s) tokens~{max_tokens} temp={temperature}")
-    return texto.strip()
 async def descargar_pdf_b64(url):
-    cached = pdf_cache.get(url)
-    if cached:
-        _info(f"[PDF CACHE HIT] {url[:60]}")
-        return cached
+    if url in pdf_cache:
+        return pdf_cache[url]
     for intento in range(3):
         try:
             async with httpx.AsyncClient(timeout=35, follow_redirects=True) as c:
                 r = await c.get(url)
                 if r.status_code == 200 and len(r.content) > 1000:
                     b64 = base64.b64encode(r.content).decode()
-                    pdf_cache.set(url, b64)
-                    _info(f"[PDF CACHE SET] {url[:60]} ({len(r.content)//1024}KB)")
+                    pdf_cache[url] = b64
                     return b64
                 raise Exception(f"HTTP {r.status_code}")
         except Exception as e:
@@ -1734,6 +1381,9 @@ async def descargar_pdf_b64(url):
 #  GEMINI — ANÁLISIS PDF (exhaustivo)
 # ══════════════════════════════════════════════
 async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usuario, pdf_pei_b64=None):
+    api_key = os.getenv("GEMINI_API_KEY","")
+    modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
     instruccion = (
         "Eres ColBot, asistente oficial de la IE Simón Bolívar de Cúcuta (Colombia).\n\n"
         "Este documento es el COMPILADO INSTITUCIONAL del Colegio Simón Bolívar de Cúcuta (2024), "
@@ -1744,167 +1394,201 @@ async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usua
         "• Pág.  371:     POA - Plan Operativo Anual (actividades, metas, cronograma)\n"
         "• Págs. 372-497: PEI - Proyecto Educativo Institucional (misión, visión, modelo pedagógico, "
         "gobierno escolar, plan de estudios, componentes directivo/académico/administrativo/comunitario)\n\n"
-        "REGLAS DE RESPUESTA — SIGUE ESTAS AL PIE DE LA LETRA:\n"
-        "1. Lee EXHAUSTIVAMENTE todo el documento antes de responder. No te quedes en las primeras páginas.\n"
-        "2. NUNCA digas 'no encontré', 'no tengo acceso', 'no está en el documento' si la pregunta "
-        "es sobre el colegio — busca más profundo. La respuesta está en el documento.\n"
-        "3. Cita SIEMPRE el origen exacto: documento, artículo, sección o página "
-        "(ej: 'Según el Manual de Convivencia, Art. 45...' / 'Según el PEI, página 38...' / "
-        "'Según el SIEE, capítulo 3...').\n"
-        "4. Responde de forma COMPLETA y DETALLADA. No resumas cuando el usuario quiere saber. "
-        "Si hay listas, da las listas completas. Si hay artículos, cítalos completos.\n"
-        "5. Tono profesional, cálido, directo. Máximo 6 párrafos bien estructurados.\n"
-        "6. Sin formato Markdown — usa texto plano con saltos de línea naturales.\n"
-        "7. Si la pregunta pide listados, conteos o números, dálos precisos y completos.\n"
-        "8. Si la pregunta involucra interpretación legal o normativa, explica las implicaciones "
-        "prácticas en el contexto escolar colombiano.\n\n"
-        f"PREGUNTA DEL USUARIO: {pregunta}"
+        "REGLAS DE RESPUESTA:\n"
+        "1. Busca EXHAUSTIVAMENTE en todo el documento antes de responder.\n"
+        "2. NUNCA digas que no tienes el dato si la pregunta es sobre el colegio — la respuesta está en el documento.\n"
+        "3. Cita siempre el documento de origen y el artículo/sección/página cuando sea posible "
+        "(ej: 'Según el Manual de Convivencia, Art. 45...' o 'Según el Mapa de Procesos, proceso GAP151...').\n"
+        "4. Responde directo, claro y profesional. Máximo 5 párrafos. Sin formato Markdown.\n"
+        "5. Si la pregunta pide listados, números o conteos, dálos completos y precisos.\n\n"
+        f"PREGUNTA: {pregunta}"
     )
-    partes_extra = [{"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}}]
+    partes = [{"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}}]
     if pdf_pei_b64 and "pei" not in nombre_doc.lower():
-        partes_extra.append({"text": "Contexto PEI institucional adicional:"})
-        partes_extra.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_pei_b64}})
-    try:
-        raw = await asyncio.wait_for(
-            _gemini_base(instruccion, max_tokens=1400, temperature=0.2,
-                         partes_extra=partes_extra, timeout=GEMINI_TIMEOUT_PDF),
-            timeout=GEMINI_TIMEOUT_PDF + 5
-        )
-        return limpiar_markdown(raw)
-    except Exception as e:
-        _error(f"llamar_gemini_pdf: {e}")
-        raise
+        partes.append({"text": "Contexto PEI institucional:"})
+        partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_pei_b64}})
+    partes.append({"text": instruccion})
+    payload = {"contents":[{"parts":partes}],"generationConfig":{"temperature":0.2,"maxOutputTokens":1000}}
+    async with httpx.AsyncClient(timeout=60) as c:
+        r = await c.post(url, json=payload); d = r.json()
+    if "candidates" not in d:
+        raise Exception("Gemini PDF: " + d.get("error",{}).get("message","error"))
+    return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
 
 
 # ══════════════════════════════════════════════
 #  GEMINI — CONVERSACIÓN NORMAL
 # ══════════════════════════════════════════════
 async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
+    api_key = os.getenv("GEMINI_API_KEY","")
+    modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
+    if not api_key: raise Exception("GEMINI_API_KEY no configurada")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
     hist    = get_hist_txt(telefono)
     primera = not bool(hist)
-    extra   = ("\nDATOS EXTRA:\n" + "\n".join(["- " + d for d in conocimiento_extra]) + "\n"
-               if conocimiento_extra else "")
+    extra   = "\nDATOS EXTRA:\n"+"\n".join(["- "+d for d in conocimiento_extra])+"\n" if conocimiento_extra else ""
     prompt  = (
-        "Eres ColBot, asistente oficial del " + SCHOOL_NAME + " en Cucuta.\n"
+        "Eres ColBot, asistente oficial del "+SCHOOL_NAME+" en Cucuta.\n"
         "Personalidad: amigable, cálido, profesional. Máximo 3 párrafos. 1-2 emojis. URLs en texto plano.\n"
         "Si ya te presentaste, NO te presentes de nuevo.\n"
         "Si la pregunta es sobre convivencia, faltas o disciplina y no tienes el dato exacto, "
         "dile al usuario que puede consultarlo en el Manual de Convivencia escribiendo: 'manual de convivencia'.\n"
         "NUNCA inventes artículos, cifras ni normas que no estén en los datos.\n\n"
         + INFO_INSTITUCIONAL + extra + (ctx if ctx else "")
-        + "\nCONVERSACION:\n" + ("(primera vez)\n" if primera else hist + "\n")
+        + "\nCONVERSACION:\n" + ("(primera vez)\n" if primera else hist+"\n")
         + ("Presentate brevemente.\n" if primera else "Responde directamente.\n")
         + "\nPREGUNTA: " + pregunta
     )
+    payload = {"contents":[{"parts":[{"text":prompt}]}],
+               "generationConfig":{"temperature":0.6,"maxOutputTokens":800,"topP":0.9}}
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(url, json=payload); d = r.json()
+    if "candidates" not in d:
+        raise Exception("Gemini: " + d.get("error",{}).get("message","error"))
+    return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
+
+
+# ══════════════════════════════════════════════
+#  PANEL DE ESTADISTICAS (solo admin)
+# ══════════════════════════════════════════════
+async def panel_estadisticas(periodo: str = "semana") -> str:
+    """
+    Lee la hoja Reportes y devuelve un resumen de faltas.
+    periodo: 'hoy' | 'semana' | 'mes' | 'todo'
+    Columnas Reportes: N°Caso | Fecha | Hora | Sede | Jornada |
+                       Estudiante | Grado | Tipo | Detalle Original |
+                       Detalle Profesional | Accion Reparadora |
+                       Reportante | Teléfono
+    """
     try:
-        raw = await asyncio.wait_for(
-            _gemini_base(prompt, max_tokens=800, temperature=0.6,
-                         timeout=GEMINI_TIMEOUT_NORMAL),
-            timeout=GEMINI_TIMEOUT_NORMAL + 3
-        )
-        return limpiar_markdown(raw)
+        filas = await _sheets_leer_rango(f"{SHEET_REPORTES}!A2:M")
     except Exception as e:
-        _error(f"llamar_gemini: {e}")
-        raise
+        return f"❌ No pude leer los reportes: {e}"
+
+    if not filas:
+        return "📊 No hay reportes registrados aún."
+
+    now = datetime.now(COL_TZ)
+    if periodo == "hoy":
+        desde = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        label_periodo = "hoy"
+    elif periodo == "semana":
+        desde = now - timedelta(days=7)
+        label_periodo = "últimos 7 días"
+    elif periodo == "mes":
+        desde = now - timedelta(days=30)
+        label_periodo = "últimos 30 días"
+    else:
+        desde = None
+        label_periodo = "todos los registros"
+
+    total = 0
+    por_tipo   = {"Leve": 0, "Grave": 0, "Gravisima": 0}
+    por_sede   = {}
+    por_grado  = {}
+    por_doc    = {}
+    estudiantes_vistos = set()
+
+    for fila in filas:
+        while len(fila) < 13:
+            fila.append("")
+        # Columna B = Fecha  (índice 1)
+        fecha_str = fila[1].strip()
+        if desde and fecha_str:
+            try:
+                # Formato guardado: DD/MM/YYYY HH:MM:SS  o  DD/MM/YYYY
+                fecha_fila = datetime.strptime(fecha_str[:10], "%d/%m/%Y").replace(tzinfo=COL_TZ)
+                if fecha_fila < desde:
+                    continue
+            except:
+                pass  # si no parsea la fecha, la incluimos igual
+
+        total += 1
+        tipo      = fila[7].strip().capitalize() if fila[7] else "Sin tipo"
+        sede      = fila[3].strip() or "Sin sede"
+        grado     = fila[6].strip() or "Sin grado"
+        reportante = fila[11].strip() or "Anónimo"
+        estudiante = fila[5].strip()
+
+        if tipo in por_tipo:
+            por_tipo[tipo] += 1
+        por_sede[sede]      = por_sede.get(sede, 0) + 1
+        por_grado[grado]    = por_grado.get(grado, 0) + 1
+        por_doc[reportante] = por_doc.get(reportante, 0) + 1
+        if estudiante:
+            estudiantes_vistos.add(estudiante.lower())
+
+    if total == 0:
+        return f"📊 No hay reportes en el período: {label_periodo}."
+
+    # Top 3 grados
+    top_grados = sorted(por_grado.items(), key=lambda x: x[1], reverse=True)[:3]
+    top_grados_txt = " | ".join([f"{g}({n})" for g, n in top_grados])
+
+    # Top 3 docentes que más reportan
+    top_docs = sorted(por_doc.items(), key=lambda x: x[1], reverse=True)[:3]
+    top_docs_txt = "\n".join([f"   {i+1}. {d} — {n} reporte(s)" for i, (d, n) in enumerate(top_docs)])
+
+    # Sedes
+    sedes_txt = "\n".join([f"   • {s}: {n}" for s, n in sorted(por_sede.items(), key=lambda x: x[1], reverse=True)])
+
+    # Construir mensaje
+    lineas = [
+        f"📊 *Panel de Convivencia — {label_periodo}*",
+        "━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"📋 Total reportes: *{total}*",
+        f"👤 Estudiantes involucrados: *{len(estudiantes_vistos)}*",
+        "",
+        "⚠️ *Por tipo de falta:*",
+        f"   📋 Leves:     {por_tipo['Leve']}",
+        f"   ⚠️  Graves:    {por_tipo['Grave']}",
+        f"   🚨 Gravísimas: {por_tipo['Gravisima']}",
+        "",
+        "🏫 *Por sede:*",
+        sedes_txt,
+        "",
+        f"🎒 *Top grados:* {top_grados_txt}",
+        "",
+        "👩‍🏫 *Docentes más activos:*",
+        top_docs_txt,
+        "━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"🔗 Ver Sheets completo:\nhttps://docs.google.com/spreadsheets/d/{SHEETS_ID}",
+    ]
+    return "\n".join(lineas)
 
 
 # ══════════════════════════════════════════════
 #  ADMIN
 # ══════════════════════════════════════════════
-# ══════════════════════════════════════════════
-#  PERSISTENCIA CONFIG EN SHEETS
-#  Hoja "Config": fila 1 = docentes_admin (JSON),
-#                 fila 2 = conocimiento_extra (JSON)
-# ══════════════════════════════════════════════
-SHEET_CONFIG = "Config"
-
-async def _config_guardar():
-    """Guarda docentes_admin y conocimiento_extra en Sheets!Config."""
-    try:
-        token = await obtener_token_sheets()
-        fila_docentes = [json.dumps(docentes_admin, ensure_ascii=False)]
-        fila_extra    = [json.dumps(conocimiento_extra, ensure_ascii=False)]
-        await _sheets_escribir_rango(f"{SHEET_CONFIG}!A1", [fila_docentes], token)
-        await _sheets_escribir_rango(f"{SHEET_CONFIG}!A2", [fila_extra], token)
-        _info(f"[CONFIG] guardado: {len(docentes_admin)} docentes, {len(conocimiento_extra)} datos")
-    except Exception as e:
-        _warn(f"_config_guardar: {e}")
-
-async def _config_cargar():
-    """Carga docentes_admin y conocimiento_extra desde Sheets!Config al arrancar."""
-    global docentes_admin, conocimiento_extra
-    try:
-        filas = await _sheets_leer_rango(f"{SHEET_CONFIG}!A1:A2")
-        if filas and filas[0] and filas[0][0]:
-            docentes_admin = json.loads(filas[0][0])
-            _info(f"[CONFIG] docentes cargados: {docentes_admin}")
-        if len(filas) > 1 and filas[1] and filas[1][0]:
-            conocimiento_extra = json.loads(filas[1][0])
-            _info(f"[CONFIG] conocimiento_extra: {len(conocimiento_extra)} item(s)")
-    except Exception as e:
-        _warn(f"_config_cargar: {e}")
-
-
 def procesar_admin(mensaje):
     global conocimiento_extra, docentes_admin
     s = norm(mensaje)
-
     if s.startswith("aprende:"):
         dato = mensaje[8:].strip()
-        if dato:
-            conocimiento_extra.append(dato)
-            asyncio.create_task(_config_guardar())
-            return f"Aprendi: \"{dato}\"\nTotal: {len(conocimiento_extra)}"
+        if dato: conocimiento_extra.append(dato); return f"Aprendi: \"{dato}\"\nTotal: {len(conocimiento_extra)}"
         return "Uso: aprende: [info]"
-
     if s in ["que sabes","que recuerdas"]:
-        return ("Datos:\n" + "\n".join([f"{i+1}. {d}" for i,d in enumerate(conocimiento_extra)])
-                if conocimiento_extra else "Sin datos.")
-
+        return ("Datos:\n"+"\n".join([f"{i+1}. {d}" for i,d in enumerate(conocimiento_extra)]) if conocimiento_extra else "Sin datos.")
     if s == "olvida todo":
-        n = len(conocimiento_extra)
-        conocimiento_extra = []
-        asyncio.create_task(_config_guardar())
-        return f"Olvide {n} dato(s)."
-
+        n = len(conocimiento_extra); conocimiento_extra = []; return f"Olvide {n} dato(s)."
     if s.startswith("olvida:"):
         try:
-            idx = int(mensaje[7:].strip()) - 1
-            if 0 <= idx < len(conocimiento_extra):
-                eliminado = conocimiento_extra.pop(idx)
-                asyncio.create_task(_config_guardar())
-                return f"Eliminado: \"{eliminado}\""
-            return "Numero invalido."
-        except:
-            return "Uso: olvida: [numero]"
-
+            idx = int(mensaje[7:].strip())-1
+            return f"Eliminado: \"{conocimiento_extra.pop(idx)}\"" if 0<=idx<len(conocimiento_extra) else "Numero invalido."
+        except: return "Uso: olvida: [numero]"
     if s.startswith("agregar docente:"):
-        tel = re.sub(r"[^0-9]", "", mensaje[16:].strip())
-        if tel and tel not in docentes_admin:
-            docentes_admin.append(tel)
-            asyncio.create_task(_config_guardar())
-            return f"✅ Docente {tel} autorizado y guardado."
+        tel = re.sub(r"[^0-9]","",mensaje[16:].strip())
+        if tel and tel not in docentes_admin: docentes_admin.append(tel); return f"Docente {tel} autorizado."
         return "Invalido o ya existe."
-
     if s.startswith("quitar docente:"):
-        tel = re.sub(r"[^0-9]", "", mensaje[15:].strip())
-        if tel in docentes_admin:
-            docentes_admin.remove(tel)
-            asyncio.create_task(_config_guardar())
-            return f"✅ Docente {tel} removido."
+        tel = re.sub(r"[^0-9]","",mensaje[15:].strip())
+        if tel in docentes_admin: docentes_admin.remove(tel); return f"Docente {tel} removido."
         return "No estaba en la lista."
-
-    if s == "ver docentes":
-        return "Autorizados:\n" + ("\n".join(docentes_admin) if docentes_admin else "Ninguno")
-
+    if s == "ver docentes": return "Autorizados:\n"+("\n".join(docentes_admin) if docentes_admin else "Ninguno")
     if s == "ver reportes":
-        return (f"Reportes: {contador_reportes}\n"
-                f"https://docs.google.com/spreadsheets/d/{SHEETS_ID}")
-
+        return f"Reportes: {contador_reportes}\nhttps://docs.google.com/spreadsheets/d/{SHEETS_ID}"
     if s == "limpiar cache":
-        n = pdf_cache.clear()
-        return f"Cache: {n} PDF(s) eliminados."
-
+        n = len(pdf_cache); pdf_cache.clear(); return f"Cache: {n} PDF(s) eliminados."
     if s == "ver borradores":
         if not borradores_cache:
             return "No hay borradores activos."
@@ -1912,108 +1596,26 @@ def procesar_admin(mensaje):
         for tel, b in borradores_cache.items():
             lineas.append(f"• {tel} → estado={b.get('estado','')} estudiante={b.get('estudiante','?')}")
         return "\n".join(lineas)
-
-    # MEJORA 6: Consulta de historial de faltas por estudiante
-    if s.startswith("faltas de ") or s.startswith("historial "):
-        nombre_buscado = mensaje.split(" ", 2)[-1].strip()
-        asyncio.create_task(_dummy())
-        return _CMD_HISTORIAL_ASYNC(nombre_buscado)
-
-    if s in ["comandos","admin ayuda","ayuda admin"]:
-        return (
-            "Comandos admin:\n"
-            "━━━━━━━━━━━━━━━━━━\n"
-            "aprende: [info] | que sabes | olvida: [N] | olvida todo\n"
-            "agregar docente: [tel] | quitar docente: [tel] | ver docentes\n"
-            "ver reportes | ver borradores | limpiar cache\n"
-            "faltas de [nombre] | historial [nombre]\n"
-            "comandos\n"
-            "━━━━━━━━━━━━━━━━━━\n"
-            f"Datos:{len(conocimiento_extra)} | PDFs:{len(pdf_cache)} | "
-            f"Docentes:{len(docentes_admin)} | Reportes:{contador_reportes} | "
-            f"Borradores:{len(borradores_cache)}"
-        )
+    # Panel de estadísticas — sentinel tuple para resolver async en procesar()
+    if s in ["resumen","panel","estadisticas","estadísticas","resumen hoy","resumen semana","resumen mes","resumen todo"]:
+        if "hoy" in s:
+            return ("__STATS__", "hoy")
+        elif "mes" in s:
+            return ("__STATS__", "mes")
+        elif "todo" in s:
+            return ("__STATS__", "todo")
+        else:
+            return ("__STATS__", "semana")
+    if s in ["comandos","admin ayuda"]:
+        return ("Comandos:\naprende: | que sabes | olvida: | olvida todo\n"
+                "agregar docente: | quitar docente: | ver docentes\n"
+                "ver reportes | ver borradores | limpiar cache | comandos\n\n"
+                "📊 ESTADISTICAS:\n"
+                "resumen | resumen hoy | resumen semana | resumen mes | resumen todo\n\n"
+                f"Datos:{len(conocimiento_extra)} PDFs:{len(pdf_cache)} "
+                f"Docentes:{len(docentes_admin)} Reportes:{contador_reportes} "
+                f"Borradores:{len(borradores_cache)}")
     return None
-
-async def _dummy(): pass  # placeholder para create_task en funciones sync
-
-
-# ══════════════════════════════════════════════
-#  MEJORA 6: HISTORIAL DE FALTAS POR ESTUDIANTE
-#  Admins pueden consultar: "faltas de [nombre]"
-#  Busca en hoja Reportes, detecta acumulación de
-#  leves que se convierten en grave.
-# ══════════════════════════════════════════════
-def _CMD_HISTORIAL_ASYNC(nombre_buscado: str) -> str:
-    """Devuelve un mensaje indicando que se está consultando (la consulta real es async)."""
-    return f"🔍 Consultando historial de *{nombre_buscado}*...\nEspera un momento."
-
-async def consultar_historial_faltas(nombre_buscado: str) -> str:
-    """
-    Lee la hoja Reportes y filtra por nombre del estudiante (búsqueda flexible).
-    Detecta acumulación de faltas leves → grave.
-    Retorna resumen formateado.
-    """
-    try:
-        filas = await _sheets_leer_rango(f"{SHEET_REPORTES}!A:L")
-    except Exception as e:
-        _warn(f"consultar_historial_faltas: {e}")
-        return "No pude acceder al registro de faltas. Intenta de nuevo."
-
-    if not filas:
-        return f"No se encontraron registros para *{nombre_buscado}*."
-
-    nb = norm(nombre_buscado)
-    encontrados = []
-    for fila in filas[1:]:  # saltar encabezado si lo hay
-        if len(fila) < 8:
-            continue
-        nombre_fila = norm(fila[5] if len(fila) > 5 else "")
-        # Búsqueda flexible: al menos 2 palabras del nombre buscado presentes
-        palabras = [p for p in nb.split() if len(p) > 2]
-        if palabras and all(p in nombre_fila for p in palabras):
-            encontrados.append(fila)
-
-    if not encontrados:
-        return (f"No encontré registros para *{nombre_buscado}* en el sistema.\n"
-                "Verifica que el nombre esté escrito correctamente.")
-
-    total    = len(encontrados)
-    leves    = sum(1 for f in encontrados if len(f) > 7 and norm(f[7]) == "leve")
-    graves   = sum(1 for f in encontrados if len(f) > 7 and norm(f[7]) == "grave")
-    gravisimas = sum(1 for f in encontrados if len(f) > 7 and "gravis" in norm(f[7]))
-
-    nombre_real = encontrados[-1][5] if len(encontrados[-1]) > 5 else nombre_buscado
-
-    lineas = [
-        f"📊 *Historial de faltas — {nombre_real}*",
-        "━━━━━━━━━━━━━━━━━━━━━━",
-        f"📋 Total de reportes: *{total}*",
-        f"  • Leves: {leves}",
-        f"  • Graves: {graves}",
-        f"  • Gravísimas: {gravisimas}",
-        "━━━━━━━━━━━━━━━━━━━━━━",
-    ]
-
-    # Alerta de acumulación: 3+ leves = grave automática (Art. protocolos)
-    if leves >= 3:
-        lineas.append(f"⚠️ *ALERTA:* {leves} faltas leves acumuladas.")
-        lineas.append("Según el protocolo, 3 faltas leves equivalen a una falta *Grave*.")
-        lineas.append("Se recomienda citación formal al acudiente.\n")
-
-    # Últimas 5 faltas
-    lineas.append("*Últimas faltas registradas:*")
-    for f in encontrados[-5:]:
-        fecha  = f[1] if len(f) > 1 else "?"
-        tipo   = f[7] if len(f) > 7 else "?"
-        grado  = f[6] if len(f) > 6 else "?"
-        caso   = f[0] if len(f) > 0 else "?"
-        emoji  = EMOJIS_TIPO.get(tipo, "📋")
-        lineas.append(f"{emoji} {fecha} | {tipo} | Grado {grado} | {caso}")
-
-    lineas.append("━━━━━━━━━━━━━━━━━━━━━━")
-    lineas.append(f"🔗 Ver completo:\nhttps://docs.google.com/spreadsheets/d/{SHEETS_ID}")
-    return "\n".join(lineas)
 
 
 # ══════════════════════════════════════════════
@@ -2127,7 +1729,7 @@ async def _responder_pregunta_calendar(pregunta: str, telefono: str) -> str:
             resp = d["candidates"][0]["content"]["parts"][0]["text"].strip()
             return limpiar_markdown(resp)
     except Exception as e:
-        _warn(f"_responder_pregunta_calendar: {e}")
+        print(f"WARN _responder_pregunta_calendar: {e}")
     return None
 
 
@@ -2136,45 +1738,30 @@ async def _responder_pregunta_calendar(pregunta: str, telefono: str) -> str:
 # ══════════════════════════════════════════════
 async def procesar(mensaje, telefono, nombre):
     s = norm(mensaje)
-    admin_user = es_admin(telefono)
-    _info(f"MSG [{nombre or telefono}]: {mensaje[:100]}")
+    print("MSG [" + (nombre or telefono) + "]: " + mensaje[:100])
 
-    # ── MEJORA 5: Rate limiting ────────────────────────────────────
-    if not _check_rate_limit(telefono, admin_user):
-        _warn(f"[RATE LIMIT] {limpiar_tel(telefono)}")
-        return "⏳ Estás enviando mensajes muy rápido. Espera un momento e intenta de nuevo."
-
+    # REPORTE — prioridad máxima
+    # Activar si: hay borrador activo en cache O el mensaje contiene palabras de reporte
     tel = limpiar_tel(telefono)
-
-    # ── MEJORA 6 (async): comandos de historial de faltas ─────────
-    if admin_user:
-        s_chk = norm(mensaje)
-        if s_chk.startswith("faltas de ") or s_chk.startswith("historial "):
-            nombre_buscado = mensaje.split(" ", 2)[-1].strip()
-            return await consultar_historial_faltas(nombre_buscado)
-
-    # ── REPORTE — prioridad máxima ─────────────────────────────────
     tiene_borrador = tel in borradores_cache
     if not tiene_borrador:
+        # Verificar también en Sheets (por si el cache se perdió)
         b_check = await borrador_cargar(telefono)
         tiene_borrador = b_check is not None
 
-    if tiene_borrador:
+    if tiene_borrador or es_intencion_reporte(mensaje):
         return await gestionar_reporte(mensaje, telefono, nombre)
 
-    # Capas 1-3 de detección por regex (rápidas)
-    if es_intencion_reporte(mensaje):
-        return await gestionar_reporte(mensaje, telefono, nombre)
-
-    # ── ADMIN ──────────────────────────────────────────────────────
-    if admin_user:
+    # ADMIN
+    if es_admin(telefono):
         resp_admin = procesar_admin(mensaje)
         if resp_admin is not None:
+            if isinstance(resp_admin, tuple) and resp_admin[0] == "__STATS__":
+                return await panel_estadisticas(resp_admin[1])
             return resp_admin
 
-    # ── SALUDO ─────────────────────────────────────────────────────
-    saludos = ["menu","hola","inicio","ayuda","help","hello","buenas",
-               "buenos dias","buenas tardes","buenas noches","start"]
+    # SALUDO
+    saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start"]
     if s in saludos:
         tiene_hist = bool(historiales.get(telefono))
         nombre_txt = (" " + nombre) if nombre else ""
@@ -2182,52 +1769,52 @@ async def procesar(mensaje, telefono, nombre):
             return f"¡Hola de nuevo{nombre_txt}! ¿En qué te ayudo? 😊"
         return (
             f"¡Hola{nombre_txt}! Soy *ColBot* 🤖, asistente de la IE Simón Bolívar.\n\n"
-            "Puedo ayudarte con:\n"
-            "📚 Documentos y manuales institucionales\n"
-            "📅 Calendario escolar\n"
-            "📋 Reportes de convivencia\n"
-            "🔗 Enlaces y contactos\n\n"
+            "Puedo:\n"
+            "📚 Consultar documentos y manuales\n"
+            "📅 Revisar el calendario escolar\n"
+            "📋 Registrar reportes de convivencia\n"
+            "🔗 Darte enlaces y contactos\n\n"
             "¿Qué necesitas?"
         )
 
-    # ── RESPUESTA RÁPIDA ───────────────────────────────────────────
+    # RESPUESTA RAPIDA
     rapida = respuesta_rapida(mensaje)
     if rapida:
-        guardar_hist(telefono, "u", mensaje)
-        guardar_hist(telefono, "a", rapida)
-        return rapida
+        guardar_hist(telefono,"u",mensaje); guardar_hist(telefono,"a",rapida); return rapida
 
-    # ── LISTA DOCUMENTOS ──────────────────────────────────────────
+    # LISTA DOCUMENTOS
     if any(p in s for p in ["que documentos","lista documentos","que manuales"]):
-        lines = ["Documentos oficiales disponibles:\n"]
-        for i, (k, (n, _)) in enumerate(CATALOGO.items(), 1):
+        lines = ["Documentos oficiales:\n"]
+        for i,(k,(n,_)) in enumerate(CATALOGO.items(),1):
             lines.append(f"  {i}. {n}")
         lines.append("\nPídeme cualquiera por nombre.")
         return "\n".join(lines)
 
-    # ── CALENDARIO — AGREGAR EVENTO ────────────────────────────────
+    # CALENDARIO — AGREGAR EVENTO (docentes autorizados)
     clave_cal = _cal_clave(telefono)
     hay_flujo_cal = clave_cal in borradores_cache
-    if hay_flujo_cal or (es_intencion_agregar_evento(s) and admin_user):
-        if not admin_user:
-            return ("⚠️ Solo los docentes autorizados pueden agregar eventos al calendario.\n"
-                    "Pide al administrador que te autorice.")
+    if hay_flujo_cal or (es_intencion_agregar_evento(s) and es_admin(telefono)):
+        if not es_admin(telefono):
+            return "⚠️ Solo los docentes autorizados pueden agregar eventos al calendario.\nPide al administrador que te autorice."
         return await gestionar_agregar_evento(mensaje, telefono, nombre)
 
-    # ── CALENDARIO — CONSULTA ──────────────────────────────────────
+    # CALENDARIO — CONSULTA
     if any(p in s for p in PALABRAS_CALENDAR):
-        guardar_hist(telefono, "u", mensaje)
+        guardar_hist(telefono,"u",mensaje)
         filtro_sede = _detectar_sede_filtro(s)
+
+        # Intento 1: respuesta puntual con IA si la pregunta es específica
         try:
             resp_puntual = await asyncio.wait_for(
                 _responder_pregunta_calendar(mensaje, telefono), timeout=20
             )
             if resp_puntual:
-                guardar_hist(telefono, "a", resp_puntual)
+                guardar_hist(telefono,"a",resp_puntual)
                 return resp_puntual
         except Exception as e:
-            _warn(f"calendar puntual: {e}")
+            print(f"WARN calendar puntual: {e}")
 
+        # Intento 2: listar eventos del rango solicitado
         if any(p in s for p in ["hoy","manana","mañana"]):
             dias = 2
         elif any(p in s for p in ["semana","proximos dias","próximos días"]):
@@ -2238,107 +1825,76 @@ async def procesar(mensaje, telefono, nombre):
             dias = 90
         else:
             dias = 60
+
         try:
-            eventos, err = await asyncio.wait_for(
-                obtener_eventos(dias, max_results=50), timeout=12)
+            eventos, err = await asyncio.wait_for(obtener_eventos(dias, max_results=50), timeout=12)
             if not err and eventos is not None:
                 resp = formatear_eventos(eventos, filtro_sede)
-                guardar_hist(telefono, "a", resp)
+                guardar_hist(telefono,"a",resp)
                 return resp
         except Exception as e:
-            _error(f"CALENDAR: {e}")
+            print("ERROR CALENDAR: "+str(e))
         return "No pude consultar el calendario. Intentalo de nuevo. 😔"
 
-    # ── DOCUMENTOS PDF — búsqueda por nombre explícito ────────────
+    # DOCUMENTOS PDF
     clave_doc, nom_doc, url_doc = buscar_doc(mensaje)
     if clave_doc:
-        solo_enlace = (any(p in s for p in PALABRAS_ENLACE)
-                       and not any(p in s for p in PALABRAS_LEER))
+        solo_enlace = (any(p in s for p in PALABRAS_ENLACE) and not any(p in s for p in PALABRAS_LEER))
         if solo_enlace:
             return nom_doc + "\n\nDescarga:\n" + url_doc
-        guardar_hist(telefono, "u", mensaje)
+        guardar_hist(telefono,"u",mensaje)
         try:
-            pdf_b64 = await asyncio.wait_for(descargar_pdf_b64(url_doc), timeout=40)
+            pdf_b64 = await asyncio.wait_for(descargar_pdf_b64(url_doc), timeout=35)
             pdf_pei = None
             if clave_doc != "pei" and any(p in s for p in PALABRAS_PEI_CTX):
-                try:
-                    pdf_pei = await asyncio.wait_for(
-                        descargar_pdf_b64(CATALOGO["pei"][1]), timeout=30)
-                except Exception:
-                    pass
+                try: pdf_pei = await asyncio.wait_for(descargar_pdf_b64(CATALOGO["pei"][1]), timeout=25)
+                except: pass
             resp = await asyncio.wait_for(
-                llamar_gemini_pdf(mensaje, nom_doc, pdf_b64, telefono, nombre,
-                                  pdf_pei_b64=pdf_pei),
-                timeout=GEMINI_TIMEOUT_PDF + 10
+                llamar_gemini_pdf(mensaje, nom_doc, pdf_b64, telefono, nombre, pdf_pei_b64=pdf_pei),
+                timeout=55
             )
             resp = f"(Según el {nom_doc})\n\n" + resp
         except asyncio.TimeoutError:
-            resp = f"El documento tardó demasiado. Descárgalo directamente:\n{url_doc}"
+            resp = f"El documento tardó demasiado. Descárgalo:\n{url_doc}"
         except Exception as e:
-            _error(f"PDF {clave_doc}: {e}")
-            resp = f"No pude leer el documento ahora. Descárgalo:\n{url_doc}"
-        guardar_hist(telefono, "a", resp)
-        return resp
+            print("ERROR PDF: "+str(e)); resp = f"No pude leer el documento ahora. Descárgalo:\n{url_doc}"
+        guardar_hist(telefono,"a",resp); return resp
 
-    # ── ENLACE WEB ─────────────────────────────────────────────────
+    # ENLACE WEB
     if any(p in s for p in PALABRAS_ENLACE):
         url_w, desc_w = buscar_web(mensaje)
-        if url_w:
-            return desc_w + ":\n" + url_w
+        if url_w: return desc_w + ":\n" + url_w
 
-    # ── DOCUMENTO CENTRAL — FUENTE PRINCIPAL DE RESPUESTAS ─────────
-    # El PEI compilado (497 págs) es la fuente de verdad institucional.
-    # Se activa para CUALQUIER pregunta sobre el colegio.
-    # Prioridad máxima: siempre intentar responder desde el documento.
+    # DOCUMENTO CENTRAL (PEI completo, 497 págs)
+    # Se consulta para CUALQUIER pregunta sobre temas institucionales:
+    # procesos, gestión, convivencia, disciplina, faltas, filosofía, etc.
+    # Es la fuente de verdad antes de responder con Gemini solo.
     if any(p in s for p in PALABRAS_DOC_CENTRAL):
-        guardar_hist(telefono, "u", mensaje)
+        guardar_hist(telefono,"u",mensaje)
         URL_CENTRAL = CATALOGO["pei"][1]
-        _info(f"[DOC CENTRAL] activado: {mensaje[:80]}")
+        print(f"[DOC CENTRAL] activado para: {mensaje[:80]}")
         try:
-            pdf_central = await asyncio.wait_for(
-                descargar_pdf_b64(URL_CENTRAL), timeout=45)
+            pdf_central = await asyncio.wait_for(descargar_pdf_b64(URL_CENTRAL), timeout=40)
             resp = await asyncio.wait_for(
-                llamar_gemini_pdf(
-                    mensaje, "PEI y Documentos Institucionales ColBolívar",
-                    pdf_central, telefono, nombre),
-                timeout=GEMINI_TIMEOUT_PDF + 10
+                llamar_gemini_pdf(mensaje, "PEI y Documentos Institucionales ColBolívar", pdf_central, telefono, nombre),
+                timeout=60
             )
-            guardar_hist(telefono, "a", resp)
-            return resp
+            guardar_hist(telefono,"a",resp); return resp
         except asyncio.TimeoutError:
-            _warn("DOC CENTRAL timeout — fallback a Gemini normal")
+            print("WARN DOC CENTRAL timeout — cayendo a Gemini normal")
         except Exception as e:
-            _error(f"DOC CENTRAL: {e}")
+            print(f"ERROR DOC CENTRAL: {e}")
 
-    # ── MEJORA 3: Fallback Gemini para detección de reporte ────────
-    # Si ninguna capa anterior detectó nada y el mensaje tiene cierta
-    # longitud, preguntar a Gemini si es intención de reporte.
-    # Se ejecuta DESPUÉS de las rutas de documentos para no interceptar
-    # preguntas institucionales legítimas.
-    if len(mensaje.strip()) > 20 and not any(p in s for p in PALABRAS_CALENDAR):
-        try:
-            es_reporte = await asyncio.wait_for(
-                es_intencion_reporte_gemini(mensaje), timeout=11)
-            if es_reporte:
-                _info(f"[INTENT GEMINI] reporte detectado: {mensaje[:60]}")
-                return await gestionar_reporte(mensaje, telefono, nombre)
-        except Exception as e:
-            _warn(f"intent gemini fallback: {e}")
-
-    # ── GEMINI NORMAL — respuesta conversacional ───────────────────
-    guardar_hist(telefono, "u", mensaje)
+    # GEMINI NORMAL
+    guardar_hist(telefono,"u",mensaje)
     try:
-        resp = await asyncio.wait_for(
-            llamar_gemini(mensaje, telefono, nombre),
-            timeout=GEMINI_TIMEOUT_NORMAL + 5
-        )
+        resp = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre), timeout=25)
     except asyncio.TimeoutError:
-        resp = "La consulta tardó demasiado. Intentalo de nuevo. 😔"
+        resp = "La consulta tardó demasiado. Intentalo de nuevo."
     except Exception as e:
-        _error(f"GEMINI NORMAL: {e}")
-        resp = "Tuve un problema procesando tu mensaje. Intentalo de nuevo."
-    guardar_hist(telefono, "a", resp)
-    _info(f"OK → {nombre or telefono}")
+        print("ERROR GEMINI: "+str(e)); resp = "Tuve un problema. Intentalo de nuevo."
+    guardar_hist(telefono,"a",resp)
+    print("OK -> "+(nombre or telefono))
     return resp
 
 
@@ -2463,10 +2019,10 @@ async def crear_evento_calendar(titulo: str, fecha_str: str, descripcion: str = 
             return True, d.get("id","")
         else:
             msg = d.get("error",{}).get("message","error desconocido")
-            _error(f"CALENDAR CREATE {r.status_code}: {msg}")
+            print(f"CALENDAR CREATE ERROR {r.status_code}: {msg}")
             return False, msg
     except Exception as e:
-        _error(f"CALENDAR CREATE excepcion: {e}")
+        print(f"CALENDAR CREATE excepcion: {e}")
         return False, str(e)
 
 def _sumar_hora(hora_str: str, horas: int) -> str:
@@ -2765,9 +2321,9 @@ async def keep_alive():
     while True:
         try:
             async with httpx.AsyncClient(timeout=10) as c:
-                await c.get(RENDER_URL+"/ping"); _info("keep-alive ok")
+                await c.get(RENDER_URL+"/ping"); print("keep-alive ok")
         except Exception as e:
-            _warn("keep-alive error: "+str(e))
+            print("keep-alive error: "+str(e))
         await asyncio.sleep(540)
 
 
@@ -2776,9 +2332,8 @@ async def keep_alive():
 # ══════════════════════════════════════════════
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Al arrancar: recuperar borradores activos y configuración desde Sheets
+    # Al arrancar: recuperar borradores activos de Sheets
     await cargar_todos_borradores()
-    await _config_cargar()          # MEJORA 2: docentes_admin + conocimiento_extra
     asyncio.create_task(keep_alive())
     yield
 
@@ -2790,16 +2345,11 @@ async def ping(): return PlainTextResponse("ok")
 @app.get("/")
 async def root():
     return {
-        "status":         "ColBot activo ✅",
-        "modelo":         os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
-        "reportes":       contador_reportes,
+        "status":      "ColBot activo",
+        "modelo":      os.getenv("GEMINI_MODEL","gemini-2.5-flash"),
+        "reportes":    contador_reportes,
         "conversaciones": len(historiales),
-        "borradores":     len(borradores_cache),
-        "pdf_cache":      len(pdf_cache),
-        "docentes_admin": len(docentes_admin),
-        "conocimiento":   len(conocimiento_extra),
-        "confirmar_reporte": CONFIRMAR_REPORTE,
-        "rate_limit_normal": RATE_LIMIT_NORMAL,
+        "borradores":  len(borradores_cache),
     }
 
 @app.get("/webhook")
@@ -2831,5 +2381,5 @@ async def webhook_post(request: Request):
         if not mensaje: return JSONResponse({"replies":[{"message":""}]})
         return JSONResponse({"replies":[{"message": await procesar(mensaje,telefono,nombre)}]})
     except Exception as e:
-        _error("webhook: "+str(e))
+        print("ERROR: "+str(e))
         return JSONResponse({"replies":[{"message":"Ups, algo salio mal. Intenta de nuevo."}]})
