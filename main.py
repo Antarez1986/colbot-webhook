@@ -11,6 +11,14 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 SCHOOL_NAME    = os.getenv("SCHOOL_NAME", "ColBolivar")
 ADMIN_PHONE    = os.getenv("ADMIN_PHONE", "573003261503")
+# Directivos con acceso admin: Rector + Coordinadores
+ADMIN_PHONES_EXTRA = [
+    "573208506397",  # Rector Jesús Maldonado
+    "573123757876",  # Coordinadora Carolina Bochaga
+    "573103493495",  # Coordinadora Claudia Tamayo
+    "573159263064",  # Coordinador Homero Cuevas
+    "573118085572",  # Coordinador Salvador Peña
+]
 RENDER_URL     = os.getenv("RENDER_EXTERNAL_URL", "https://autoresponder-ai.onrender.com")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 CALENDAR_ID    = "f4ff65197ae712df6cd26ab18dc878dc5eac8248c178dc7a67f855cb89b0deea@group.calendar.google.com"
@@ -186,7 +194,8 @@ def limpiar_tel(tel):
 
 def es_admin(telefono):
     tel = limpiar_tel(telefono)
-    return tel == limpiar_tel(ADMIN_PHONE) or tel in [limpiar_tel(d) for d in docentes_admin]
+    todos = [limpiar_tel(ADMIN_PHONE)] + [limpiar_tel(d) for d in docentes_admin] + [limpiar_tel(p) for p in ADMIN_PHONES_EXTRA]
+    return tel in todos
 
 def limpiar_markdown(texto):
     texto = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\2', texto)
