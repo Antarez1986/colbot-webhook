@@ -19,6 +19,13 @@ ADMIN_PHONES_EXTRA = [
     "573159263064",  # Coordinador Homero Cuevas
     "573118085572",  # Coordinador Salvador Peña
 ]
+# Todos los admins (maestro + directivos) para notificaciones push
+TODOS_ADMINS = [ADMIN_PHONE] + ADMIN_PHONES_EXTRA
+
+# URL de envío proactivo de AutoResponder.ai
+# Se configura en Render: AUTORESPONDER_SEND_URL
+# Formato: https://autoresponder.ai/api/v1/whatsapp/send  (revisar en tu panel)
+AUTORESPONDER_SEND_URL = os.getenv("AUTORESPONDER_SEND_URL", "")
 RENDER_URL     = os.getenv("RENDER_EXTERNAL_URL", "https://autoresponder-ai.onrender.com")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 CALENDAR_ID    = "f4ff65197ae712df6cd26ab18dc878dc5eac8248c178dc7a67f855cb89b0deea@group.calendar.google.com"
@@ -986,6 +993,13 @@ async def _finalizar_reporte(telefono, b: dict):
         b.get("reportante", limpiar_tel(telefono)),
     ]
     asyncio.create_task(guardar_reporte_final(fila_final))
+
+    # 🚨 Alerta inmediata si la falta es gravísima
+    if tipo == "Gravisima":
+        reportante_nombre = b.get("reportante", limpiar_tel(telefono))
+        asyncio.create_task(
+            _alerta_gravisima(num_caso, b, detalle_prof, reportante_nombre)
+        )
 
     # ── Eliminar borrador ─────────────────────────────────────────
     asyncio.create_task(borrador_eliminar(telefono))
@@ -2355,6 +2369,240 @@ def es_intencion_agregar_evento(s: str) -> bool:
 
 
 # ══════════════════════════════════════════════
+#  ENVÍO PROACTIVO DE MENSAJES WHATSAPP
+#  Usa el endpoint HTTP de AutoResponder.ai
+#  Variable de entorno: AUTORESPONDER_SEND_URL
+#  Si no está configurada, los envíos se omiten
+#  silenciosamente (nunca lanza excepción).
+# ══════════════════════════════════════════════
+async def enviar_whatsapp(telefono: str, mensaje: str) -> bool:
+    """
+    Envía un mensaje proactivo a un número vía AutoResponder.ai.
+    Retorna True si el envío fue exitoso.
+    """
+    url = AUTORESPONDER_SEND_URL.strip()
+    if not url:
+        # Sin URL configurada: simular log para depuración
+        print(f"[PUSH-SIM] → {telefono}: {mensaje[:80]}")
+        return False
+    tel = limpiar_tel(telefono)
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(url, json={"phone": tel, "message": mensaje})
+        ok = r.status_code in (200, 201)
+        print(f"[PUSH {'OK' if ok else 'FAIL'}] → {tel} (HTTP {r.status_code})")
+        return ok
+    except Exception as e:
+        print(f"[PUSH ERROR] → {tel}: {e}")
+        return False
+
+async def enviar_a_todos_admins(mensaje: str):
+    """Envía el mismo mensaje a todos los admins en paralelo."""
+    tasks = [enviar_whatsapp(tel, mensaje) for tel in TODOS_ADMINS]
+    resultados = await asyncio.gather(*tasks, return_exceptions=True)
+    enviados = sum(1 for r in resultados if r is True)
+    print(f"[PUSH MASIVO] {enviados}/{len(TODOS_ADMINS)} enviados")
+
+
+# ══════════════════════════════════════════════
+#  MÓDULO 1 — ALERTA INMEDIATA FALTA GRAVÍSIMA
+#  Se llama desde _finalizar_reporte() cuando
+#  tipo_falta == "Gravisima".
+#  Envía resumen completo al rector y coordinadores.
+# ══════════════════════════════════════════════
+async def _alerta_gravisima(num_caso: str, b: dict, detalle_prof: str, reportante: str):
+    """Notifica inmediatamente a todos los admins sobre una falta gravísima."""
+    ahora     = datetime.now(COL_TZ)
+    fecha_str = ahora.strftime("%d/%m/%Y")
+    hora_str  = ahora.strftime("%I:%M %p")
+
+    mensaje = (
+        "🚨 *ALERTA — FALTA GRAVÍSIMA*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📌 *Caso:*       {num_caso}\n"
+        f"📅 *Fecha:*      {fecha_str}  {hora_str}\n"
+        f"🏫 *Sede:*       {b.get('sede','')} – {b.get('jornada','')}\n"
+        f"👤 *Estudiante:* {b.get('estudiante','')}\n"
+        f"🎒 *Grado:*      {b.get('grado','')}\n"
+        f"👩‍🏫 *Reportante:* {reportante}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📝 *Descripción:*\n{detalle_prof[:400]}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "⚠️ *Protocolo Art. 163 / Ley 1620:*\n"
+        "• Activar Ruta de Atención Integral\n"
+        "• Notificar Comité de Convivencia\n"
+        "• Posible remisión a autoridades\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔗 Ver caso completo:\n"
+        f"https://docs.google.com/spreadsheets/d/{SHEETS_ID}"
+    )
+    await enviar_a_todos_admins(mensaje)
+
+
+# ══════════════════════════════════════════════
+#  MÓDULO 2 — RECORDATORIOS AUTOMÁTICOS
+#  Corre cada hora. Verifica si hay eventos
+#  en las próximas 24 horas que aún no se
+#  hayan notificado. Usa un set en memoria
+#  para no repetir la misma alerta.
+# ══════════════════════════════════════════════
+eventos_notificados: set = set()   # IDs de eventos ya notificados hoy
+
+async def _loop_recordatorios():
+    """
+    Tarea de fondo: revisa el calendario cada hora.
+    Si hay un evento en las próximas 24 horas que no se
+    ha notificado todavía, envía el recordatorio a todos
+    los admins.
+    """
+    await asyncio.sleep(120)  # Esperar 2 min tras arranque
+    while True:
+        try:
+            await _verificar_y_notificar_eventos()
+        except Exception as e:
+            print(f"[RECORDATORIO ERROR] {e}")
+        await asyncio.sleep(3600)  # revisar cada hora
+
+async def _verificar_y_notificar_eventos():
+    """Busca eventos en las próximas 24 horas y notifica los nuevos."""
+    ahora    = datetime.now(COL_TZ)
+    manana   = ahora + timedelta(hours=24)
+
+    eventos, err = await obtener_eventos(dias=2, max_results=20)
+    if err or not eventos:
+        return
+
+    MESES_N = ["","enero","febrero","marzo","abril","mayo","junio",
+               "julio","agosto","septiembre","octubre","noviembre","diciembre"]
+
+    for ev in eventos:
+        ev_id = ev.get("id","")
+        if not ev_id or ev_id in eventos_notificados:
+            continue
+
+        titulo = ev.get("summary","Sin título")
+        fi_raw = (ev.get("start",{}).get("dateTime")
+                  or ev.get("start",{}).get("date",""))
+
+        # Parsear fecha/hora del evento
+        try:
+            if "T" in fi_raw:
+                ev_dt = datetime.fromisoformat(fi_raw.replace("Z","+00:00")).astimezone(COL_TZ)
+            else:
+                ev_dt = datetime.strptime(fi_raw, "%Y-%m-%d").replace(
+                    hour=0, minute=0, tzinfo=COL_TZ
+                )
+        except:
+            continue
+
+        # ¿Está dentro de las próximas 24 horas?
+        if not (ahora <= ev_dt <= manana):
+            continue
+
+        # Formatear fecha y hora para el mensaje
+        dia_semana = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"][ev_dt.weekday()]
+        fecha_txt  = f"{dia_semana} {ev_dt.day} de {MESES_N[ev_dt.month]}"
+        if "T" in fi_raw:
+            hora_txt = ev_dt.strftime("%I:%M %p")
+        else:
+            hora_txt = "Todo el día"
+
+        # Detectar sede en el título
+        tag, titulo_limpio = _extraer_sede_titulo(titulo)
+        sede_txt = EMOJI_SEDE.get(tag, "🏫 General")
+
+        descripcion = (ev.get("description") or "").strip()[:200]
+        emoji_ev    = _emoji_evento(titulo_limpio)
+
+        horas_para = int((ev_dt - ahora).total_seconds() // 3600)
+        if horas_para < 1:
+            tiempo_txt = "en menos de 1 hora"
+        elif horas_para == 1:
+            tiempo_txt = "en 1 hora"
+        else:
+            tiempo_txt = f"en aproximadamente {horas_para} horas"
+
+        mensaje = (
+            f"📅 *RECORDATORIO — Evento Mañana*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"{emoji_ev} *{titulo_limpio}*\n"
+            f"🏫 *Sede:*   {sede_txt}\n"
+            f"📆 *Fecha:*  {fecha_txt}\n"
+            f"⏰ *Hora:*   {hora_txt}\n"
+            f"⏳ *Falta:*  {tiempo_txt}\n"
+        )
+        if descripcion:
+            mensaje += f"💬 *Detalle:* {descripcion}\n"
+        mensaje += (
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔗 Ver calendario completo:\n{URL_CALENDAR_PUBLIC}"
+        )
+
+        await enviar_a_todos_admins(mensaje)
+        eventos_notificados.add(ev_id)
+        print(f"[RECORDATORIO ENVIADO] {titulo_limpio} → {fecha_txt} {hora_txt}")
+
+        # Limpiar IDs viejos cada día (evitar crecimiento infinito del set)
+        if len(eventos_notificados) > 500:
+            eventos_notificados.clear()
+
+
+# ══════════════════════════════════════════════
+#  MÓDULO 3 — REPORTE SEMANAL AUTOMÁTICO
+#  Se ejecuta cada lunes entre 7:00 y 7:59 am.
+#  Envía el resumen de los últimos 7 días
+#  al rector y coordinadores sin que nadie
+#  tenga que escribir nada.
+# ══════════════════════════════════════════════
+_reporte_semanal_enviado_semana: int = -1  # número de semana ISO ya enviado
+
+async def _loop_reporte_semanal():
+    """
+    Tarea de fondo: cada 30 minutos verifica si es lunes
+    entre 7:00 y 7:59 am y si aún no se envió el reporte
+    de esta semana.
+    """
+    await asyncio.sleep(180)  # Esperar 3 min tras arranque
+    while True:
+        try:
+            await _verificar_y_enviar_reporte_semanal()
+        except Exception as e:
+            print(f"[REPORTE SEMANAL ERROR] {e}")
+        await asyncio.sleep(1800)  # revisar cada 30 min
+
+async def _verificar_y_enviar_reporte_semanal():
+    global _reporte_semanal_enviado_semana
+    ahora = datetime.now(COL_TZ)
+
+    # Solo lunes (weekday=0) entre 7:00 y 7:59 am
+    if ahora.weekday() != 0 or ahora.hour != 7:
+        return
+
+    # Número de semana ISO para no repetir en la misma semana
+    semana_actual = ahora.isocalendar()[1]
+    if semana_actual == _reporte_semanal_enviado_semana:
+        return
+
+    print(f"[REPORTE SEMANAL] Generando para semana {semana_actual}...")
+    resumen = await panel_estadisticas("semana")
+
+    # Encabezado especial para el envío automático
+    lunes_pasado = (ahora - timedelta(days=7)).strftime("%d/%m/%Y")
+    domingo      = (ahora - timedelta(days=1)).strftime("%d/%m/%Y")
+    encabezado   = (
+        f"📊 *Reporte Semanal Automático*\n"
+        f"IE Simón Bolívar — ColBolívar\n"
+        f"📆 Período: {lunes_pasado} al {domingo}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    )
+    mensaje_final = encabezado + resumen
+
+    await enviar_a_todos_admins(mensaje_final)
+    _reporte_semanal_enviado_semana = semana_actual
+    print(f"[REPORTE SEMANAL OK] Semana {semana_actual} enviada a {len(TODOS_ADMINS)} directivos")
+
+
+# ══════════════════════════════════════════════
 #  KEEP-ALIVE
 # ══════════════════════════════════════════════
 async def keep_alive():
@@ -2376,6 +2624,8 @@ async def lifespan(app: FastAPI):
     # Al arrancar: recuperar borradores activos de Sheets
     await cargar_todos_borradores()
     asyncio.create_task(keep_alive())
+    asyncio.create_task(_loop_recordatorios())       # 📅 Recordatorios 24h antes
+    asyncio.create_task(_loop_reporte_semanal())     # 📊 Reporte semanal lunes 7am
     yield
 
 app = FastAPI(lifespan=lifespan)
