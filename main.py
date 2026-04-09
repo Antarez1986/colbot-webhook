@@ -1605,6 +1605,38 @@ def procesar_admin(mensaje):
         for tel, b in borradores_cache.items():
             lineas.append(f"• {tel} → estado={b.get('estado','')} estudiante={b.get('estudiante','?')}")
         return "\n".join(lineas)
+    # Menú admin
+    if s in ["menu admin","admin","admin menu"]:
+        es_maestro = limpiar_tel(mensaje) == limpiar_tel(ADMIN_PHONE) or True  # todos los admin ven el menú
+        return (
+            "🔐 *Menú Admin — ColBot*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "📊 *ESTADÍSTICAS*\n"
+            "   resumen\n"
+            "   resumen hoy\n"
+            "   resumen semana\n"
+            "   resumen mes\n"
+            "   resumen todo\n\n"
+            "📋 *REPORTES*\n"
+            "   ver reportes\n"
+            "   ver borradores\n\n"
+            "📅 *CALENDARIO*\n"
+            "   agregar evento\n\n"
+            "🧠 *CONOCIMIENTO*\n"
+            "   aprende: [texto]\n"
+            "   que sabes\n"
+            "   olvida: [número]\n"
+            "   olvida todo\n\n"
+            "👥 *GESTIÓN ADMINS*\n"
+            "   agregar docente: [número]\n"
+            "   quitar docente: [número]\n"
+            "   ver docentes\n\n"
+            "🔧 *SISTEMA*\n"
+            "   limpiar cache\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "⚠️ Escribe los comandos en\n"
+            "minúscula, exactamente así."
+        )
     # Panel de estadísticas — sentinel tuple para resolver async en procesar()
     if s in ["resumen","panel","estadisticas","estadísticas","resumen hoy","resumen semana","resumen mes","resumen todo"]:
         if "hoy" in s:
