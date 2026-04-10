@@ -274,10 +274,25 @@ def _campos_faltantes(b):
 def _mensaje_pedir_faltantes(faltantes):
     if not faltantes:
         return None
-    lineas = ["Solo me falta:\n"]
+    if len(faltantes) == 1:
+        campo = faltantes[0]
+        preguntas = {
+            "estudiante":        "👤 ¿Nombre completo del estudiante?",
+            "grado":             "🎒 ¿Grado y grupo? (ej: 5A, 9B, 10C)",
+            "tipo_falta":        "⚠️ ¿Tipo de falta?\n   Responde: *leve*, *grave* o *gravísima*",
+            "detalle_del_hecho": "📝 ¿Qué ocurrió? Descríbelo brevemente:",
+        }
+        return preguntas.get(campo, f"• {ETIQUETAS_CAMPO[campo]}")
+    lineas = ["Faltan estos datos:\n"]
+    iconos = {
+        "estudiante":        "👤 Nombre completo del estudiante",
+        "grado":             "🎒 Grado y grupo (ej: 5A, 9B)",
+        "tipo_falta":        "⚠️ Tipo: *leve*, *grave* o *gravísima*",
+        "detalle_del_hecho": "📝 Descripción de lo ocurrido",
+    }
     for campo in faltantes:
-        lineas.append(f"• {ETIQUETAS_CAMPO[campo]}")
-    lineas.append("\nResponde todo en un solo mensaje si puedes.")
+        lineas.append(f"• {iconos.get(campo, ETIQUETAS_CAMPO[campo])}")
+    lineas.append("\n_Puedes enviar todo en un solo mensaje._")
     return "\n".join(lineas)
 
 def _resumen_borrador(b):
@@ -624,32 +639,38 @@ async def _procesar_detalle(detalle_raw, estudiante, grado, tipo_falta, sede, jo
         return detalle_raw, ""
 
     prompt = (
-        "Eres el secretario académico y experto en convivencia escolar de la IE Simón Bolívar "
-        "de Cúcuta (Colombia). Tienes pleno dominio de la Ley 1620 de 2013, el Decreto 1965 de 2013 "
-        "y el Manual de Convivencia institucional.\n\n"
+        "Eres el secretario de convivencia escolar de la IE Simón Bolívar de Cúcuta (Colombia).\n"
+        "Redactas actas disciplinarias siguiendo el Manual de Convivencia institucional (GD-D02).\n\n"
         "DATOS DEL CASO:\n"
         f"- Estudiante: {estudiante}\n"
         f"- Grado: {grado}\n"
         f"- Sede: {sede} | Jornada: {jornada}\n"
-        f"- Clasificación de la falta: {tipo_falta}\n"
+        f"- Tipo de falta: {tipo_falta}\n"
         f"- Relato del docente: {detalle_raw}\n\n"
-        "TAREA 1 — REDACCIÓN PROFESIONAL DEL HECHO:\n"
-        "Redacta el hecho como aparecería en un acta oficial de convivencia escolar. "
-        "Requisitos: tercera persona, vocabulario técnico-pedagógico, tono formal e institucional, "
-        "sin faltas ortográficas. Menciona explícitamente el nombre completo del estudiante "
-        f"({estudiante}), el grado ({grado}), la sede y jornada. "
-        "Describe la conducta con precisión, citando si aplica el artículo correspondiente "
-        "del Manual de Convivencia o la Ley 1620. Mínimo 5 oraciones completas y bien estructuradas. "
-        "NO inventes hechos que el docente no mencionó.\n\n"
-        "TAREA 2 — ACCIÓN REPARADORA SUGERIDA:\n"
-        "Propón una acción reparadora restaurativa, pedagógicamente pertinente y específica "
-        "para este caso concreto, enmarcada en el enfoque restaurativo de la Ley 1620 de 2013. "
-        "Debe ser práctica, aplicable en el contexto escolar colombiano y orientada a la "
-        "reflexión y el cambio de conducta, no al castigo. Mínimo 3 oraciones.\n\n"
-        "FORMATO DE RESPUESTA — respeta estas etiquetas exactas al inicio de cada sección:\n"
-        "DETALLE: [aquí la redacción profesional completa]\n"
-        "ACCION: [aquí la acción reparadora completa]\n\n"
-        "No uses asteriscos, no uses comillas, no agregues más secciones."
+        "CLASIFICACIÓN SEGÚN EL MANUAL (usa esto para citar el artículo correcto):\n"
+        "LEVE (pág.161): salir sin permiso, impuntualidad, comer en clase, inasistencia sin justificación, "
+        "desaseo, no portar uniforme correctamente. Sanción: anotación en observador, compromiso escrito, "
+        "trabajo manuscrito de 2 páginas. 3 faltas leves = falta grave.\n"
+        "GRAVE (art.87 Ley 115/1994): reincidencia en leves, porte inadecuado del uniforme de forma constante, "
+        "no informar citaciones a padres, perturbar clases, uso de celular/audífonos en clase, negocios en el colegio. "
+        "Sanción: citación inmediata a padres, cartelera restaurativa, anotación en observador, posible matrícula en observación.\n"
+        "GRAVÍSIMA (Ley 1620/2013 Situación Tipo III): actos que constituyen delito, agresión física grave, "
+        "acoso sexual, porte de armas o sustancias ilegales, vandalismo. "
+        "Sanción: activación Ruta de Atención Integral, citación padres inmediata, posible cancelación de matrícula, "
+        "remisión a autoridades (ICBF, Policía, Fiscalía).\n\n"
+        "TAREA 1 — REDACCIÓN DEL ACTA (máximo 4 líneas, concreto y formal):\n"
+        "- Tercera persona, lenguaje institucional formal\n"
+        "- Menciona: nombre del estudiante, grado, sede, jornada\n"
+        "- Describe la conducta con precisión, sin inventar hechos\n"
+        "- Cita el artículo del Manual o la ley aplicable según el tipo de falta\n"
+        "- NO uses asteriscos ni comillas\n\n"
+        "TAREA 2 — ACCIÓN REPARADORA (máximo 2 líneas, concreta y pedagógica):\n"
+        "- Basada en la sanción que corresponde según el Manual\n"
+        "- Enfoque restaurativo, no punitivo\n"
+        "- Específica para este caso\n\n"
+        "FORMATO EXACTO (respeta estas etiquetas):\n"
+        "DETALLE: [redacción del acta]\n"
+        "ACCION: [acción reparadora]\n"
     )
     try:
         api_key = os.getenv("GEMINI_API_KEY", "")
@@ -730,6 +751,25 @@ async def gestionar_reporte(mensaje, telefono, nombre):
         b = {c: "" for c in COL_B}
         b["reportante"] = nombre or telefono
         b["estado"]     = "activo"
+        # Si el docente escribió solo la intención sin datos, guiar de una vez
+        if norm(mensaje) in [
+            "reportar una falta","reportar falta","reporte","nuevo reporte",
+            "registrar falta","registrar una falta","quiero reportar",
+            "falta","reporte de falta","hacer un reporte",
+        ]:
+            b["estado"] = "esperando_resto"
+            await borrador_guardar(telefono, b)
+            return (
+                "📋 *Nuevo reporte de convivencia*\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                "Envíame estos datos en un solo mensaje:\n\n"
+                "👤 *Nombre completo* del estudiante\n"
+                "🎒 *Grado y grupo* (ej: 5A, 9B, 10C)\n"
+                "⚠️ *Tipo de falta:* leve, grave o gravísima\n"
+                "📝 *Qué ocurrió* (descríbelo brevemente)\n\n"
+                "_Ejemplo: Juan Pérez, 7B, leve, no portaba el uniforme_\n\n"
+                "_(Escribe CANCELAR para salir)_"
+            )
 
     estado = b.get("estado", "activo")
 
@@ -1588,41 +1628,72 @@ def procesar_admin(mensaje):
     global conocimiento_extra, docentes_admin
     s = norm(mensaje)
 
-    # Si un admin escribe "menu", "hola", "inicio", "ayuda" → menú admin
-    # (evita que Gemini responda con texto genérico)
-    SALUDOS_ADMIN = ["menu","hola","inicio","ayuda","help","start","buenas",
-                     "buenos dias","buenas tardes","buenas noches","hello"]
-    if s in SALUDOS_ADMIN:
+    # ── MENÚ ADMIN: se activa con @ o con saludos ──────────────────
+    # @ es el trigger principal — imposible de confundir con una pregunta
+    TRIGGERS_MENU_DIRECTO = [
+        "@", "@ ", "@admin", "@menu", "@bot", "@colbot",
+        "@ayuda", "@comandos", "@opciones",
+    ]
+    SALUDOS_ADMIN = [
+        "menu","hola","inicio","ayuda","help","start","buenas",
+        "buenos dias","buenas tardes","buenas noches","hello",
+        "menu admin","admin menu","menuadmin","adminmenu",
+        "menu de admin","menu administrador",
+        "que puedo hacer","opciones admin","panel admin","mis opciones",
+        "admin","comandos",
+    ]
+    es_trigger_menu = (
+        any(s.startswith(t) for t in TRIGGERS_MENU_DIRECTO) or
+        s in SALUDOS_ADMIN or
+        any(t in s for t in ["menu admin","admin menu","admin ayuda","comandos admin"])
+    )
+    if es_trigger_menu:
         return (
-            "🔐 *Menú Admin — ColBot*\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "📊 *ESTADÍSTICAS*\n"
-            "   resumen\n"
-            "   resumen hoy\n"
-            "   resumen semana\n"
-            "   resumen mes\n"
-            "   resumen todo\n\n"
-            "📋 *REPORTES*\n"
-            "   ver reportes\n"
-            "   ver borradores\n\n"
-            "📅 *CALENDARIO*\n"
-            "   agregar evento\n\n"
-            "🧠 *CONOCIMIENTO*\n"
-            "   aprende: [texto]\n"
-            "   que sabes\n"
-            "   olvida: [numero]\n"
-            "   olvida todo\n\n"
-            "👥 *ADMINS*\n"
-            "   agregar docente: [numero]\n"
-            "   quitar docente: [numero]\n"
-            "   ver docentes\n\n"
-            "🔧 *SISTEMA*\n"
-            "   limpiar cache\n"
+            "🔐 *Panel Admin — ColBot*\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "Escribe el comando tal cual\n"
-            "aparece aqui, sin tildes."
+            "📊 *Estadísticas*\n"
+            "  @resumen  |  @hoy  |  @mes  |  @todo\n\n"
+            "📋 *Reportes y sistema*\n"
+            "  @reportes  |  @borradores\n\n"
+            "📅 *Calendario*\n"
+            "  agregar evento\n\n"
+            "👥 *Gestión de admins*\n"
+            "  agregar docente: [num]\n"
+            "  quitar docente: [num]\n"
+            "  @docentes\n\n"
+            "🧠 *Conocimiento del bot*\n"
+            "  aprende: [texto]\n"
+            "  que sabes  |  olvida todo\n\n"
+            "🔧 *Sistema*\n"
+            "  limpiar cache\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "💡 Escribe @ para ver este menú\n"
+            "   en cualquier momento."
         )
-    if s.startswith("aprende:"):
+    # ── Comandos con @ (nueva forma robusta) ──────────────────────
+    if s in ["@resumen","@semana","@resumen semana"]:
+        return ("__STATS__", "semana")
+    if s in ["@hoy","@resumen hoy","@hoy resumen"]:
+        return ("__STATS__", "hoy")
+    if s in ["@mes","@resumen mes"]:
+        return ("__STATS__", "mes")
+    if s in ["@todo","@resumen todo","@todos"]:
+        return ("__STATS__", "todo")
+    if s in ["@reportes","@ver reportes","@sheets"]:
+        return f"Reportes: {contador_reportes}\nhttps://docs.google.com/spreadsheets/d/{SHEETS_ID}"
+    if s in ["@borradores","@pendientes","@ver borradores"]:
+        if not borradores_cache:
+            return "No hay borradores activos."
+        lineas = [f"Borradores activos: {len(borradores_cache)}"]
+        for tel, b in borradores_cache.items():
+            lineas.append(f"• {tel} → {b.get('estado','')} | {b.get('estudiante','?')}")
+        return "\n".join(lineas)
+    if s in ["@docentes","@admins","@ver docentes"]:
+        return "Admins autorizados:\n"+("\n".join(docentes_admin) if docentes_admin else "Solo los configurados en el código.")
+    if s in ["@cache","@limpiar","@limpiar cache"]:
+        n = len(pdf_cache); pdf_cache.clear(); return f"Cache limpiado: {n} PDF(s) eliminados."
+
+    # ── Comandos clásicos (mantener compatibilidad) ────────────────
         dato = mensaje[8:].strip()
         if dato: conocimiento_extra.append(dato); return f"Aprendi: \"{dato}\"\nTotal: {len(conocimiento_extra)}"
         return "Uso: aprende: [info]"
