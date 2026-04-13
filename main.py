@@ -1621,9 +1621,93 @@ async def panel_estadisticas(periodo: str = "semana") -> str:
     return "\n".join(lineas)
 
 
+
 # ══════════════════════════════════════════════
-#  ADMIN
+#  VER FALTAS DETALLADAS (listado real de filas)
+#  Muestra los reportes individuales con datos
+#  de cada falta, no solo estadísticas agregadas.
 # ══════════════════════════════════════════════
+async def ver_faltas_detalle(periodo: str = "semana") -> str:
+    """
+    Lee la hoja Reportes y devuelve un listado de faltas individuales.
+    periodo: 'hoy' | 'semana' | 'mes' | 'ultimos'
+    """
+    try:
+        filas = await _sheets_leer_rango(f"{SHEET_REPORTES}!A2:M")
+    except Exception as e:
+        return f"❌ No pude leer los reportes: {e}"
+
+    if not filas:
+        return "📋 No hay reportes registrados aún."
+
+    now = datetime.now(COL_TZ)
+    EMOJIS_T = {"Leve": "📋", "Grave": "⚠️", "Gravisima": "🚨", "Gravísima": "🚨"}
+
+    if periodo == "ultimos":
+        # Los 10 más recientes sin filtro de fecha
+        filas_filtradas = [f for f in filas if f and len(f) >= 8][-10:]
+        label = "últimos 10 reportes"
+        desde = None
+    else:
+        if periodo == "hoy":
+            desde = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            label = "hoy"
+        elif periodo == "semana":
+            desde = now - timedelta(days=7)
+            label = "últimos 7 días"
+        else:  # mes
+            desde = now - timedelta(days=30)
+            label = "últimos 30 días"
+
+        filas_filtradas = []
+        for fila in filas:
+            if not fila or len(fila) < 8:
+                continue
+            fecha_str = fila[1].strip() if len(fila) > 1 else ""
+            if desde and fecha_str:
+                try:
+                    fecha_fila = datetime.strptime(fecha_str[:10], "%d/%m/%Y").replace(tzinfo=COL_TZ)
+                    if fecha_fila < desde:
+                        continue
+                except:
+                    pass
+            filas_filtradas.append(fila)
+
+    if not filas_filtradas:
+        return f"📋 No hay reportes para el período: *{label}*."
+
+    total = len(filas_filtradas)
+    lineas = [
+        f"📋 *Reportes de convivencia — {label}*",
+        f"━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"Total: *{total}* reporte(s)\n",
+    ]
+
+    for fila in filas_filtradas:
+        while len(fila) < 13:
+            fila.append("")
+        num_caso   = fila[0] or "—"
+        fecha      = fila[1] or "—"
+        sede       = fila[3] or "—"
+        estudiante = fila[5] or "—"
+        grado      = fila[6] or "—"
+        tipo       = fila[7].strip().capitalize() if fila[7] else "—"
+        detalle    = (fila[9] or fila[8] or "Sin detalle")[:120]
+        reportante = fila[11] or "—"
+        emoji_t    = EMOJIS_T.get(tipo, "📋")
+
+        lineas.append(
+            f"{emoji_t} *{num_caso}* — {fecha}\n"
+            f"   👤 {estudiante} | 🎒 {grado} | 🏫 {sede}\n"
+            f"   📝 {detalle}\n"
+            f"   👩‍🏫 Reportó: {reportante}"
+        )
+        lineas.append("─────────────────────────")
+
+    lineas.append(f"\n🔗 Ver todos:\nhttps://docs.google.com/spreadsheets/d/{SHEETS_ID}")
+    return "\n".join(lineas)
+
+
 def procesar_admin(mensaje):
     global conocimiento_extra, docentes_admin
     s = norm(mensaje)
@@ -1651,12 +1735,21 @@ def procesar_admin(mensaje):
         return (
             "🔐 *Panel Admin — ColBot*\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "📊 *Estadísticas*\n"
+            "📊 *Estadísticas de convivencia*\n"
             "  @resumen  |  @hoy  |  @mes  |  @todo\n\n"
-            "📋 *Reportes y sistema*\n"
-            "  @reportes  |  @borradores\n\n"
-            "📅 *Calendario*\n"
-            "  agregar evento\n\n"
+            "📋 *Ver reportes de faltas*\n"
+            "  @faltas hoy       → faltas de hoy\n"
+            "  @faltas semana    → últimos 7 días\n"
+            "  @faltas mes       → últimos 30 días\n"
+            "  @ultimos          → los 10 más recientes\n"
+            "  @borradores       → reportes en curso\n"
+            "  @sheets           → enlace a Google Sheets\n\n"
+            "📅 *Calendario escolar*\n"
+            "  @cal semana       → eventos esta semana\n"
+            "  @cal mes          → eventos este mes\n"
+            "  @cal hoy          → eventos de hoy\n"
+            "  @agregar evento   → crear nuevo evento\n"
+            "  @link calendario  → enlace al calendario\n\n"
             "👥 *Gestión de admins*\n"
             "  agregar docente: [num]\n"
             "  quitar docente: [num]\n"
@@ -1667,8 +1760,8 @@ def procesar_admin(mensaje):
             "🔧 *Sistema*\n"
             "  limpiar cache\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "💡 Escribe @ para ver este menú\n"
-            "   en cualquier momento."
+            "💡 Escribe *@* en cualquier momento\n"
+            "   para ver este menú."
         )
     # ── Comandos con @ (nueva forma robusta) ──────────────────────
     if s in ["@resumen","@semana","@resumen semana"]:
@@ -1679,8 +1772,40 @@ def procesar_admin(mensaje):
         return ("__STATS__", "mes")
     if s in ["@todo","@resumen todo","@todos"]:
         return ("__STATS__", "todo")
-    if s in ["@reportes","@ver reportes","@sheets"]:
-        return f"Reportes: {contador_reportes}\nhttps://docs.google.com/spreadsheets/d/{SHEETS_ID}"
+    if s in ["@reportes","@ver reportes","@sheets","@link reportes"]:
+        return (
+            f"📋 *Reportes de convivencia*\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"Total en sistema: *{contador_reportes}*\n\n"
+            f"🔗 Ver hoja completa:\nhttps://docs.google.com/spreadsheets/d/{SHEETS_ID}\n\n"
+            f"💡 Comandos rápidos:\n"
+            f"  @faltas hoy → faltas de hoy\n"
+            f"  @faltas semana → últimos 7 días\n"
+            f"  @ultimos → los 10 más recientes"
+        )
+
+    # ── Faltas: ver listado de reportes por período ────────────────
+    if s in ["@faltas hoy","@reportes hoy","@faltas de hoy"]:
+        return ("__FALTAS__", "hoy")
+    if s in ["@faltas semana","@reportes semana","@faltas esta semana"]:
+        return ("__FALTAS__", "semana")
+    if s in ["@faltas mes","@reportes mes","@faltas este mes"]:
+        return ("__FALTAS__", "mes")
+    if s in ["@ultimos","@últimos","@ultimos reportes","@últimos reportes","@ver ultimos"]:
+        return ("__FALTAS__", "ultimos")
+
+    # ── Calendario desde @ ─────────────────────────────────────────
+    if s in ["@cal hoy","@calendario hoy","@eventos hoy"]:
+        return ("__CAL__", "hoy")
+    if s in ["@cal semana","@calendario semana","@eventos semana","@eventos esta semana"]:
+        return ("__CAL__", "semana")
+    if s in ["@cal mes","@calendario mes","@eventos mes","@eventos este mes"]:
+        return ("__CAL__", "mes")
+    if s in ["@link calendario","@calendario link","@ver calendario"]:
+        return f"🔗 Calendario escolar ColBolívar:\n{URL_CALENDAR_PUBLIC}"
+    if s in ["@agregar evento","@nuevo evento","@crear evento"]:
+        return ("__AGREGAR_EVENTO__", "")
+
     if s in ["@borradores","@pendientes","@ver borradores"]:
         if not borradores_cache:
             return "No hay borradores activos."
@@ -1736,24 +1861,26 @@ def procesar_admin(mensaje):
     ]
     if any(t in s for t in TRIGGERS_MENU) or s in ["admin","comandos"]:
         return (
-            "🔐 *Menú Admin — ColBot*\n"
+            "🔐 *Panel Admin — ColBot*\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "📊 *ESTADÍSTICAS*\n"
-            "   resumen\n"
-            "   resumen hoy\n"
-            "   resumen semana\n"
-            "   resumen mes\n"
-            "   resumen todo\n\n"
-            "📋 *REPORTES*\n"
-            "   ver reportes\n"
-            "   ver borradores\n\n"
+            "   resumen | resumen hoy\n"
+            "   resumen semana | resumen mes\n\n"
+            "📋 *VER FALTAS*\n"
+            "   @faltas hoy\n"
+            "   @faltas semana\n"
+            "   @faltas mes\n"
+            "   @ultimos\n"
+            "   @sheets\n\n"
             "📅 *CALENDARIO*\n"
-            "   agregar evento\n\n"
+            "   @cal hoy\n"
+            "   @cal semana\n"
+            "   @cal mes\n"
+            "   @agregar evento\n"
+            "   @link calendario\n\n"
             "🧠 *CONOCIMIENTO*\n"
             "   aprende: [texto]\n"
-            "   que sabes\n"
-            "   olvida: [numero]\n"
-            "   olvida todo\n\n"
+            "   que sabes | olvida todo\n\n"
             "👥 *ADMINS*\n"
             "   agregar docente: [numero]\n"
             "   quitar docente: [numero]\n"
@@ -1761,8 +1888,7 @@ def procesar_admin(mensaje):
             "🔧 *SISTEMA*\n"
             "   limpiar cache\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "Escribe el comando tal cual\n"
-            "aparece aqui, sin tildes."
+            "💡 Escribe *@* para ver el menú rápido."
         )
     # Panel de estadísticas — sentinel tuple para resolver async en procesar()
     TRIGGERS_STATS = [
@@ -1934,6 +2060,27 @@ async def procesar(mensaje, telefono, nombre):
         if resp_admin is not None:
             if isinstance(resp_admin, tuple) and resp_admin[0] == "__STATS__":
                 return await panel_estadisticas(resp_admin[1])
+            if isinstance(resp_admin, tuple) and resp_admin[0] == "__FALTAS__":
+                return await ver_faltas_detalle(resp_admin[1])
+            if isinstance(resp_admin, tuple) and resp_admin[0] == "__CAL__":
+                # Redirigir a lógica de calendario con el período
+                periodo = resp_admin[1]
+                if periodo == "hoy":
+                    dias = 1
+                elif periodo == "semana":
+                    dias = 7
+                else:
+                    dias = 31
+                try:
+                    eventos, err = await asyncio.wait_for(obtener_eventos(dias, max_results=50), timeout=12)
+                    if not err and eventos is not None:
+                        return formatear_eventos(eventos)
+                    return "No pude consultar el calendario. Intentalo de nuevo. 😔"
+                except Exception as e:
+                    print(f"ERROR @cal: {e}")
+                    return "No pude consultar el calendario. Intentalo de nuevo. 😔"
+            if isinstance(resp_admin, tuple) and resp_admin[0] == "__AGREGAR_EVENTO__":
+                return await gestionar_agregar_evento("agregar evento", telefono, nombre)
             return resp_admin
 
     # SALUDO — "menu" solo aplica a no-admins (los admins ya fueron interceptados arriba)
