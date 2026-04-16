@@ -1710,13 +1710,16 @@ async def ver_faltas_detalle(periodo: str = "semana") -> str:
 
 def procesar_admin(mensaje):
     global conocimiento_extra, docentes_admin
+    # Usar mensaje original en minúsculas SIN norm() para no perder @
+    s_raw = mensaje.strip().lower()
     s = norm(mensaje)
 
-    # ── MENÚ ADMIN: se activa con @ o con saludos ──────────────────
-    # @ es el trigger principal — imposible de confundir con una pregunta
+    # ── MENÚ ADMIN: @ es el trigger principal ─────────────────────
+    # Se detecta con el mensaje raw (norm() no afecta @, pero por seguridad
+    # verificamos ambas versiones)
     TRIGGERS_MENU_DIRECTO = [
-        "@", "@ ", "@admin", "@menu", "@bot", "@colbot",
-        "@ayuda", "@comandos", "@opciones",
+        "@", "@admin", "@menu", "@bot", "@colbot",
+        "@ayuda", "@comandos", "@opciones", "@help",
     ]
     SALUDOS_ADMIN = [
         "menu","hola","inicio","ayuda","help","start","buenas",
@@ -1727,7 +1730,8 @@ def procesar_admin(mensaje):
         "admin","comandos",
     ]
     es_trigger_menu = (
-        any(s.startswith(t) for t in TRIGGERS_MENU_DIRECTO) or
+        s_raw in TRIGGERS_MENU_DIRECTO or
+        s_raw.startswith("@ ") or
         s in SALUDOS_ADMIN or
         any(t in s for t in ["menu admin","admin menu","admin ayuda","comandos admin"])
     )
@@ -1763,16 +1767,18 @@ def procesar_admin(mensaje):
             "💡 Escribe *@* en cualquier momento\n"
             "   para ver este menú."
         )
-    # ── Comandos con @ (nueva forma robusta) ──────────────────────
-    if s in ["@resumen","@semana","@resumen semana"]:
+    # ── Comandos con @ — comparar con s_raw para máxima fiabilidad ──
+    cmd = s_raw  # alias para legibilidad
+
+    if cmd in ["@resumen","@semana","@resumen semana"]:
         return ("__STATS__", "semana")
-    if s in ["@hoy","@resumen hoy","@hoy resumen"]:
+    if cmd in ["@hoy","@resumen hoy","@hoy resumen"]:
         return ("__STATS__", "hoy")
-    if s in ["@mes","@resumen mes"]:
+    if cmd in ["@mes","@resumen mes"]:
         return ("__STATS__", "mes")
-    if s in ["@todo","@resumen todo","@todos"]:
+    if cmd in ["@todo","@resumen todo","@todos"]:
         return ("__STATS__", "todo")
-    if s in ["@reportes","@ver reportes","@sheets","@link reportes"]:
+    if cmd in ["@reportes","@ver reportes","@sheets","@link reportes"]:
         return (
             f"📋 *Reportes de convivencia*\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -1785,42 +1791,45 @@ def procesar_admin(mensaje):
         )
 
     # ── Faltas: ver listado de reportes por período ────────────────
-    if s in ["@faltas hoy","@reportes hoy","@faltas de hoy"]:
+    if cmd in ["@faltas hoy","@reportes hoy","@faltas de hoy"]:
         return ("__FALTAS__", "hoy")
-    if s in ["@faltas semana","@reportes semana","@faltas esta semana"]:
+    if cmd in ["@faltas semana","@reportes semana","@faltas esta semana"]:
         return ("__FALTAS__", "semana")
-    if s in ["@faltas mes","@reportes mes","@faltas este mes"]:
+    if cmd in ["@faltas mes","@reportes mes","@faltas este mes"]:
         return ("__FALTAS__", "mes")
-    if s in ["@ultimos","@últimos","@ultimos reportes","@últimos reportes","@ver ultimos"]:
+    if cmd in ["@ultimos","@últimos","@ultimos reportes","@últimos reportes","@ver ultimos"]:
         return ("__FALTAS__", "ultimos")
 
     # ── Calendario desde @ ─────────────────────────────────────────
-    if s in ["@cal hoy","@calendario hoy","@eventos hoy"]:
+    if cmd in ["@cal hoy","@calendario hoy","@eventos hoy"]:
         return ("__CAL__", "hoy")
-    if s in ["@cal semana","@calendario semana","@eventos semana","@eventos esta semana"]:
+    if cmd in ["@cal semana","@calendario semana","@eventos semana","@eventos esta semana"]:
         return ("__CAL__", "semana")
-    if s in ["@cal mes","@calendario mes","@eventos mes","@eventos este mes"]:
+    if cmd in ["@cal mes","@calendario mes","@eventos mes","@eventos este mes"]:
         return ("__CAL__", "mes")
-    if s in ["@link calendario","@calendario link","@ver calendario"]:
+    if cmd in ["@link calendario","@calendario link","@ver calendario"]:
         return f"🔗 Calendario escolar ColBolívar:\n{URL_CALENDAR_PUBLIC}"
-    if s in ["@agregar evento","@nuevo evento","@crear evento"]:
+    if cmd in ["@agregar evento","@nuevo evento","@crear evento"]:
         return ("__AGREGAR_EVENTO__", "")
 
-    if s in ["@borradores","@pendientes","@ver borradores"]:
+    if cmd in ["@borradores","@pendientes","@ver borradores"]:
         if not borradores_cache:
             return "No hay borradores activos."
         lineas = [f"Borradores activos: {len(borradores_cache)}"]
         for tel, b in borradores_cache.items():
             lineas.append(f"• {tel} → {b.get('estado','')} | {b.get('estudiante','?')}")
         return "\n".join(lineas)
-    if s in ["@docentes","@admins","@ver docentes"]:
+    if cmd in ["@docentes","@admins","@ver docentes"]:
         return "Admins autorizados:\n"+("\n".join(docentes_admin) if docentes_admin else "Solo los configurados en el código.")
-    if s in ["@cache","@limpiar","@limpiar cache"]:
+    if cmd in ["@cache","@limpiar","@limpiar cache"]:
         n = len(pdf_cache); pdf_cache.clear(); return f"Cache limpiado: {n} PDF(s) eliminados."
 
-    # ── Comandos clásicos (mantener compatibilidad) ────────────────
+    # ── Comandos clásicos (sin @) ──────────────────────────────────
+    if s.startswith("aprende:"):
         dato = mensaje[8:].strip()
-        if dato: conocimiento_extra.append(dato); return f"Aprendi: \"{dato}\"\nTotal: {len(conocimiento_extra)}"
+        if dato:
+            conocimiento_extra.append(dato)
+            return f"Aprendi: \"{dato}\"\nTotal: {len(conocimiento_extra)}"
         return "Uso: aprende: [info]"
     if s in ["que sabes","que recuerdas"]:
         return ("Datos:\n"+"\n".join([f"{i+1}. {d}" for i,d in enumerate(conocimiento_extra)]) if conocimiento_extra else "Sin datos.")
@@ -2040,11 +2049,47 @@ async def _responder_pregunta_calendar(pregunta: str, telefono: str) -> str:
 # ══════════════════════════════════════════════
 async def procesar(mensaje, telefono, nombre):
     s = norm(mensaje)
+    s_raw = mensaje.strip().lower()
     print("MSG [" + (nombre or telefono) + "]: " + mensaje[:100])
 
-    # REPORTE — prioridad máxima
-    # Activar si: hay borrador activo en cache O el mensaje contiene palabras de reporte
     tel = limpiar_tel(telefono)
+
+    # ══════════════════════════════════════════════════════════════
+    # ADMIN MASTER PRIORITY — comandos @ siempre tienen prioridad
+    # absoluta para admins, incluso sobre reportes en curso.
+    # Así el admin puede escribir @ en cualquier momento y ver menú.
+    # ══════════════════════════════════════════════════════════════
+    if es_admin(telefono):
+        # Comandos @ y menú tienen prioridad absoluta
+        es_cmd_admin = (
+            s_raw.startswith("@") or
+            s_raw in ["menu","hola","inicio","ayuda","help","start","admin","comandos",
+                      "menu admin","panel admin","que puedo hacer"]
+        )
+        if es_cmd_admin:
+            resp_admin = procesar_admin(mensaje)
+            if resp_admin is not None:
+                if isinstance(resp_admin, tuple) and resp_admin[0] == "__STATS__":
+                    return await panel_estadisticas(resp_admin[1])
+                if isinstance(resp_admin, tuple) and resp_admin[0] == "__FALTAS__":
+                    return await ver_faltas_detalle(resp_admin[1])
+                if isinstance(resp_admin, tuple) and resp_admin[0] == "__CAL__":
+                    periodo = resp_admin[1]
+                    dias = 1 if periodo == "hoy" else (7 if periodo == "semana" else 31)
+                    try:
+                        eventos, err = await asyncio.wait_for(obtener_eventos(dias, max_results=50), timeout=12)
+                        if not err and eventos is not None:
+                            return formatear_eventos(eventos)
+                        return "No pude consultar el calendario. Intentalo de nuevo. 😔"
+                    except Exception as e:
+                        print(f"ERROR @cal: {e}")
+                        return "No pude consultar el calendario. Intentalo de nuevo. 😔"
+                if isinstance(resp_admin, tuple) and resp_admin[0] == "__AGREGAR_EVENTO__":
+                    return await gestionar_agregar_evento("agregar evento", telefono, nombre)
+                return resp_admin
+
+    # REPORTE — prioridad alta (pero después de comandos @ del admin)
+    # Activar si: hay borrador activo en cache O el mensaje contiene palabras de reporte
     tiene_borrador = tel in borradores_cache
     if not tiene_borrador:
         # Verificar también en Sheets (por si el cache se perdió)
@@ -2054,7 +2099,7 @@ async def procesar(mensaje, telefono, nombre):
     if tiene_borrador or es_intencion_reporte(mensaje):
         return await gestionar_reporte(mensaje, telefono, nombre)
 
-    # ADMIN — va ANTES del saludo para interceptar comandos como "menu admin"
+    # ADMIN — comandos no-@ que no requieren prioridad máxima
     if es_admin(telefono):
         resp_admin = procesar_admin(mensaje)
         if resp_admin is not None:
@@ -2063,21 +2108,14 @@ async def procesar(mensaje, telefono, nombre):
             if isinstance(resp_admin, tuple) and resp_admin[0] == "__FALTAS__":
                 return await ver_faltas_detalle(resp_admin[1])
             if isinstance(resp_admin, tuple) and resp_admin[0] == "__CAL__":
-                # Redirigir a lógica de calendario con el período
                 periodo = resp_admin[1]
-                if periodo == "hoy":
-                    dias = 1
-                elif periodo == "semana":
-                    dias = 7
-                else:
-                    dias = 31
+                dias = 1 if periodo == "hoy" else (7 if periodo == "semana" else 31)
                 try:
                     eventos, err = await asyncio.wait_for(obtener_eventos(dias, max_results=50), timeout=12)
                     if not err and eventos is not None:
                         return formatear_eventos(eventos)
                     return "No pude consultar el calendario. Intentalo de nuevo. 😔"
                 except Exception as e:
-                    print(f"ERROR @cal: {e}")
                     return "No pude consultar el calendario. Intentalo de nuevo. 😔"
             if isinstance(resp_admin, tuple) and resp_admin[0] == "__AGREGAR_EVENTO__":
                 return await gestionar_agregar_evento("agregar evento", telefono, nombre)
