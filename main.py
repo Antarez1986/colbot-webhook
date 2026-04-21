@@ -52,37 +52,136 @@ SHEETS_CREDS = {
 #  BASE DE CONOCIMIENTO
 # ══════════════════════════════════════════════
 INFO_INSTITUCIONAL = """
-INSTITUCION EDUCATIVA SIMON BOLIVAR - COLBOLIVAR - CUCUTA
-DANE: 154001008266-01 | NIT: 800.181.183-7
-Direccion: Calle 4 No.11A-26 San Martin, Cucuta | Tel: 5943344
-Correo: colintsimonbolivar@semcucuta.gov.co
-Web colegios: https://www.webcolegios.com/simon/
-Sitio web: https://gestionacademicaco.wixsite.com/colbolivar1
-Facebook: https://www.facebook.com/share/1NM1mkhhcc/
-YouTube: https://www.youtube.com/@colbolivar
+══════════════════════════════════════════════════════════
+INSTITUCIÓN EDUCATIVA COLEGIO INTEGRADO SIMÓN BOLÍVAR — COLBÓLIVAR
+CÚCUTA, NORTE DE SANTANDER, COLOMBIA
+══════════════════════════════════════════════════════════
 
-DATOS GENERALES:
-- Rector: Jesus Maldonado Serrano
-- Fundacion: 30 septiembre 2002
-- Lema: Educamos para construir proyectos de vida con exito
-- Valores: Honestidad, Amor, Esfuerzo, Fe
-- Sedes: Central Simon Bolivar, San Martin, Hernando Acevedo
-- Estudiantes: 2133 | Docentes: 95
-- Niveles: Preescolar, Basica Primaria, Secundaria, Media Academica y Tecnica
-- Jornadas: Manana 6:30am-12:30pm | Tarde 12:30pm-6pm
-- Convenios: SENA, Universidad de Pamplona, UFPS
+IDENTIFICACIÓN OFICIAL:
+- Nombre: Institución Educativa Colegio Integrado Simón Bolívar
+- DANE: 154001008266 | NIT: 800181183-7
+- Código PEI: GD-D1, Versión 3.0 (vigente desde marzo 2024, plan 2024-2027)
+- Rector: Mg. Jesús Maldonado Serrano
+- Lema: "Educamos para construir proyectos de vida con Éxito"
+- Carácter: Oficial / Público | Zona: Urbana – Comuna 4 de Cúcuta
+- Fundación legal: Decreto 00780 del 30 de septiembre de 2002
+- Inicio real de labores: 18 de febrero de 1992
 
-EVALUACION: Escala 1.0-5.0, aprueba con 3.0, reprueba con 3+ areas perdidas. 4 periodos.
+CONTACTO:
+- Dirección Sede Central: Calle 4 N° 11A-26, Urbanización San Martín, Cúcuta
+- Teléfonos: 5943344 / 5848539
+- Correo institucional: colintsimonbolivar@semcucuta.gov.co
+- Correo alterno: colintsimonbolivar@yahoo.es
+- Sitio web académico: https://gestionacademicaco.wixsite.com/colbolivar1
+- Portal de notas: https://www.webcolegios.com/simon/
+- Facebook: https://www.facebook.com/share/1NM1mkhhcc/
+- YouTube: https://www.youtube.com/@colbolivar
 
-CONVIVENCIA:
-- Leves: llegar tarde, salir sin permiso, no usar uniforme, comer en clase
-- Graves: irrespeto, plagio, agresiones leves
-- Gravisimas: armas/drogas, violencia sexual, vandalismo
+SEDES:
+1. Sede Central Simón Bolívar: Calle 4 N° 11A-26, Urb. San Martín | Tel: 5943344
+2. Sede San Martín N°65: Calle 5N #7-20, Barrio San Martín | Tel: 5846438
+3. Sede Hernando Acevedo Ortega: Calle 0 N°13-06, Urb. Torcoroma II (Barrio Cañofístolo) | Tel: 5769922
 
-PLANES DE AREA 2026:
-- Matematicas: https://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny
+CIFRAS CLAVE (2024):
+- Total estudiantes: 2.133
+- Docentes: 96 | Directivos docentes: 5 | Personal administrativo: 10
+- Jornadas: Mañana (6:00–12:00 / 6:00–13:00) y Tarde (12:15–18:15 / 12:15–19:15)
+- Estudiantes de Venezuela (Ureña): ~186 (9%) con transporte humanitario convenio Alcaldía
+
+NIVELES EDUCATIVOS:
+- Preescolar: Jardín y Transición
+- Básica Primaria: Grados 1° al 5°
+- Básica Secundaria: Grados 6° al 9°
+- Media Académica con énfasis en Ciencias: Grados 10° y 11°
+- Media Técnica SENA: Mantenimiento de Computadores y Asesoría Comercial (doble titulación)
+- Propuesta Educativa Intercultural YUKPA: Sede San Martín
+
+HORIZONTE INSTITUCIONAL:
+MISIÓN: Institución oficial que ofrece educación de calidad en Pre-escolar, Básica, Media académica y Técnica. Forma integralmente desde el saber ser, saber hacer y saber saber. Trabaja en inclusión educativa, evaluación formativa y trabajo colaborativo para construir Proyectos de Vida con Éxito.
+VISIÓN (2025): Ser reconocida a nivel regional y nacional por procesos académicos y administrativos de alta calidad, apoyada en TICs, inclusión escolar y convivencia ciudadana.
+VALORES — La Estrella ColBolívar: Honestidad (ética, verdad, puntualidad), Amor (paz, amistad, respeto, convivencia), Esfuerzo (hábitos de estudio, responsabilidad, trabajo en equipo), Fe (espiritualidad, autoestima, autocontrol).
+FILOSOFÍA: Desarrollar la persona como ser único, libre, trascendente, social y consciente.
+MODELO PEDAGÓGICO: Pedagogía Activa ("Escuelas que aprenden"). El estudiante es el centro; el docente es facilitador, orientador e investigador. Aprendizaje lúdico, experimental, colaborativo.
+DIMENSIONES DEL APRENDIZAJE: Aprender a Ser, Aprender a Aprender, Aprender a Hacer, Aprender a Convivir, Aprender a relacionarse con lo trascendente.
+
+GOBIERNO ESCOLAR:
+- Consejo Directivo: rector + 2 docentes + 2 padres + 1 estudiante + 1 egresado + 1 sector productivo
+- Consejo Académico: liderazgo pedagógico, diseña currículo, aprueba SIE
+- Personero Estudiantil: elegido de grado 11, primeros 30 días del año, voto secreto
+- Consejo Estudiantil: vocero de cada grado, se reúne en las 4 primeras semanas
+- Consejo de Padres: voceros por grado, garantiza participación de familias
+- Líder de Gestión Académica: Carolina Bochagá Silva
+- Orientadora Escolar / PIAR: Marisol Solarte
+
+CONVENIOS Y ALIANZAS:
+- SENA: Media técnica Mantenimiento de Cómputo y Asesoría Comercial
+- Universidad de Pamplona y UFPS: articulación académica
+- COMFAORIENTE, IMRD, Secretaría de Cultura: Centros de Interés
+- CORPONOR: aliado ambiental | UNISIMON, CTC, UDES: aliados universitarios
+- Smart Place ColBolívar: espacio tecnológico (3D, robótica, Arduino, ofimática). Horario L-V 8am-12m y 2-6pm
+
+EVALUACIÓN (SIEE):
+- Escala: 1.0 a 5.0
+- Desempeño Superior: 4.6 – 5.0 | Alto: 4.0 – 4.5 | Básico: 3.0 – 3.9 | Bajo: 1.0 – 2.9
+- Se aprueba con 3.0 o más. Se reprueba si se pierden 3 o más áreas.
+- 4 períodos académicos por año. Prueba de Comprensión vale 30% en todos los casos.
+- Se evalúan 4 saberes: Saber-Saber (cognitivo), Saber-Hacer (procedimental), Saber-Ser (actitudinal), Convivir (psicoafectivo).
+- Principio clave: "Se evalúa para mejorar, nunca para excluir."
+- Boletines: 4 durante el año (uno por período) + boletín final en físico al cierre.
+- Notas disponibles en: https://www.webcolegios.com/simon/
+
+CONVIVENCIA (Manual GD-D02, vigente desde 22 enero 2024):
+- FALTAS LEVES (pág.161): llegar tarde, salir sin permiso, no usar uniforme, comer en clase, desaseo, inasistencia sin justificación. Sanción: anotación en observador, acta de compromiso, trabajo manuscrito 2 páginas. ¡3 faltas leves = falta grave!
+- FALTAS GRAVES (Art.87 Ley 115): reincidencia de leves, no informar citaciones a padres, perturbar clases, uso de celular en clase, negocios en el colegio. Sanción: citación inmediata a padres, cartelera restaurativa, matrícula en observación.
+- FALTAS GRAVÍSIMAS (Ley 1620, Tipo III): agresión física grave, acoso sexual, porte de armas o sustancias ilegales, vandalismo. Sanción: activación Ruta de Atención Integral, cancelación de matrícula, remisión a ICBF/Policía/Fiscalía.
+- CERO TOLERANCIA con bullying, matoneo, ciberbullying, humillaciones, acoso escolar.
+- CONDUCTO REGULAR: 1)Docente/Director de grupo → 2)Coordinación → 3)Rectoría → 4)Consejo Directivo → 5)Autoridades externas.
+- PRINCIPIOS: Debido proceso, presunción de inocencia, in dubio pro educando, non bis in idem.
+
+SERVICIOS:
+- PAE (Programa Alimentación Escolar): refrigerios y almuerzos financiados por la Alcaldía en las 3 sedes.
+- Transporte humanitario: para estudiantes de Ureña (Venezuela), convenio con Alcaldía de Cúcuta.
+- Orientación Escolar: psicóloga Marisol Solarte, lidera proyecto PIAR.
+- Smart Place: impresoras 3D, Arduino, robótica, producción audiovisual, ofimática.
+- Escuelas de Padres: obligatorias según Ley 2025 de 2020.
+
+MATRÍCULA (Proceso):
+- Proyección cupos: agosto | Inscripciones: septiembre-noviembre | Matrículas: noviembre-diciembre
+- Entrevistas con orientadora: octubre-diciembre | Jornadas/sedes asignadas por Rectoría.
+- Requisitos: registro civil, tarjeta de identidad, Sisbén, EPS, último boletín, observador anterior, entre otros.
+- Sistema de matrícula: SIMAT | Plataforma de notas: Web Colegios
+
+PLANES DE ÁREA 2026:
+- Matemáticas: https://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny
 - Humanidades: https://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv
 - Ciencias Naturales: https://drive.google.com/drive/folders/1WH5qeW4g61gM99BWlL4nBFfqZGr03HFr
+
+MAPA DE PROCESOS (4 Gestiones):
+1. GESTIÓN DIRECTIVA: Direccionamiento estratégico (GDP1), Gestión estratégica (GDP2), Gobierno escolar (GDP3), Cultura institucional (GDP4), Clima escolar (GDP5), Relaciones con el entorno (GDP6).
+2. GESTIÓN ACADÉMICA: Diseño pedagógico curricular (GAP1: plan estudios, enfoque metodológico, recursos, jornada, evaluación), Prácticas pedagógicas (GAP2: opciones didácticas, tareas, recursos, tiempo), Gestión de aula (GAP3: ambiente, tiempo, interacción, disciplina), Seguimiento académico (GAP4: resultados, Pruebas Saber, asistencia, recuperación, PIAR, egresados).
+3. GESTIÓN ADMINISTRATIVA Y FINANCIERA: Apoyo académico, planta física, servicios complementarios, talento humano (96 docentes), finanzas (Fondo Servicios Educativos).
+4. GESTIÓN DE LA COMUNIDAD: Accesibilidad, inclusión educativa (PIAR, YUKPA), proyección comunitaria, convenios.
+
+POA 2025 — GESTIÓN ACADÉMICA (18 actividades estratégicas):
+- Responsable principal: Carolina Bochagá Silva (Líder Gestión Académica)
+- PIAR e inclusión: Marisol Solarte (Orientadora)
+- Revisión SIE: enero–junio 2025 | Seguimiento egresados: julio–septiembre 2025
+- 19 COMPONENTES: evaluados en 4 niveles (1-Existencia, 2-Pertinencia, 3-Apropiación, 4-Mejoramiento). Mayoría en Nivel 1 en 2025; meta: alcanzar Nivel 2-3.
+
+LOGROS HISTÓRICOS:
+- 1996: Primera promoción de Bachilleres Académicos.
+- 2013: Clasificación ICFES Nivel ALTO.
+- 2018: Nivel A en Pruebas Saber 11.
+- 2016: 7 estudiantes PILOS becados.
+- 2021: Inicio Proyecto Intercultural YUKPA.
+- 2024: 15 nuevos docentes por méritos. Fortalecimiento PTAFI 3.0.
+
+DIRECTIVOS (teléfonos referencia):
+- Rector Jesús Maldonado: 573208506397
+- Coordinadora Carolina Bochagá: 573123757876
+- Coordinadora Claudia Tamayo: 573103493495
+- Coordinador Homero Cuevas: 573159263064
+- Coordinador Salvador Peña: 573118085572
 """
 
 # ══════════════════════════════════════════════
@@ -1102,6 +1201,7 @@ WEB_LINKS = {
 BASE_PDF = "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_"
 CATALOGO = {
     "pei":                     ("Compilado Institucional ColBolívar 2024 (Manual de Convivencia págs.1-287 | Manual de Normatividad Académica págs.288-344 | Mapa de Procesos págs.345-370 | POA págs.371 | PEI págs.372-497)",   "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
+    "documento maestro":       ("Documento Maestro Institucional ColBolívar (PEI 2024-2027, Mapa de Procesos, POA, 19 Componentes)", "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_a9a582c1009240fabc03f37778946792.pdf"),
     "siee":                    ("SIEE - Sistema de Evaluacion",             BASE_PDF + "f245afe526dd49d097d9417251ec1adc.pdf"),
     "manual de convivencia":   ("Documento Maestro Institucional ColBolívar",  "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
     "manual de funciones":     ("Manual de Funciones",                      BASE_PDF + "711c1ffb30334ea9b10163d87aaed4ba.pdf"),
@@ -1122,9 +1222,14 @@ ALIAS_DOC = {
     "inscripcion":"matricula", "contrato":"contratacion",
     "sena":"practicas empresariales", "laboratorio":"practicas de laboratorio",
     "sanitarias":"baterias sanitarias", "funciones":"manual de funciones",
+    "poa":"documento maestro", "mapa de procesos":"documento maestro",
+    "19 componentes":"documento maestro", "plan operativo":"documento maestro",
+    "gestion academica":"documento maestro", "plan 2025":"documento maestro",
+    "gestion directiva":"documento maestro", "carolina bochaga":"documento maestro",
+    "procesos institucionales":"documento maestro",
 }
-PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido","que habla","como funciona","cual es"]
-PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf"]
+PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido","que habla","como funciona","cual es","que informacion","dime sobre","cuéntame","cuentame"]
+PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf","documento","manual","ver el","acceder al"]
 PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay","actividades","bimestral","receso","periodo","semana","mes","hoy","manana","mañana","proximo","próximo","vacaciones","boletin","boletín","dia civico","reunion","reunión","padres","clausura","graduacion","graduación","izado","izad","capacitacion","capacitación","prueba saber","matricula","matrícula","festivo","festivos","puente","semana santa","semana de receso","dias libres","suspensión","suspension","paro","sin clases"]
 
 # ══════════════════════════════════════════════
@@ -1398,6 +1503,14 @@ PALABRAS_DOC_CENTRAL = [
     "que establece","que indica","segun el colegio","en colbolivar",
     "en la institucion","en el colegio","en simon bolivar",
     "dime","explicame","que es","que son","como se","cuando se",
+    # ── Documento Maestro 2 (PEI 2024-2027 + Mapa + POA + 19 Componentes) ──
+    "documento maestro","poa 2025","mapa de procesos 2024",
+    "19 componentes","aplicativo componentes","nivel de los componentes",
+    "carolina bochaga","marisol solarte","seguimiento academico",
+    "practicas pedagogicas","diseno pedagogico","diseño pedagogico",
+    "GDP","GAP","indicador","meta institucional","responsable del proceso",
+    "politica de calidad","cuantas sedes","logros del colegio",
+    "star colbolivar","estrella colbolivar","valores institucionales del colegio",
 ]
 
 
@@ -1417,6 +1530,46 @@ def buscar_web(texto):
         if norm(clave) in s:
             return url, desc
     return None, None
+
+async def buscar_en_web_colegio(pregunta: str) -> str:
+    """
+    Consulta el sitio web del colegio para temas no cubiertos por PDFs.
+    Solo se llama como último recurso inteligente.
+    Retorna fragmento útil o None si no encuentra nada.
+    """
+    WEB_COLEGIO = "https://gestionacademicaco.wixsite.com/colbolivar1"
+    try:
+        async with httpx.AsyncClient(timeout=12, follow_redirects=True) as c:
+            r = await c.get(WEB_COLEGIO)
+            if r.status_code != 200:
+                return None
+            # Extraer texto plano básico quitando HTML
+            texto = re.sub(r'<[^>]+>', ' ', r.text)
+            texto = re.sub(r'\s+', ' ', texto).strip()[:3000]
+        # Usar Gemini para extraer la respuesta puntual del HTML
+        api_key = os.getenv("GEMINI_API_KEY","")
+        modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
+        url_g   = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
+        prompt  = (
+            f"Eres ColBot del Colegio Simón Bolívar de Cúcuta.\n"
+            f"Basándote SOLO en este fragmento del sitio web del colegio, responde de forma breve y natural:\n\n"
+            f"CONTENIDO WEB:\n{texto}\n\n"
+            f"PREGUNTA: {pregunta}\n\n"
+            "Si el fragmento no contiene la respuesta, di exactamente: NO_ENCONTRADO"
+        )
+        payload = {"contents":[{"parts":[{"text":prompt}]}],
+                   "generationConfig":{"temperature":0.2,"maxOutputTokens":300}}
+        async with httpx.AsyncClient(timeout=15) as c:
+            resp = await c.post(url_g, json=payload)
+            d    = resp.json()
+        if "candidates" in d:
+            txt = d["candidates"][0]["content"]["parts"][0]["text"].strip()
+            if "NO_ENCONTRADO" in txt:
+                return None
+            return limpiar_markdown(txt)
+    except Exception as e:
+        print(f"WARN buscar_en_web_colegio: {e}")
+    return None
 
 
 # ══════════════════════════════════════════════
@@ -1449,27 +1602,32 @@ async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usua
     modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
     instruccion = (
-        "Eres ColBot, asistente oficial de la IE Simón Bolívar de Cúcuta (Colombia).\n\n"
-        "Este documento es el COMPILADO INSTITUCIONAL del Colegio Simón Bolívar de Cúcuta (2024), "
-        "organizado así:\n"
-        "• Págs. 1-287:   Manual de Convivencia (faltas, sanciones, derechos, deberes, rutas de atención, Ley 1620)\n"
+        "Eres ColBot, asistente oficial de la IE Simón Bolívar de Cúcuta (Colombia).\n"
+        "Tienes acceso a los documentos institucionales del colegio. Responde como un colega bien informado: "
+        "claro, directo, amigable. No suenes robótico. Usa lenguaje natural.\n\n"
+        "ESTRUCTURA DE ESTE COMPILADO INSTITUCIONAL:\n"
+        "• Págs. 1-287:   Manual de Convivencia (faltas leve/grave/gravísima, sanciones, derechos, deberes, rutas de atención, Ley 1620)\n"
         "• Págs. 288-344: Manual de Normatividad Académica (evaluación, promoción, SIEE, escala de valoración)\n"
         "• Págs. 345-370: Mapa de Procesos 2024 (gestión académica, procesos P1/P2/P3/P4, códigos GAP)\n"
-        "• Pág.  371:     POA - Plan Operativo Anual (actividades, metas, cronograma)\n"
+        "• Pág.  371:     POA - Plan Operativo Anual 2025 (actividades, metas, cronograma, responsables)\n"
         "• Págs. 372-497: PEI - Proyecto Educativo Institucional (misión, visión, modelo pedagógico, "
         "gobierno escolar, plan de estudios, componentes directivo/académico/administrativo/comunitario)\n\n"
+        "TAMBIÉN HAY UN SEGUNDO DOCUMENTO con el PEI 2024-2027 actualizado, Mapa de Procesos, POA y los 19 Componentes de Gestión Académica.\n\n"
         "REGLAS DE RESPUESTA:\n"
-        "1. Busca EXHAUSTIVAMENTE en todo el documento antes de responder.\n"
-        "2. NUNCA digas que no tienes el dato si la pregunta es sobre el colegio — la respuesta está en el documento.\n"
-        "3. Cita siempre el documento de origen y el artículo/sección/página cuando sea posible "
-        "(ej: 'Según el Manual de Convivencia, Art. 45...' o 'Según el Mapa de Procesos, proceso GAP151...').\n"
-        "4. Responde directo, claro y profesional. Máximo 5 párrafos. Sin formato Markdown.\n"
-        "5. Si la pregunta pide listados, números o conteos, dálos completos y precisos.\n\n"
+        "1. Busca EXHAUSTIVAMENTE en todo el documento antes de responder. La respuesta casi siempre está ahí.\n"
+        "2. NUNCA digas que no tienes el dato si la pregunta es sobre el colegio.\n"
+        "3. Cita el documento, artículo o sección cuando sea posible (ej: 'Según el Manual de Convivencia...').\n"
+        "4. Responde de manera clara, natural y directa. Sin formato Markdown, sin asteriscos.\n"
+        "5. Máximo 4 párrafos cortos. Si es una lista, ponla limpia.\n"
+        "6. Si ves datos numéricos o citas importantes, inclúyelos con precisión.\n\n"
         f"PREGUNTA: {pregunta}"
     )
     partes = [{"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}}]
     if pdf_pei_b64 and "pei" not in nombre_doc.lower():
-        partes.append({"text": "Contexto PEI institucional:"})
+        partes.append({"text": "Documento adicional (PEI 2024-2027 / Mapa de Procesos / POA / 19 Componentes):"})
+        partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_pei_b64}})
+    elif pdf_pei_b64:
+        partes.append({"text": "Documento adicional de respaldo institucional:"})
         partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_pei_b64}})
     partes.append({"text": instruccion})
     payload = {"contents":[{"parts":partes}],"generationConfig":{"temperature":0.2,"maxOutputTokens":1000}}
@@ -1492,19 +1650,27 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
     primera = not bool(hist)
     extra   = "\nDATOS EXTRA:\n"+"\n".join(["- "+d for d in conocimiento_extra])+"\n" if conocimiento_extra else ""
     prompt  = (
-        "Eres ColBot, asistente oficial del "+SCHOOL_NAME+" en Cucuta.\n"
-        "Personalidad: amigable, cálido, profesional. Máximo 3 párrafos. 1-2 emojis. URLs en texto plano.\n"
-        "Si ya te presentaste, NO te presentes de nuevo.\n"
-        "Si la pregunta es sobre convivencia, faltas o disciplina y no tienes el dato exacto, "
-        "dile al usuario que puede consultarlo en el Manual de Convivencia escribiendo: 'manual de convivencia'.\n"
-        "NUNCA inventes artículos, cifras ni normas que no estén en los datos.\n\n"
+        "Eres ColBot, el asistente virtual oficial de la IE Colegio Integrado Simón Bolívar (ColBolívar) de Cúcuta, Colombia.\n\n"
+        "PERSONALIDAD Y TONO:\n"
+        "- Eres amigable, cálido y cercano, como un colega bien informado del colegio.\n"
+        "- Hablas de manera natural y fluida, como una persona real: con empatía, sin sonar robótico ni frío.\n"
+        "- Usas 1-2 emojis por respuesta de forma natural, no exagerada.\n"
+        "- Eres conciso pero completo. Máximo 3-4 párrafos cortos o una lista breve si la pregunta lo requiere.\n"
+        "- Nunca dices 'Como asistente de IA...' ni frases robóticas. Eres ColBot, punto.\n"
+        "- Si ya te presentaste, NO te vuelves a presentar. Responde directo.\n"
+        "- Si la respuesta la tienes en los datos, dala con seguridad y naturalidad.\n"
+        "- Si no tienes el dato exacto sobre convivencia o disciplina, di: 'Para más detalles puedes consultar el Manual de Convivencia escribiendo exactamente: *manual de convivencia*'\n"
+        "- Si no tienes el dato sobre evaluación, di: 'Puedes consultarlo en detalle escribiendo: *siee*'\n"
+        "- NUNCA inventes artículos, cifras, nombres o normas. Solo usa lo que está en los datos.\n"
+        "- Las URLs las pones en texto plano, sin corchetes ni markdown.\n\n"
+        "CONOCIMIENTO BASE:\n"
         + INFO_INSTITUCIONAL + extra + (ctx if ctx else "")
-        + "\nCONVERSACION:\n" + ("(primera vez)\n" if primera else hist+"\n")
-        + ("Presentate brevemente.\n" if primera else "Responde directamente.\n")
-        + "\nPREGUNTA: " + pregunta
+        + "\nCONVERSACIÓN PREVIA:\n" + ("(primera vez que chateamos)\n" if primera else hist+"\n")
+        + ("\nEs la primera vez que nos habla. Preséntate brevemente en 1 línea y ayúdalo de inmediato.\n" if primera else "Responde directamente, sin saludos largos.\n")
+        + "\nPREGUNTA DEL USUARIO: " + pregunta
     )
     payload = {"contents":[{"parts":[{"text":prompt}]}],
-               "generationConfig":{"temperature":0.6,"maxOutputTokens":800,"topP":0.9}}
+               "generationConfig":{"temperature":0.65,"maxOutputTokens":900,"topP":0.9}}
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.post(url, json=payload); d = r.json()
     if "candidates" not in d:
@@ -1934,18 +2100,179 @@ def procesar_admin(mensaje):
 # ══════════════════════════════════════════════
 def respuesta_rapida(mensaje):
     s = norm(mensaje)
-    if any(p in s for p in ["quien es el rector","rector del colegio"]):
-        return "El rector del ColBolivar es el Mg. Jesus Maldonado Serrano."
-    if any(p in s for p in ["cuantos docentes","cuantos profesores"]):
-        return "El ColBolivar cuenta con 95 docentes.\nhttps://www.webcolegios.com/simon/"
-    if any(p in s for p in ["plan de area","planes de area","pensum 2026"]):
-        return f"Planes de Area 2026:\n{WEB_BASE}/planesdearea2026"
-    if any(p in s for p in ["telefono","correo","email","direccion","donde queda","contacto"]):
-        return "Calle 4 No.11A-26 San Martin, Cucuta\nTel: 5943344\nCorreo: colintsimonbolivar@semcucuta.gov.co"
-    if any(p in s for p in ["notas","ver notas","mis notas","consultar notas"]):
-        return "Consulta tus notas en:\nhttps://www.webcolegios.com/simon/"
-    if any(p in s for p in ["facebook","face","redes sociales"]):
-        return "Siguenos:\nhttps://www.facebook.com/share/1NM1mkhhcc/"
+
+    # ── RECTOR Y DIRECTIVOS ──────────────────────────────────────
+    if any(p in s for p in ["quien es el rector","rector del colegio","nombre del rector","como se llama el rector"]):
+        return "El rector del ColBolívar es el Mg. *Jesús Maldonado Serrano*. 👨‍💼\nEstá al frente de la institución desde el 20 de mayo de 2008."
+    if any(p in s for p in ["quien es la coordinadora","coordinadora del colegio","carolina bochaga","bochaga"]):
+        return "La Líder de Gestión Académica es *Carolina Bochagá Silva*. Coordina el POA 2025, proyectos transversales y acompaña a los docentes en sus planes de clase. 📚"
+    if any(p in s for p in ["marisol solarte","orientadora","psicóloga","psicologa","piar"]):
+        return "La orientadora escolar es *Marisol Solarte*, quien lidera el equipo de inclusión y el proyecto PIAR (Plan Individual de Ajustes Razonables) para estudiantes con NEE. 💙"
+
+    # ── CIFRAS Y DATOS GENERALES ─────────────────────────────────
+    if any(p in s for p in ["cuantos docentes","cuantos profesores","numero de docentes"]):
+        return "El ColBolívar cuenta con *96 docentes*, 5 directivos docentes y 10 administrativos. 👩‍🏫"
+    if any(p in s for p in ["cuantos estudiantes","cuantos alumnos","numero de estudiantes"]):
+        return "La institución tiene *2.133 estudiantes* distribuidos en las 3 sedes y 2 jornadas, desde Preescolar hasta grado 11. 🎒"
+    if any(p in s for p in ["cuantas sedes","sedes del colegio","que sedes tiene"]):
+        return ("El ColBolívar tiene *3 sedes*:\n"
+                "1️⃣ Sede Central Simón Bolívar – Calle 4 N°11A-26, Urb. San Martín\n"
+                "2️⃣ Sede San Martín N°65 – Calle 5N #7-20\n"
+                "3️⃣ Sede Hernando Acevedo Ortega – Calle 0 N°13-06, Urb. Torcoroma II")
+
+    # ── CONTACTO Y UBICACIÓN ─────────────────────────────────────
+    if any(p in s for p in ["telefono","correo","email","direccion","donde queda","contacto","como llegar"]):
+        return ("*Contacto ColBolívar:*\n"
+                "📍 Calle 4 N°11A-26, Urb. San Martín, Cúcuta\n"
+                "📞 5943344 / 5848539\n"
+                "✉️ colintsimonbolivar@semcucuta.gov.co\n"
+                "🌐 https://gestionacademicaco.wixsite.com/colbolivar1")
+
+    # ── NOTAS ────────────────────────────────────────────────────
+    if any(p in s for p in ["notas","ver notas","mis notas","consultar notas","donde ver notas","boletin","boletín","calificaciones"]):
+        return "Consulta las notas en el portal Web Colegios 📊\nhttps://www.webcolegios.com/simon/"
+
+    # ── PLANES DE ÁREA ───────────────────────────────────────────
+    if any(p in s for p in ["plan de area","planes de area","pensum 2026","malla curricular 2026"]):
+        return ("*Planes de Área 2026:* 📁\n"
+                "• Matemáticas: https://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny\n"
+                "• Humanidades: https://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv\n"
+                "• Ciencias Naturales: https://drive.google.com/drive/folders/1WH5qeW4g61gM99BWlL4nBFfqZGr03HFr\n"
+                "También los encuentras en: https://gestionacademicaco.wixsite.com/colbolivar1/planesdearea2026")
+
+    # ── REDES SOCIALES ───────────────────────────────────────────
+    if any(p in s for p in ["facebook","face","redes sociales","instagram"]):
+        return "Síguenos en Facebook 👉 https://www.facebook.com/share/1NM1mkhhcc/"
+    if any(p in s for p in ["youtube","canal","videos"]):
+        return "Canal YouTube del ColBolívar 🎬\nhttps://www.youtube.com/@colbolivar"
+
+    # ── EVALUACIÓN Y NOTAS ───────────────────────────────────────
+    if any(p in s for p in ["con cuanto se aprueba","nota minima","nota para pasar","que nota necesito"]):
+        return "Para aprobar en el ColBolívar necesitas *3.0 o más* en cada área. 📝\nSi pierdes 3 o más áreas al final del año, el estudiante no es promovido.\nEscala: Bajo (1.0-2.9) | Básico (3.0-3.9) | Alto (4.0-4.5) | Superior (4.6-5.0)"
+    if any(p in s for p in ["cuantos periodos","cuantos bimestres","cuando son los periodos","periodos academicos"]):
+        return "El año escolar tiene *4 períodos académicos*. Al final de cada uno se entrega un boletín. Al cerrar el año se emite el boletín final en físico. 📋"
+    if any(p in s for p in ["escala de valoracion","escala de valoración","desempeño superior","desempeno superior","desempeno alto","desempeno basico","desempeno bajo"]):
+        return ("*Escala de Valoración ColBolívar:*\n"
+                "🌟 Superior: 4.6 – 5.0\n"
+                "✅ Alto:     4.0 – 4.5\n"
+                "📘 Básico:   3.0 – 3.9\n"
+                "⚠️ Bajo:     1.0 – 2.9\n"
+                "Para más detalles escribe: *siee*")
+    if any(p in s for p in ["cuantas materias para perder el ano","cuantas areas perdidas","con cuantas pierde","pierde el año con"]):
+        return "Un estudiante pierde el año si reprueba *3 o más áreas* al finalizar el año escolar. ⚠️\nPara más detalles sobre recuperaciones y promoción escribe: *siee*"
+
+    # ── CONVIVENCIA RÁPIDA ───────────────────────────────────────
+    if any(p in s for p in ["que es una falta leve","falta leve ejemplos","ejemplo de falta leve"]):
+        return ("*Faltas Leves:* 📋\nLlegar tarde, salir sin permiso, no usar uniforme correctamente, comer en clase, desaseo personal, inasistencia sin justificación.\n"
+                "Sanción: anotación en observador + acta de compromiso.\n⚠️ 3 faltas leves = 1 falta grave.\nPara más detalles: *manual de convivencia*")
+    if any(p in s for p in ["que es una falta grave","falta grave ejemplos","ejemplo de falta grave"]):
+        return ("*Faltas Graves:* ⚠️\nReincidencia de leves, no informar citaciones a padres, perturbar clases, uso de celular en clase, negocios dentro del colegio.\n"
+                "Sanción: citación inmediata a padres, posible matrícula en observación.\nPara más detalles: *manual de convivencia*")
+    if any(p in s for p in ["que es una falta gravisima","falta gravisima ejemplos","falta muy grave","gravísima"]):
+        return ("*Faltas Gravísimas:* 🚨\nAgresión física grave, acoso sexual, porte de armas o drogas, vandalismo, ciberbullying grave.\n"
+                "Sanción: activación Ruta de Atención Integral, cancelación de matrícula, remisión a ICBF/Policía/Fiscalía.\nPara más detalles: *manual de convivencia*")
+    if any(p in s for p in ["conducto regular","como poner una queja","como presentar una queja"]):
+        return ("*Conducto Regular ColBolívar:*\n"
+                "1️⃣ Docente / Director de grupo\n"
+                "2️⃣ Coordinación de sede\n"
+                "3️⃣ Rectoría\n"
+                "4️⃣ Consejo Directivo\n"
+                "5️⃣ Autoridades externas (solo si se agotan las instancias internas)\n"
+                "⚠️ No se puede saltarse el conducto regular sin razón justificada.")
+    if any(p in s for p in ["bullying","matoneo","acoso escolar","ciberacoso","cyberbullying"]):
+        return ("El ColBolívar tiene *CERO TOLERANCIA* con el bullying, matoneo y ciberbullying. 🚫\n"
+                "Es una falta Tipo III (Gravísima) según la Ley 1620 de 2013. Los padres del agresor deben indemnizar a la víctima.\n"
+                "Para más detalles sobre el protocolo: *manual de convivencia*")
+
+    # ── SERVICIOS ────────────────────────────────────────────────
+    if any(p in s for p in ["restaurante","almuerzo","refrigerio","pae","comida","alimentacion"]):
+        return "Sí, el ColBolívar tiene *restaurante escolar (PAE)* 🍽️ con refrigerios y almuerzos financiados por la Alcaldía de Cúcuta en las 3 sedes."
+    if any(p in s for p in ["transporte","ruta","bus","ureña","venezuela"]):
+        return "Existe *transporte humanitario* 🚌 para estudiantes que vienen de Ureña (Venezuela), en convenio con la Alcaldía de Cúcuta. Aproximadamente 186 estudiantes (9%) usan este servicio."
+    if any(p in s for p in ["smart place","smartplace","impresora 3d","robotica","arduino","3d"]):
+        return ("*Smart Place ColBolívar* 🖥️\n"
+                "Espacio tecnológico con impresoras 3D, robótica, Arduino, producción audiovisual y ofimática.\n"
+                "Cursos gratuitos para la comunidad.\n"
+                "🕐 Horario: Lunes a viernes, 8:00 am – 12:00 m y 2:00 – 6:00 pm")
+    if any(p in s for p in ["escuela de padres","escuela para padres","reunion de padres obligatoria"]):
+        return "Las *Escuelas de Padres* son obligatorias según la Ley 2025 de 2020. 👨‍👩‍👧 Se programan durante el año y son convocadas por la orientadora y coordinación. La inasistencia reiterada sin excusa puede afectar la renovación de matrícula."
+
+    # ── MATRÍCULA ────────────────────────────────────────────────
+    if any(p in s for p in ["cuando es la matricula","proceso de matricula","requisitos matricula","como matricular","inscripcion","cuando se matricula"]):
+        return ("*Proceso de Matrícula ColBolívar:*\n"
+                "📅 Proyección de cupos: agosto\n"
+                "📝 Inscripciones: septiembre – noviembre\n"
+                "📋 Entrevistas con orientadora: octubre – diciembre\n"
+                "✅ Matrícula: noviembre – diciembre\n"
+                "Las jornadas y sedes las asigna la Rectoría.\nPara requisitos completos escribe: *matricula*")
+
+    # ── GOBIERNO ESCOLAR ─────────────────────────────────────────
+    if any(p in s for p in ["personero estudiantil","como se elige el personero","personero","personera"]):
+        return ("El *Personero Estudiantil* se elige dentro de los *30 primeros días* del año escolar. 🗳️\n"
+                "Debe ser estudiante de grado 11, con matrícula vigente y sin otros cargos. Se elige por votación secreta y mayoría simple.")
+    if any(p in s for p in ["consejo directivo","consejo academico","gobierno escolar","organos de gobierno"]):
+        return ("*Gobierno Escolar ColBolívar:*\n"
+                "• Consejo Directivo: rector + 2 docentes + 2 padres + 1 estudiante + 1 egresado + 1 sector productivo\n"
+                "• Consejo Académico: lidera lo pedagógico y el currículo\n"
+                "• Personero Estudiantil: voz de los estudiantes (grado 11)\n"
+                "• Consejo Estudiantil: vocero de cada grado\n"
+                "• Consejo de Padres: voceros por grado\n"
+                "Para más detalles escribe: *pei*")
+
+    # ── CONVENIOS Y TÉCNICA ──────────────────────────────────────
+    if any(p in s for p in ["media tecnica","bachillerato tecnico","doble titulacion","convenio sena","que tecnicas hay"]):
+        return ("El ColBolívar ofrece *2 modalidades de Media Técnica* con el SENA (doble titulación):\n"
+                "🖥️ Mantenimiento de Equipos de Cómputo\n"
+                "💼 Asesoría Comercial\n"
+                "Ambas en la jornada de la tarde. Al graduarse obtienes título de Bachiller *y* Técnico SENA.")
+    if any(p in s for p in ["yukpa","indigena","comunidad indigena","propuesta intercultural"]):
+        return "El ColBolívar tiene la *Propuesta Educativa Intercultural YUKPA* en la Sede San Martín. 🌿 Integra la lengua materna Yukpa con el currículo nacional, promoviendo la identidad cultural de la comunidad indígena Yukpa."
+
+    # ── HISTORIA ─────────────────────────────────────────────────
+    if any(p in s for p in ["historia del colegio","cuando fue fundado","origen del colegio","reseña historica","cuando inicio","desde cuando existe"]):
+        return ("El ColBolívar inició el *18 de febrero de 1992* con 37 estudiantes en dos aulas del INURBE en la Ciudadela San Martín. 🏫\n"
+                "Se constituyó legalmente mediante el *Decreto 00780 del 30 de septiembre de 2002*.\n"
+                "En 2018 alcanzó Nivel A en las Pruebas Saber 11. Actualmente tiene 2.133 estudiantes en 3 sedes.")
+
+    # ── LEMA / VALORES / MISIÓN / VISIÓN ────────────────────────
+    if any(p in s for p in ["lema del colegio","cual es el lema","lema institucional"]):
+        return "El lema del ColBolívar es: *\"Educamos para construir proyectos de vida con Éxito\"* 🌟"
+    if any(p in s for p in ["valores del colegio","valores institucionales","estrella colbolivar"]):
+        return ("*Valores ColBolívar — La Estrella:*\n"
+                "❤️ Amor: paz, amistad, respeto, sana convivencia\n"
+                "✊ Esfuerzo: hábitos de estudio, responsabilidad, trabajo en equipo\n"
+                "🙏 Fe: espiritualidad, autoestima, autocontrol\n"
+                "✅ Honestidad: ética, verdad, puntualidad")
+    if any(p in s for p in ["mision del colegio","cual es la mision","mision institucional"]):
+        return "Misión: Somos una institución oficial que ofrece educación de calidad en Pre-escolar, Básica, Media académica y Técnica, formando integralmente al estudiante en el saber ser, saber hacer y saber saber, para construir Proyectos de Vida con Éxito. 🎯"
+    if any(p in s for p in ["vision del colegio","cual es la vision","vision institucional"]):
+        return "Visión: En 2025, ser reconocidos a nivel regional y nacional por procesos académicos y administrativos de alta calidad, apoyados en TICs, inclusión escolar y convivencia ciudadana. 🚀"
+
+    # ── MODELO PEDAGÓGICO ────────────────────────────────────────
+    if any(p in s for p in ["modelo pedagogico","como ensenan","metodologia de ensenanza","como aprenden","pedagogia activa"]):
+        return ("El modelo pedagógico del ColBolívar es la *Pedagogía Activa* 📖 (\"Escuelas que aprenden\").\n"
+                "El estudiante es el centro del proceso; el docente es facilitador e investigador.\n"
+                "Se aprende haciendo, explorando y colaborando.\n"
+                "Para más detalles: *pei*")
+
+    # ── POA Y GESTIÓN ACADÉMICA ──────────────────────────────────
+    if any(p in s for p in ["poa","plan operativo anual","actividades del poa","poa 2025"]):
+        return ("El *POA 2025 de Gestión Académica* tiene 18 actividades estratégicas. 📋\n"
+                "Liderado por Carolina Bochagá Silva.\n"
+                "Incluye: revisión del SIE, proyectos transversales, PIAR, seguimiento a egresados, formación docente.\n"
+                "Para detalle completo escribe: *documento maestro*")
+    if any(p in s for p in ["19 componentes","componentes academicos","nivel de los componentes","autoevaluacion academica"]):
+        return ("El ColBolívar evalúa *19 componentes* de Gestión Académica en 4 niveles. 📊\n"
+                "La mayoría está actualmente en Nivel 1 (Existencia).\n"
+                "Meta 2025: alcanzar Nivel 2 o 3 en todos los componentes.\n"
+                "Para detalle completo escribe: *documento maestro*")
+
+    # ── JORNADAS ─────────────────────────────────────────────────
+    if any(p in s for p in ["jornada manana","jornada de la manana","horario manana","a que hora entra"]):
+        return "Jornada mañana: *6:00 am a 12:00 pm* (hasta 13:00 en algunos grados) ☀️"
+    if any(p in s for p in ["jornada tarde","jornada de la tarde","horario tarde"]):
+        return "Jornada tarde: *12:15 pm a 6:15 pm* (hasta 19:15 en algunos grados) 🌅"
+
     return None
 
 
@@ -2122,20 +2449,20 @@ async def procesar(mensaje, telefono, nombre):
             return resp_admin
 
     # SALUDO — "menu" solo aplica a no-admins (los admins ya fueron interceptados arriba)
-    saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start"]
+    saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start","que puedo hacer","como te llamas","quien eres"]
     if s in saludos:
         tiene_hist = bool(historiales.get(telefono))
-        nombre_txt = (" " + nombre) if nombre else ""
+        nombre_txt = (" " + nombre.split()[0]) if nombre else ""
         if tiene_hist:
-            return f"¡Hola de nuevo{nombre_txt}! ¿En qué te ayudo? 😊"
+            return f"¡Hola de nuevo{nombre_txt}! 😊 ¿En qué te puedo ayudar hoy?"
         return (
-            f"¡Hola{nombre_txt}! Soy *ColBot* 🤖, asistente de la IE Simón Bolívar.\n\n"
-            "Puedo:\n"
-            "📚 Consultar documentos y manuales\n"
-            "📅 Revisar el calendario escolar\n"
-            "📋 Registrar reportes de convivencia\n"
-            "🔗 Darte enlaces y contactos\n\n"
-            "¿Qué necesitas?"
+            f"¡Hola{nombre_txt}! 👋 Soy *ColBot*, el asistente virtual del *Colegio Simón Bolívar* de Cúcuta.\n\n"
+            "Puedo ayudarte con:\n"
+            "📚 Documentos e información institucional\n"
+            "📅 Calendario y eventos escolares\n"
+            "📋 Registro de reportes de convivencia\n"
+            "🎒 Notas, matrícula, planes de área y más\n\n"
+            "¿Qué necesitas? Escríbeme con confianza 😊"
         )
 
     # RESPUESTA RAPIDA
@@ -2202,7 +2529,7 @@ async def procesar(mensaje, telefono, nombre):
     if clave_doc:
         solo_enlace = (any(p in s for p in PALABRAS_ENLACE) and not any(p in s for p in PALABRAS_LEER))
         if solo_enlace:
-            return nom_doc + "\n\nDescarga:\n" + url_doc
+            return f"Aquí tienes el enlace al *{nom_doc}* 📎\n\n{url_doc}"
         guardar_hist(telefono,"u",mensaje)
         try:
             pdf_b64 = await asyncio.wait_for(descargar_pdf_b64(url_doc), timeout=35)
@@ -2216,9 +2543,9 @@ async def procesar(mensaje, telefono, nombre):
             )
             resp = f"(Según el {nom_doc})\n\n" + resp
         except asyncio.TimeoutError:
-            resp = f"El documento tardó demasiado. Descárgalo:\n{url_doc}"
+            resp = f"El documento tardó mucho en cargar 😅. Puedes descargarlo directamente aquí:\n{url_doc}"
         except Exception as e:
-            print("ERROR PDF: "+str(e)); resp = f"No pude leer el documento ahora. Descárgalo:\n{url_doc}"
+            print("ERROR PDF: "+str(e)); resp = f"Tuve un problema leyendo el documento. Descárgalo aquí:\n{url_doc}"
         guardar_hist(telefono,"a",resp); return resp
 
     # ENLACE WEB
@@ -2232,12 +2559,20 @@ async def procesar(mensaje, telefono, nombre):
     # Es la fuente de verdad antes de responder con Gemini solo.
     if any(p in s for p in PALABRAS_DOC_CENTRAL):
         guardar_hist(telefono,"u",mensaje)
-        URL_CENTRAL = CATALOGO["pei"][1]
+        URL_CENTRAL  = CATALOGO["pei"][1]
+        URL_MAESTRO  = CATALOGO["documento maestro"][1]
         print(f"[DOC CENTRAL] activado para: {mensaje[:80]}")
         try:
             pdf_central = await asyncio.wait_for(descargar_pdf_b64(URL_CENTRAL), timeout=40)
+            # Intentar también cargar el documento maestro para máxima cobertura
+            pdf_maestro = None
+            try:
+                pdf_maestro = await asyncio.wait_for(descargar_pdf_b64(URL_MAESTRO), timeout=30)
+            except Exception as e2:
+                print(f"WARN doc maestro: {e2}")
             resp = await asyncio.wait_for(
-                llamar_gemini_pdf(mensaje, "PEI y Documentos Institucionales ColBolívar", pdf_central, telefono, nombre),
+                llamar_gemini_pdf(mensaje, "PEI y Documentos Institucionales ColBolívar",
+                                  pdf_central, telefono, nombre, pdf_pei_b64=pdf_maestro),
                 timeout=60
             )
             guardar_hist(telefono,"a",resp); return resp
@@ -2248,12 +2583,26 @@ async def procesar(mensaje, telefono, nombre):
 
     # GEMINI NORMAL
     guardar_hist(telefono,"u",mensaje)
+    # Intentar enriquecer con el sitio web del colegio si la pregunta parece institucional
+    ctx_web = ""
+    s_parece_institucional = any(p in s for p in [
+        "colegio","colbolivar","simon bolivar","sede","docente","rector",
+        "coordinador","estudiante","grado","area","proyecto","evento","actividad",
+        "matricula","nota","boletin","periodo","jornada","curso","clase",
+    ])
+    if s_parece_institucional and len(mensaje) > 10:
+        try:
+            web_resp = await asyncio.wait_for(buscar_en_web_colegio(mensaje), timeout=18)
+            if web_resp:
+                ctx_web = f"\nINFORMACIÓN ADICIONAL DEL SITIO WEB DEL COLEGIO:\n{web_resp}\n"
+        except Exception as e:
+            print(f"WARN web_colegio skip: {e}")
     try:
-        resp = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre), timeout=25)
+        resp = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre, ctx=ctx_web), timeout=25)
     except asyncio.TimeoutError:
-        resp = "La consulta tardó demasiado. Intentalo de nuevo."
+        resp = "Tardé más de lo normal en responder 😅. Intenta de nuevo en un momento."
     except Exception as e:
-        print("ERROR GEMINI: "+str(e)); resp = "Tuve un problema. Intentalo de nuevo."
+        print("ERROR GEMINI: "+str(e)); resp = "Tuve un pequeño problema. Inténtalo de nuevo por favor 🙏"
     guardar_hist(telefono,"a",resp)
     print("OK -> "+(nombre or telefono))
     return resp
