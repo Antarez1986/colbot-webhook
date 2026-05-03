@@ -1638,12 +1638,19 @@ async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usua
         partes.append({"text": "Contexto PEI institucional:"})
         partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_pei_b64}})
     partes.append({"text": instruccion})
-    payload = {"contents":[{"parts":partes}],"generationConfig":{"temperature":0.2,"maxOutputTokens":1000}}
+    payload = {"contents":[{"parts":partes}],"generationConfig":{"temperature":0.2,"maxOutputTokens":1500}}
     async with httpx.AsyncClient(timeout=60) as c:
         r = await c.post(url, json=payload); d = r.json()
     if "candidates" not in d:
         raise Exception("Gemini PDF: " + d.get("error",{}).get("message","error"))
-    return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
+    candidato = d["candidates"][0]
+    texto = candidato.get("content",{}).get("parts",[{}])[0].get("text","")
+    finish = candidato.get("finishReason","")
+    if finish == "MAX_TOKENS" and texto:
+        ultimo_punto = max(texto.rfind(". "), texto.rfind(".\n"), texto.rfind("! "), texto.rfind("? "))
+        if ultimo_punto > len(texto) // 2:
+            texto = texto[:ultimo_punto+1]
+    return limpiar_markdown(texto)
 
 
 # ══════════════════════════════════════════════
@@ -1657,31 +1664,66 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
     hist    = get_hist_txt(telefono)
     primera = not bool(hist)
     extra   = "\nDATOS EXTRA:\n"+"\n".join(["- "+d for d in conocimiento_extra])+"\n" if conocimiento_extra else ""
+
+    # Resumen compacto del colegio para el prompt (evita truncar por tokens)
+    info_compacta = (
+        "IE Simón Bolívar — ColBolívar — Cúcuta. DANE: 154001008266. "
+        "Rector: Mg. Jesús Maldonado Serrano. Sedes: Central (Calle 4 N°11A-26, tel 5943344), "
+        "San Martín (tel 5846438), Hernando Acevedo (tel 5769922). "
+        "Fundada: 30 sep 2002. Lema: 'Educamos para construir Proyectos de Vida con Éxito'. "
+        "Valores: Honestidad, Amor, Esfuerzo, Fe. "
+        "2133 estudiantes, 96 docentes. Niveles: Preescolar, Primaria, Secundaria, Media Académica y Técnica SENA. "
+        "PEI: GD-D1 v3.0 (2024-2027). Manual de Convivencia: GD-D02 v1.0 (vigente desde ene 22/2024). "
+        "Faltas: Leves (Art.161), Graves (Art.162), Gravísimas (Ley 1620/2013). "
+        "Escala: 1.0-5.0, aprueba con 3.0. 4 periodos. "
+        "Correo: colintsimonbolivar@semcucuta.gov.co | Web: gestionacademicaco.wixsite.com/colbolivar1"
+    )
+
+    # Contexto detallado solo si la pregunta lo necesita
+    s_preg = norm(pregunta)
+    necesita_detalle = any(p in s_preg for p in [
+        "manual","convivencia","falta","sancion","protocolo","ley","decreto",
+        "articulo","gobierno escolar","evaluacion","periodo","nota","calificacion",
+        "mision","vision","pei","historia","sede","acevedo","san martin",
+        "copasst","uniforme","suspension","matricula","derechos","deberes",
+    ])
+    info_usar = INFO_INSTITUCIONAL[:3000] if necesita_detalle else info_compacta
+
     prompt  = (
         "Eres ColBot, asistente institucional oficial del Colegio Integrado Simón Bolívar de Cúcuta.\n"
-        "Eres como un colega experto que conoce muy bien la institución — hablas con calidez,\n"
-        "de forma natural y cercana, pero siempre con propiedad y rigor académico.\n"
-        "Cuando respondas sobre temas de convivencia, normas o procesos, SIEMPRE cita la fuente:\n"
-        "por ejemplo 'Según el Manual de Convivencia GD-D02 (Art. 161)...' o\n"
-        "'El PEI 2024-2027 (GD-D1, Cap. 1, Sec. 1.7) establece que...' o\n"
-        "'De acuerdo con la Ley 1620/2013, Art. 2...'.\n"
-        "Máximo 3 párrafos. 1-2 emojis. URLs en texto plano. Sin formato Markdown con asteriscos.\n"
-        "Si ya te presentaste, NO te presentes de nuevo.\n"
-        "Si la pregunta es sobre convivencia y no tienes el dato exacto, dile al usuario\n"
-        "que puede consultar el Manual escribiendo: 'manual de convivencia'.\n"
-        "NUNCA inventes artículos, cifras ni normas que no estén en los datos.\n\n"
-        + INFO_INSTITUCIONAL + extra + (ctx if ctx else "")
+        "Hablas con calidez y cercanía, como un colega que conoce muy bien la institución.\n"
+        "REGLAS IMPORTANTES:\n"
+        "- Responde SIEMPRE de forma COMPLETA. Nunca cortes una frase a la mitad.\n"
+        "- Máximo 3 párrafos bien terminados. Cada párrafo debe tener punto final.\n"
+        "- 1-2 emojis. Sin asteriscos ni markdown. URLs en texto plano.\n"
+        "- Si citas normas, menciona la fuente: 'Manual GD-D02 Art.161' o 'Ley 1620/2013'.\n"
+        "- Si ya te presentaste, NO te presentes de nuevo. Responde directo.\n"
+        "- NUNCA inventes artículos ni normas.\n\n"
+        "DATOS INSTITUCIONALES:\n" + info_usar + extra + (ctx if ctx else "")
         + "\nCONVERSACIÓN:\n" + ("(primera vez)\n" if primera else hist+"\n")
-        + ("Preséntate de forma breve y cálida, como un colega conocido.\n" if primera else "Responde directamente.\n")
+        + ("Preséntate brevemente como ColBot.\n" if primera else "Responde directamente.\n")
         + "\nPREGUNTA: " + pregunta
     )
     payload = {"contents":[{"parts":[{"text":prompt}]}],
-               "generationConfig":{"temperature":0.6,"maxOutputTokens":800,"topP":0.9}}
-    async with httpx.AsyncClient(timeout=30) as c:
+               "generationConfig":{"temperature":0.6,"maxOutputTokens":1200,"topP":0.9}}
+    async with httpx.AsyncClient(timeout=35) as c:
         r = await c.post(url, json=payload); d = r.json()
     if "candidates" not in d:
         raise Exception("Gemini: " + d.get("error",{}).get("message","error"))
-    return limpiar_markdown(d["candidates"][0]["content"]["parts"][0]["text"])
+
+    candidato = d["candidates"][0]
+    texto = candidato.get("content",{}).get("parts",[{}])[0].get("text","")
+
+    # Detectar si Gemini truncó la respuesta (finishReason MAX_TOKENS)
+    finish = candidato.get("finishReason","")
+    if finish == "MAX_TOKENS" and texto:
+        # Cortar en el último punto o signo de exclamación completo
+        ultimo_punto = max(texto.rfind(". "), texto.rfind(".\n"), texto.rfind("! "), texto.rfind("? "))
+        if ultimo_punto > len(texto) // 2:
+            texto = texto[:ultimo_punto+1]
+        print(f"WARN llamar_gemini: respuesta truncada por MAX_TOKENS, cortada en char {ultimo_punto}")
+
+    return limpiar_markdown(texto)
 
 
 # ══════════════════════════════════════════════
