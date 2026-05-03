@@ -30,8 +30,10 @@ AUTORESPONDER_SEND_URL = os.getenv("AUTORESPONDER_SEND_URL", "")
 RENDER_URL     = os.getenv("RENDER_EXTERNAL_URL", "https://autoresponder-ai.onrender.com")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 CALENDAR_ID    = "f4ff65197ae712df6cd26ab18dc878dc5eac8248c178dc7a67f855cb89b0deea@group.calendar.google.com"
-SHEETS_ID      = "1VTImBJaeAYGRTIeEMawam9eaoyaReMwW1fMikbqilcs"
-COL_TZ         = timezone(timedelta(hours=-5))
+SHEETS_ID            = "1VTImBJaeAYGRTIeEMawam9eaoyaReMwW1fMikbqilcs"
+# Google Sheets para reportes de daños e incidentes (COPASST)
+SHEETS_INCIDENTES_ID = "1BUsM1O8pXZ0G36R8d2BG2HbI4tre7ixIFrrop5qDriM"
+COL_TZ               = timezone(timedelta(hours=-5))
 
 # Hoja de borradores (estado del formulario persistido)
 SHEET_BORRADORES = "Borradores"
@@ -52,136 +54,123 @@ SHEETS_CREDS = {
 #  BASE DE CONOCIMIENTO
 # ══════════════════════════════════════════════
 INFO_INSTITUCIONAL = """
-══════════════════════════════════════════════════════════
-INSTITUCIÓN EDUCATIVA COLEGIO INTEGRADO SIMÓN BOLÍVAR — COLBÓLIVAR
-CÚCUTA, NORTE DE SANTANDER, COLOMBIA
-══════════════════════════════════════════════════════════
+INSTITUCIÓN EDUCATIVA COLEGIO INTEGRADO SIMÓN BOLÍVAR — COLBOLÍVAR — CÚCUTA
+DANE: 154001008266 | NIT: 800.181.183-7
+Código PEI: GD-D1, Versión 3.0 (Plan plurianual 2024–2027)
+Manual de Convivencia: Código GD-D02, Versión 1.0 (vigente desde enero 22 de 2024)
+Dirección Sede Central: Calle 4 N.° 11A-26 Urb. San Martín, Cúcuta | Tel: 5943344 / 5848539
+Sede San Martín: Calle 5N #7-20 Barrio San Martín | Tel: 5846438
+Sede Hernando Acevedo: Calle 0 N.° 13-06 Urb. Torcoroma II (Barrio Cañofístolo) | Tel: 5769922
+Correo oficial: colintsimonbolivar@semcucuta.gov.co | Alterno: colintsimonbolivar@yahoo.es
+Página web: www.institucioneducativasimonbolivar.edu.co
+Portal académico: https://gestionacademicaco.wixsite.com/colbolivar1
+Plataforma de notas: Web Colegios — https://www.webcolegios.com/simon/
+Facebook: https://www.facebook.com/share/1NM1mkhhcc/
+YouTube: https://www.youtube.com/@colbolivar
 
-IDENTIFICACIÓN OFICIAL:
-- Nombre: Institución Educativa Colegio Integrado Simón Bolívar
-- DANE: 154001008266 | NIT: 800181183-7
-- Código PEI: GD-D1, Versión 3.0 (vigente desde marzo 2024, plan 2024-2027)
-- Rector: Mg. Jesús Maldonado Serrano
-- Lema: "Educamos para construir proyectos de vida con Éxito"
-- Carácter: Oficial / Público | Zona: Urbana – Comuna 4 de Cúcuta
-- Fundación legal: Decreto 00780 del 30 de septiembre de 2002
-- Inicio real de labores: 18 de febrero de 1992
+DATOS GENERALES (PEI 2024–2027):
+- Rector: Mg. Jesús Maldonado Serrano (nombrado el 20 de mayo de 2008)
+- Fundación legal: 30 de septiembre de 2002 (Decreto 00780); operaciones desde el 18 de febrero de 1992
+- Lema institucional: "Educamos para construir Proyectos de Vida con Éxito"
+- Valores — La Estrella ColBolívar: Honestidad, Amor, Esfuerzo, Fe
+- Sedes: Central Simón Bolívar (Sede 1), San Martín N.°65 (Sede 2), Hernando Acevedo Ortega (Sede 3)
+- Estudiantes: 2.133 | Docentes: 96 | Directivos docentes: 5 | Personal administrativo: 10
+- Niveles: Preescolar (Jardín y Transición), Básica Primaria (1.° al 5.°), Básica Secundaria (6.° al 9.°),
+  Media Académica (10.° y 11.°), Media Técnica SENA (Mantenimiento de Equipos de Cómputo / Asesoría Comercial)
+- Propuesta especial: Educación Intercultural YUKPA (Sede San Martín)
+- Jornadas: Mañana 6:00–12:00 / 6:00–13:00 | Tarde 12:15–18:15 / 12:15–19:15
+- Carácter: Oficial/Público | Zona: Urbana — Comuna 4 de Cúcuta
+- Resolución de aprobación vigente: 01879 del 25 de noviembre de 2021
+- Convenios: SENA, Universidad de Pamplona, UFPS, COMFAORIENTE, IMRD, Secretaría de Cultura, CORPONOR
+- Smart Place ColBolívar: impresión 3D, robótica, Arduino, ofimática. L–V 8am–12m y 2pm–6pm
 
-CONTACTO:
-- Dirección Sede Central: Calle 4 N° 11A-26, Urbanización San Martín, Cúcuta
-- Teléfonos: 5943344 / 5848539
-- Correo institucional: colintsimonbolivar@semcucuta.gov.co
-- Correo alterno: colintsimonbolivar@yahoo.es
-- Sitio web académico: https://gestionacademicaco.wixsite.com/colbolivar1
-- Portal de notas: https://www.webcolegios.com/simon/
-- Facebook: https://www.facebook.com/share/1NM1mkhhcc/
-- YouTube: https://www.youtube.com/@colbolivar
+FILOSOFÍA Y HORIZONTE INSTITUCIONAL (Manual GD-D02 y PEI GD-D1):
+- Misión: El Colegio Simón Bolívar es una institución oficial que ofrece educación de calidad propendiendo
+  por la formación integral del estudiante desde el 'saber ser', 'saber hacer' y 'saber saber'.
+- Visión (2025): Ser reconocida a nivel regional y nacional por sus procesos de alta calidad,
+  apoyada en las TIC, la inclusión escolar y la convivencia ciudadana.
+- Política de calidad: transparencia, equidad, eficiencia, moralidad pública y buen gobierno.
+- Principios institucionales: Libertad, Orden, Justicia, Calidad y Liderazgo, Ética.
+- Pilares del conocimiento (Delors): Aprender a conocer, hacer, ser y convivir.
 
-SEDES:
-1. Sede Central Simón Bolívar: Calle 4 N° 11A-26, Urb. San Martín | Tel: 5943344
-2. Sede San Martín N°65: Calle 5N #7-20, Barrio San Martín | Tel: 5846438
-3. Sede Hernando Acevedo Ortega: Calle 0 N°13-06, Urb. Torcoroma II (Barrio Cañofístolo) | Tel: 5769922
+GOBIERNO ESCOLAR (PEI Cap. 1, Sec. 1.7 — Decreto 1860/1994):
+- Consejo Directivo: rector + 2 docentes + 2 padres + 1 estudiante + 1 exalumno + 1 sector productivo
+- Consejo Académico: lidera el liderazgo pedagógico y la investigación curricular
+- Comité de Convivencia Escolar: implementa la Ruta de Atención Integral (Ley 1620/2013)
+- Consejo Estudiantil: 1 vocero por grado (Art. 29, Decreto 1860/1994)
+- Personero Estudiantil: elegido en los primeros 30 días del calendario, entre estudiantes de grado 11
+- Comisión de Evaluación y Promoción: seguimiento académico (Decreto 1290/2009)
+- Consejo de Padres: voceros de padres por grado (Art. 31, Decreto 1860/1994)
+- Asamblea de Padres: instancia superior, por encima del Consejo Directivo (Ley 115/1994)
 
-CIFRAS CLAVE (2024):
-- Total estudiantes: 2.133
-- Docentes: 96 | Directivos docentes: 5 | Personal administrativo: 10
-- Jornadas: Mañana (6:00–12:00 / 6:00–13:00) y Tarde (12:15–18:15 / 12:15–19:15)
-- Estudiantes de Venezuela (Ureña): ~186 (9%) con transporte humanitario convenio Alcaldía
+EVALUACIÓN Y PROMOCIÓN (SIEE — Manual GD-D02 y Manual de Normatividad págs. 288–344):
+- Escala numérica: 1.0 a 5.0
+- Desempeño Superior: 4.6–5.0 | Alto: 4.0–4.5 | Básico: 3.0–3.9 | Bajo: 1.0–2.9
+- Nota mínima para aprobar: 3.0 (Desempeño Básico)
+- Pierde el año: 3 o más áreas en Desempeño Bajo al final del año
+- Periodos académicos: 4 (con sus respectivas comisiones de evaluación y promoción)
+- Componentes de evaluación: Ser (actitudes/valores), Saber (conceptos) y Hacer (desempeño práctico)
+- Tipos: autoevaluación, coevaluación, heteroevaluación
+- Nivelaciones y actividades de superación: conforme Decreto 1290/2009
 
-NIVELES EDUCATIVOS:
-- Preescolar: Jardín y Transición
-- Básica Primaria: Grados 1° al 5°
-- Básica Secundaria: Grados 6° al 9°
-- Media Académica con énfasis en Ciencias: Grados 10° y 11°
-- Media Técnica SENA: Mantenimiento de Computadores y Asesoría Comercial (doble titulación)
-- Propuesta Educativa Intercultural YUKPA: Sede San Martín
+CONVIVENCIA ESCOLAR (Manual GD-D02, Código GD-D02 — Ley 1620/2013 y Decreto 1965/2013):
+FALTAS LEVES (Art. 161 del Manual):
+- Llegar tarde, salir sin permiso del aula, comer o beber en clase
+- No portar el uniforme correctamente, desaseo personal o del aula
+- Inasistencia sin justificación, no entregar trabajos
+- Sanción: anotación en observador, acta de compromiso, trabajo manuscrito de 2 páginas
+- Tres faltas leves acumuladas equivalen a una falta GRAVE
 
-HORIZONTE INSTITUCIONAL:
-MISIÓN: Institución oficial que ofrece educación de calidad en Pre-escolar, Básica, Media académica y Técnica. Forma integralmente desde el saber ser, saber hacer y saber saber. Trabaja en inclusión educativa, evaluación formativa y trabajo colaborativo para construir Proyectos de Vida con Éxito.
-VISIÓN (2025): Ser reconocida a nivel regional y nacional por procesos académicos y administrativos de alta calidad, apoyada en TICs, inclusión escolar y convivencia ciudadana.
-VALORES — La Estrella ColBolívar: Honestidad (ética, verdad, puntualidad), Amor (paz, amistad, respeto, convivencia), Esfuerzo (hábitos de estudio, responsabilidad, trabajo en equipo), Fe (espiritualidad, autoestima, autocontrol).
-FILOSOFÍA: Desarrollar la persona como ser único, libre, trascendente, social y consciente.
-MODELO PEDAGÓGICO: Pedagogía Activa ("Escuelas que aprenden"). El estudiante es el centro; el docente es facilitador, orientador e investigador. Aprendizaje lúdico, experimental, colaborativo.
-DIMENSIONES DEL APRENDIZAJE: Aprender a Ser, Aprender a Aprender, Aprender a Hacer, Aprender a Convivir, Aprender a relacionarse con lo trascendente.
+FALTAS GRAVES (Art. 87 Ley 115/1994 — Art. 162 del Manual):
+- Reincidencia en faltas leves, irrespeto a docentes o compañeros
+- Porte inadecuado del uniforme de forma constante, perturbar clases
+- Uso de celulares/audífonos en clase sin autorización
+- No comunicar citaciones a padres, realizar negocios en el colegio
+- Sanción: citación inmediata a padres, anotación en observador, matrícula en observación si reincide
 
-GOBIERNO ESCOLAR:
-- Consejo Directivo: rector + 2 docentes + 2 padres + 1 estudiante + 1 egresado + 1 sector productivo
-- Consejo Académico: liderazgo pedagógico, diseña currículo, aprueba SIE
-- Personero Estudiantil: elegido de grado 11, primeros 30 días del año, voto secreto
-- Consejo Estudiantil: vocero de cada grado, se reúne en las 4 primeras semanas
-- Consejo de Padres: voceros por grado, garantiza participación de familias
-- Líder de Gestión Académica: Carolina Bochagá Silva
-- Orientadora Escolar / PIAR: Marisol Solarte
+FALTAS GRAVÍSIMAS / MUY GRAVES (Ley 1620/2013 — Situación Tipo III):
+- Porte de armas, consumo/tráfico de sustancias ilegales, vandalismo
+- Agresión física grave, acoso sexual, violencia escolar con lesiones
+- Acoso escolar/Bullying reiterado (Art. 2, Ley 1620/2013): padres del agresor indemnizan 1–100 SMLMV (T-252/2023)
+- Robo, intimidación, extorsión, material pornográfico, calumnia
+- Sanción: activación Ruta de Atención Integral, comité de convivencia, posible cancelación de matrícula,
+  remisión a ICBF, Policía, Fiscalía o Comisaría de Familia
 
-CONVENIOS Y ALIANZAS:
-- SENA: Media técnica Mantenimiento de Cómputo y Asesoría Comercial
-- Universidad de Pamplona y UFPS: articulación académica
-- COMFAORIENTE, IMRD, Secretaría de Cultura: Centros de Interés
-- CORPONOR: aliado ambiental | UNISIMON, CTC, UDES: aliados universitarios
-- Smart Place ColBolívar: espacio tecnológico (3D, robótica, Arduino, ofimática). Horario L-V 8am-12m y 2-6pm
+TIPOS DE SITUACIONES (Ley 1620/2013 y Decreto 1965/2013):
+- Situación Tipo I (Leve): conflictos sin daño físico. Se resuelven en el aula o con el docente/coordinación.
+- Situación Tipo II (Grave): conductas que causan daño al cuerpo o psicológico, sin constituir delito.
+  Requieren intervención del Comité Escolar de Convivencia.
+- Situación Tipo III (Muy Grave): conductas que pueden constituir delitos o contravenciones penales.
+  Requieren activación de Ruta de Atención Integral y posible denuncia a autoridades.
 
-EVALUACIÓN (SIEE):
-- Escala: 1.0 a 5.0
-- Desempeño Superior: 4.6 – 5.0 | Alto: 4.0 – 4.5 | Básico: 3.0 – 3.9 | Bajo: 1.0 – 2.9
-- Se aprueba con 3.0 o más. Se reprueba si se pierden 3 o más áreas.
-- 4 períodos académicos por año. Prueba de Comprensión vale 30% en todos los casos.
-- Se evalúan 4 saberes: Saber-Saber (cognitivo), Saber-Hacer (procedimental), Saber-Ser (actitudinal), Convivir (psicoafectivo).
-- Principio clave: "Se evalúa para mejorar, nunca para excluir."
-- Boletines: 4 durante el año (uno por período) + boletín final en físico al cierre.
-- Notas disponibles en: https://www.webcolegios.com/simon/
+DEBIDO PROCESO DISCIPLINARIO (Manual GD-D02 — T-004/2024, T-240/2018):
+7 pasos obligatorios: (1) Notificación formal de apertura, (2) Formulación clara de cargos,
+(3) Traslado de pruebas, (4) Término para descargos y defensa, (5) Decisión motivada,
+(6) Sanción proporcional, (7) Recursos para controvertir (reposición, apelación, queja).
+Principio In Dubio Pro Educando: la duda siempre favorece al disciplinado.
+Non Bis in Idem: nadie puede ser sancionado dos veces por el mismo hecho (Art. 29 Constitución).
 
-CONVIVENCIA (Manual GD-D02, vigente desde 22 enero 2024):
-- FALTAS LEVES (pág.161): llegar tarde, salir sin permiso, no usar uniforme, comer en clase, desaseo, inasistencia sin justificación. Sanción: anotación en observador, acta de compromiso, trabajo manuscrito 2 páginas. ¡3 faltas leves = falta grave!
-- FALTAS GRAVES (Art.87 Ley 115): reincidencia de leves, no informar citaciones a padres, perturbar clases, uso de celular en clase, negocios en el colegio. Sanción: citación inmediata a padres, cartelera restaurativa, matrícula en observación.
-- FALTAS GRAVÍSIMAS (Ley 1620, Tipo III): agresión física grave, acoso sexual, porte de armas o sustancias ilegales, vandalismo. Sanción: activación Ruta de Atención Integral, cancelación de matrícula, remisión a ICBF/Policía/Fiscalía.
-- CERO TOLERANCIA con bullying, matoneo, ciberbullying, humillaciones, acoso escolar.
-- CONDUCTO REGULAR: 1)Docente/Director de grupo → 2)Coordinación → 3)Rectoría → 4)Consejo Directivo → 5)Autoridades externas.
-- PRINCIPIOS: Debido proceso, presunción de inocencia, in dubio pro educando, non bis in idem.
+MARCO JURÍDICO CONVIVENCIA (Manual GD-D02, Sección 2):
+- Ley 115/1994 (Art. 87): obliga al Manual. Al firmar matrícula se acepta íntegramente.
+- Ley 1098/2006: Código de Infancia y Adolescencia.
+- Ley 1620/2013: Sistema Nacional de Convivencia Escolar. Ruta de Atención Integral.
+- Decreto 1965/2013: reglamentario Ley 1620.
+- Decreto 1075/2015 (Art. 2.3.4.3): deberes de los padres de familia.
+- T-004/2024 y T-124/2024: autonomía escolar y debido proceso disciplinario.
+- T-252/2023: obligación de indemnización para padres de agresores en bullying.
+- Código Civil Arts. 2346–2348: responsabilidad civil de padres por actos de sus hijos.
 
-SERVICIOS:
-- PAE (Programa Alimentación Escolar): refrigerios y almuerzos financiados por la Alcaldía en las 3 sedes.
-- Transporte humanitario: para estudiantes de Ureña (Venezuela), convenio con Alcaldía de Cúcuta.
-- Orientación Escolar: psicóloga Marisol Solarte, lidera proyecto PIAR.
-- Smart Place: impresoras 3D, Arduino, robótica, producción audiovisual, ofimática.
-- Escuelas de Padres: obligatorias según Ley 2025 de 2020.
-
-MATRÍCULA (Proceso):
-- Proyección cupos: agosto | Inscripciones: septiembre-noviembre | Matrículas: noviembre-diciembre
-- Entrevistas con orientadora: octubre-diciembre | Jornadas/sedes asignadas por Rectoría.
-- Requisitos: registro civil, tarjeta de identidad, Sisbén, EPS, último boletín, observador anterior, entre otros.
-- Sistema de matrícula: SIMAT | Plataforma de notas: Web Colegios
+INFRAESTRUCTURA Y GESTIÓN ADMINISTRATIVA (PEI — Mapa de Procesos 2024):
+- Proceso GAP2S1: Mantenimiento preventivo y correctivo de infraestructura en las tres sedes.
+- Proceso GAP2S2: Gestión de recursos tecnológicos (computadores, proyectores, salas de informática).
+- Proceso GAP2S4: Gestión de Riesgos — prevención y manejo de riesgos en planta física.
+- El colegio es responsable por daños que los alumnos sufran en instalaciones o actividades externas
+  (Código Civil Art. 2347; Consejo de Estado, Sección Tercera).
 
 PLANES DE ÁREA 2026:
 - Matemáticas: https://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny
 - Humanidades: https://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv
 - Ciencias Naturales: https://drive.google.com/drive/folders/1WH5qeW4g61gM99BWlL4nBFfqZGr03HFr
-
-MAPA DE PROCESOS (4 Gestiones):
-1. GESTIÓN DIRECTIVA: Direccionamiento estratégico (GDP1), Gestión estratégica (GDP2), Gobierno escolar (GDP3), Cultura institucional (GDP4), Clima escolar (GDP5), Relaciones con el entorno (GDP6).
-2. GESTIÓN ACADÉMICA: Diseño pedagógico curricular (GAP1: plan estudios, enfoque metodológico, recursos, jornada, evaluación), Prácticas pedagógicas (GAP2: opciones didácticas, tareas, recursos, tiempo), Gestión de aula (GAP3: ambiente, tiempo, interacción, disciplina), Seguimiento académico (GAP4: resultados, Pruebas Saber, asistencia, recuperación, PIAR, egresados).
-3. GESTIÓN ADMINISTRATIVA Y FINANCIERA: Apoyo académico, planta física, servicios complementarios, talento humano (96 docentes), finanzas (Fondo Servicios Educativos).
-4. GESTIÓN DE LA COMUNIDAD: Accesibilidad, inclusión educativa (PIAR, YUKPA), proyección comunitaria, convenios.
-
-POA 2025 — GESTIÓN ACADÉMICA (18 actividades estratégicas):
-- Responsable principal: Carolina Bochagá Silva (Líder Gestión Académica)
-- PIAR e inclusión: Marisol Solarte (Orientadora)
-- Revisión SIE: enero–junio 2025 | Seguimiento egresados: julio–septiembre 2025
-- 19 COMPONENTES: evaluados en 4 niveles (1-Existencia, 2-Pertinencia, 3-Apropiación, 4-Mejoramiento). Mayoría en Nivel 1 en 2025; meta: alcanzar Nivel 2-3.
-
-LOGROS HISTÓRICOS:
-- 1996: Primera promoción de Bachilleres Académicos.
-- 2013: Clasificación ICFES Nivel ALTO.
-- 2018: Nivel A en Pruebas Saber 11.
-- 2016: 7 estudiantes PILOS becados.
-- 2021: Inicio Proyecto Intercultural YUKPA.
-- 2024: 15 nuevos docentes por méritos. Fortalecimiento PTAFI 3.0.
-
-DIRECTIVOS (teléfonos referencia):
-- Rector Jesús Maldonado: 573208506397
-- Coordinadora Carolina Bochagá: 573123757876
-- Coordinadora Claudia Tamayo: 573103493495
-- Coordinador Homero Cuevas: 573159263064
-- Coordinador Salvador Peña: 573118085572
 """
 
 # ══════════════════════════════════════════════
@@ -227,26 +216,82 @@ EMOJIS_TIPO = {"Leve": "📋", "Grave": "⚠️", "Gravisima": "🚨"}
 
 PROTOCOLOS = {
     "Leve": (
-        "📋 *Protocolo – Falta Leve (Art. 161):*\n"
-        "• Diálogo con el estudiante y acta de compromiso.\n"
-        "• Notificación al acudiente.\n"
-        "• ⚠️ 3 faltas leves acumuladas = falta *Grave*."
+        "📋 *Protocolo – Falta Leve (Art. 161 Manual GD-D02):*\n"
+        "• Diálogo con el estudiante y acta de compromiso escrito.\n"
+        "• Notificación al acudiente (anotación en observador).\n"
+        "• ⚠️ 3 faltas leves acumuladas = falta *Grave* (Manual GD-D02, Sec. 8)."
     ),
     "Grave": (
-        "⚠️ *Protocolo – Falta Grave (Art. 162):*\n"
-        "• Citación formal al acudiente.\n"
+        "⚠️ *Protocolo – Falta Grave (Art. 162 Manual / Art. 87 Ley 115/1994):*\n"
+        "• Citación formal e inmediata al acudiente.\n"
         "• Suspensión de 1 a 3 días según gravedad.\n"
-        "• Acta de compromiso de convivencia.\n"
-        "• Remisión a orientación escolar."
+        "• Acta de compromiso de convivencia. Anotación en observador.\n"
+        "• Remisión a orientación escolar. Posible matrícula en observación."
     ),
     "Gravisima": (
-        "🚨 *Protocolo – Falta Gravísima (Art. 163 / Ley 1620):*\n"
-        "• Activación inmediata de Ruta de Atención Integral.\n"
-        "• Notificación al Comité de Convivencia Escolar.\n"
-        "• Posible remisión a autoridades (ICBF, Policía, Fiscalía).\n"
-        "• Suspensión mientras se investiga."
+        "🚨 *Protocolo – Falta Gravísima (Ley 1620/2013 — Situación Tipo III):*\n"
+        "• Activación inmediata de Ruta de Atención Integral (Decreto 1965/2013).\n"
+        "• Notificación urgente al Comité de Convivencia Escolar.\n"
+        "• Posible remisión a autoridades: ICBF, Policía, Fiscalía, Comisaría de Familia.\n"
+        "• Suspensión preventiva mientras se investiga. Posible cancelación de matrícula.\n"
+        "• Nota: en casos de bullying comprobado, padres del agresor pueden ser\n"
+        "  condenados a indemnizar entre 1 y 100 SMLMV (Sentencia T-252/2023)."
     ),
 }
+
+# ══════════════════════════════════════════════
+#  MÓDULO COPASST — REPORTE DE INCIDENTES
+#  (Comité Paritario de Seguridad y Salud en el Trabajo)
+#  Hoja Google Sheets separada para daños e incidentes físicos
+#  Columnas: N°Caso | Fecha | Hora | Sede | Espacio | Tipo de Daño |
+#            Descripción Original | Descripción Formal | Urgencia |
+#            Reportante | Teléfono
+# ══════════════════════════════════════════════
+CAMPOS_INCIDENTE = ["sede_inc", "espacio", "tipo_dano", "descripcion_inc"]
+
+ETIQUETAS_INCIDENTE = {
+    "sede_inc":        "🏫 Sede donde está el daño",
+    "espacio":         "📍 Lugar exacto (ej: salón 5°02, baño bloque B, portería)",
+    "tipo_dano":       "🔧 Tipo: eléctrico, estructura, mobiliario, sanitario, otro",
+    "descripcion_inc": "📝 Describe el daño con tus palabras",
+}
+
+MENU_SEDES_INC = (
+    "🏫 *¿En qué sede está el daño o incidente?*\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n"
+    "1️⃣  Simón Bolívar (Sede Central)\n"
+    "2️⃣  San Martín\n"
+    "3️⃣  Hernando Acevedo\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n"
+    "Responde con el *número* (1-3).\n"
+    "_(Escribe CANCELAR para salir)_"
+)
+
+SEDES_INC_OPCIONES = [
+    ("1", "Simón Bolívar (Sede Central)"),
+    ("2", "San Martín"),
+    ("3", "Hernando Acevedo"),
+]
+
+COL_INC = [
+    "telefono", "reportante", "estado",
+    "sede_inc", "espacio", "tipo_dano",
+    "descripcion_inc", "timestamp"
+]
+
+def _borrador_inc_a_dict(fila):
+    while len(fila) < len(COL_INC):
+        fila.append("")
+    return {COL_INC[i]: fila[i] for i in range(len(COL_INC))}
+
+def _dict_a_borrador_inc(d):
+    return [str(d.get(c, "") or "") for c in COL_INC]
+
+# Cache de borradores de incidentes
+borradores_inc_cache: dict = {}
+
+SHEET_BORRADORES_INC = "Borradores"
+SHEET_INCIDENTES     = "Incidentes"
 
 # ══════════════════════════════════════════════
 #  COLUMNAS BORRADOR (Hoja Borradores en Sheets)
@@ -852,9 +897,11 @@ async def gestionar_reporte(mensaje, telefono, nombre):
         b["estado"]     = "activo"
         # Si el docente escribió solo la intención sin datos, guiar de una vez
         if norm(mensaje) in [
-            "reportar una falta","reportar falta","reporte","nuevo reporte",
-            "registrar falta","registrar una falta","quiero reportar",
-            "falta","reporte de falta","hacer un reporte",
+            "reportar una falta","reportar falta","nuevo reporte",
+            "registrar falta","registrar una falta","quiero reportar una falta",
+            "falta","reporte de falta","hacer un reporte de falta",
+            "reporte manual de convivencia","reportar al manual de convivencia",
+            "reporte disciplinario","reporte de convivencia",
         ]:
             b["estado"] = "esperando_resto"
             await borrador_guardar(telefono, b)
@@ -1201,7 +1248,6 @@ WEB_LINKS = {
 BASE_PDF = "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_"
 CATALOGO = {
     "pei":                     ("Compilado Institucional ColBolívar 2024 (Manual de Convivencia págs.1-287 | Manual de Normatividad Académica págs.288-344 | Mapa de Procesos págs.345-370 | POA págs.371 | PEI págs.372-497)",   "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
-    "documento maestro":       ("Documento Maestro Institucional ColBolívar (PEI 2024-2027, Mapa de Procesos, POA, 19 Componentes)", "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_a9a582c1009240fabc03f37778946792.pdf"),
     "siee":                    ("SIEE - Sistema de Evaluacion",             BASE_PDF + "f245afe526dd49d097d9417251ec1adc.pdf"),
     "manual de convivencia":   ("Documento Maestro Institucional ColBolívar",  "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
     "manual de funciones":     ("Manual de Funciones",                      BASE_PDF + "711c1ffb30334ea9b10163d87aaed4ba.pdf"),
@@ -1222,14 +1268,9 @@ ALIAS_DOC = {
     "inscripcion":"matricula", "contrato":"contratacion",
     "sena":"practicas empresariales", "laboratorio":"practicas de laboratorio",
     "sanitarias":"baterias sanitarias", "funciones":"manual de funciones",
-    "poa":"documento maestro", "mapa de procesos":"documento maestro",
-    "19 componentes":"documento maestro", "plan operativo":"documento maestro",
-    "gestion academica":"documento maestro", "plan 2025":"documento maestro",
-    "gestion directiva":"documento maestro", "carolina bochaga":"documento maestro",
-    "procesos institucionales":"documento maestro",
 }
-PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido","que habla","como funciona","cual es","que informacion","dime sobre","cuéntame","cuentame"]
-PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf","documento","manual","ver el","acceder al"]
+PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido","que habla","como funciona","cual es"]
+PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf"]
 PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay","actividades","bimestral","receso","periodo","semana","mes","hoy","manana","mañana","proximo","próximo","vacaciones","boletin","boletín","dia civico","reunion","reunión","padres","clausura","graduacion","graduación","izado","izad","capacitacion","capacitación","prueba saber","matricula","matrícula","festivo","festivos","puente","semana santa","semana de receso","dias libres","suspensión","suspension","paro","sin clases"]
 
 # ══════════════════════════════════════════════
@@ -1238,6 +1279,21 @@ PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay",
 # ══════════════════════════════════════════════
 def es_intencion_reporte(mensaje: str) -> bool:
     s = norm(mensaje)
+
+    # CAPA 0 — BLOQUEO ABSOLUTO: frases de reporte de DAÑO/INCIDENTE físico
+    # Estas deben ir al módulo COPASST, NUNCA al módulo de faltas
+    BLOQUEO_INCIDENTE = [
+        "reportar un dano", "reportar dano", "reportar un incidente",
+        "reportar incidente", "hay un dano", "hay un incidente",
+        "reporte de dano", "reporte de incidente", "reporte copasst",
+        "reportar averia", "dano en el colegio", "incidente en el colegio",
+        "informar un dano", "informar dano", "informar un incidente",
+        "hay un problema en", "hay una falla en", "hay un desperfecto",
+        "teja caida", "dano electrico", "puerta danada", "vidrio roto",
+        "fuga de agua", "corto electrico", "cortocircuito",
+    ]
+    if any(p in s for p in BLOQUEO_INCIDENTE):
+        return False
 
     # CAPA 1 — BLOQUEO: consultas informativas tienen prioridad absoluta
     BLOQUEO = [
@@ -1253,15 +1309,20 @@ def es_intencion_reporte(mensaje: str) -> bool:
     if any(p in s for p in BLOQUEO):
         return False
 
-    # CAPA 2 — SEÑALES INEQUÍVOCAS DE ACCIÓN DE REPORTE
+    # CAPA 2 — SEÑALES INEQUÍVOCAS DE ACCIÓN DE REPORTE DE FALTA
     ACCION_DIRECTA = [
-        "quiero reportar","voy a reportar","necesito reportar",
-        "hacer un reporte","hacer reporte","registrar un reporte",
-        "registrar un incidente","levantar un acta","levantar acta",
-        "abrir un caso","abrir caso","reportar una falta",
-        "reportar a ","reporte de convivencia","reporte disciplinario",
+        "quiero reportar una falta","quiero reportar falta",
+        "voy a reportar una falta","necesito reportar una falta",
+        "hacer un reporte de falta","hacer reporte de falta",
+        "registrar un reporte de falta","registrar una falta",
+        "levantar un acta","levantar acta",
+        "abrir un caso","abrir caso",
+        "reportar una falta","reportar al manual de convivencia",
+        "reportar falta de convivencia","reporte de convivencia",
+        "reporte disciplinario","reporte manual de convivencia",
         "anotar una falta","anotar falta","subir una falta",
-        "iniciar reporte","nuevo reporte",
+        "iniciar reporte","nuevo reporte de falta",
+        "reportar a ",
     ]
     if any(p in s for p in ACCION_DIRECTA):
         return True
@@ -1503,14 +1564,6 @@ PALABRAS_DOC_CENTRAL = [
     "que establece","que indica","segun el colegio","en colbolivar",
     "en la institucion","en el colegio","en simon bolivar",
     "dime","explicame","que es","que son","como se","cuando se",
-    # ── Documento Maestro 2 (PEI 2024-2027 + Mapa + POA + 19 Componentes) ──
-    "documento maestro","poa 2025","mapa de procesos 2024",
-    "19 componentes","aplicativo componentes","nivel de los componentes",
-    "carolina bochaga","marisol solarte","seguimiento academico",
-    "practicas pedagogicas","diseno pedagogico","diseño pedagogico",
-    "GDP","GAP","indicador","meta institucional","responsable del proceso",
-    "politica de calidad","cuantas sedes","logros del colegio",
-    "star colbolivar","estrella colbolivar","valores institucionales del colegio",
 ]
 
 
@@ -1530,46 +1583,6 @@ def buscar_web(texto):
         if norm(clave) in s:
             return url, desc
     return None, None
-
-async def buscar_en_web_colegio(pregunta: str) -> str:
-    """
-    Consulta el sitio web del colegio para temas no cubiertos por PDFs.
-    Solo se llama como último recurso inteligente.
-    Retorna fragmento útil o None si no encuentra nada.
-    """
-    WEB_COLEGIO = "https://gestionacademicaco.wixsite.com/colbolivar1"
-    try:
-        async with httpx.AsyncClient(timeout=12, follow_redirects=True) as c:
-            r = await c.get(WEB_COLEGIO)
-            if r.status_code != 200:
-                return None
-            # Extraer texto plano básico quitando HTML
-            texto = re.sub(r'<[^>]+>', ' ', r.text)
-            texto = re.sub(r'\s+', ' ', texto).strip()[:3000]
-        # Usar Gemini para extraer la respuesta puntual del HTML
-        api_key = os.getenv("GEMINI_API_KEY","")
-        modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
-        url_g   = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
-        prompt  = (
-            f"Eres ColBot del Colegio Simón Bolívar de Cúcuta.\n"
-            f"Basándote SOLO en este fragmento del sitio web del colegio, responde de forma breve y natural:\n\n"
-            f"CONTENIDO WEB:\n{texto}\n\n"
-            f"PREGUNTA: {pregunta}\n\n"
-            "Si el fragmento no contiene la respuesta, di exactamente: NO_ENCONTRADO"
-        )
-        payload = {"contents":[{"parts":[{"text":prompt}]}],
-                   "generationConfig":{"temperature":0.2,"maxOutputTokens":300}}
-        async with httpx.AsyncClient(timeout=15) as c:
-            resp = await c.post(url_g, json=payload)
-            d    = resp.json()
-        if "candidates" in d:
-            txt = d["candidates"][0]["content"]["parts"][0]["text"].strip()
-            if "NO_ENCONTRADO" in txt:
-                return None
-            return limpiar_markdown(txt)
-    except Exception as e:
-        print(f"WARN buscar_en_web_colegio: {e}")
-    return None
 
 
 # ══════════════════════════════════════════════
@@ -1602,32 +1615,27 @@ async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usua
     modelo  = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
     instruccion = (
-        "Eres ColBot, asistente oficial de la IE Simón Bolívar de Cúcuta (Colombia).\n"
-        "Tienes acceso a los documentos institucionales del colegio. Responde como un colega bien informado: "
-        "claro, directo, amigable. No suenes robótico. Usa lenguaje natural.\n\n"
-        "ESTRUCTURA DE ESTE COMPILADO INSTITUCIONAL:\n"
-        "• Págs. 1-287:   Manual de Convivencia (faltas leve/grave/gravísima, sanciones, derechos, deberes, rutas de atención, Ley 1620)\n"
+        "Eres ColBot, asistente oficial de la IE Simón Bolívar de Cúcuta (Colombia).\n\n"
+        "Este documento es el COMPILADO INSTITUCIONAL del Colegio Simón Bolívar de Cúcuta (2024), "
+        "organizado así:\n"
+        "• Págs. 1-287:   Manual de Convivencia (faltas, sanciones, derechos, deberes, rutas de atención, Ley 1620)\n"
         "• Págs. 288-344: Manual de Normatividad Académica (evaluación, promoción, SIEE, escala de valoración)\n"
         "• Págs. 345-370: Mapa de Procesos 2024 (gestión académica, procesos P1/P2/P3/P4, códigos GAP)\n"
-        "• Pág.  371:     POA - Plan Operativo Anual 2025 (actividades, metas, cronograma, responsables)\n"
+        "• Pág.  371:     POA - Plan Operativo Anual (actividades, metas, cronograma)\n"
         "• Págs. 372-497: PEI - Proyecto Educativo Institucional (misión, visión, modelo pedagógico, "
         "gobierno escolar, plan de estudios, componentes directivo/académico/administrativo/comunitario)\n\n"
-        "TAMBIÉN HAY UN SEGUNDO DOCUMENTO con el PEI 2024-2027 actualizado, Mapa de Procesos, POA y los 19 Componentes de Gestión Académica.\n\n"
         "REGLAS DE RESPUESTA:\n"
-        "1. Busca EXHAUSTIVAMENTE en todo el documento antes de responder. La respuesta casi siempre está ahí.\n"
-        "2. NUNCA digas que no tienes el dato si la pregunta es sobre el colegio.\n"
-        "3. Cita el documento, artículo o sección cuando sea posible (ej: 'Según el Manual de Convivencia...').\n"
-        "4. Responde de manera clara, natural y directa. Sin formato Markdown, sin asteriscos.\n"
-        "5. Máximo 4 párrafos cortos. Si es una lista, ponla limpia.\n"
-        "6. Si ves datos numéricos o citas importantes, inclúyelos con precisión.\n\n"
+        "1. Busca EXHAUSTIVAMENTE en todo el documento antes de responder.\n"
+        "2. NUNCA digas que no tienes el dato si la pregunta es sobre el colegio — la respuesta está en el documento.\n"
+        "3. Cita siempre el documento de origen y el artículo/sección/página cuando sea posible "
+        "(ej: 'Según el Manual de Convivencia, Art. 45...' o 'Según el Mapa de Procesos, proceso GAP151...').\n"
+        "4. Responde directo, claro y profesional. Máximo 5 párrafos. Sin formato Markdown.\n"
+        "5. Si la pregunta pide listados, números o conteos, dálos completos y precisos.\n\n"
         f"PREGUNTA: {pregunta}"
     )
     partes = [{"inline_data": {"mime_type": "application/pdf", "data": pdf_b64}}]
     if pdf_pei_b64 and "pei" not in nombre_doc.lower():
-        partes.append({"text": "Documento adicional (PEI 2024-2027 / Mapa de Procesos / POA / 19 Componentes):"})
-        partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_pei_b64}})
-    elif pdf_pei_b64:
-        partes.append({"text": "Documento adicional de respaldo institucional:"})
+        partes.append({"text": "Contexto PEI institucional:"})
         partes.append({"inline_data": {"mime_type": "application/pdf", "data": pdf_pei_b64}})
     partes.append({"text": instruccion})
     payload = {"contents":[{"parts":partes}],"generationConfig":{"temperature":0.2,"maxOutputTokens":1000}}
@@ -1650,27 +1658,25 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
     primera = not bool(hist)
     extra   = "\nDATOS EXTRA:\n"+"\n".join(["- "+d for d in conocimiento_extra])+"\n" if conocimiento_extra else ""
     prompt  = (
-        "Eres ColBot, el asistente virtual oficial de la IE Colegio Integrado Simón Bolívar (ColBolívar) de Cúcuta, Colombia.\n\n"
-        "PERSONALIDAD Y TONO:\n"
-        "- Eres amigable, cálido y cercano, como un colega bien informado del colegio.\n"
-        "- Hablas de manera natural y fluida, como una persona real: con empatía, sin sonar robótico ni frío.\n"
-        "- Usas 1-2 emojis por respuesta de forma natural, no exagerada.\n"
-        "- Eres conciso pero completo. Máximo 3-4 párrafos cortos o una lista breve si la pregunta lo requiere.\n"
-        "- Nunca dices 'Como asistente de IA...' ni frases robóticas. Eres ColBot, punto.\n"
-        "- Si ya te presentaste, NO te vuelves a presentar. Responde directo.\n"
-        "- Si la respuesta la tienes en los datos, dala con seguridad y naturalidad.\n"
-        "- Si no tienes el dato exacto sobre convivencia o disciplina, di: 'Para más detalles puedes consultar el Manual de Convivencia escribiendo exactamente: *manual de convivencia*'\n"
-        "- Si no tienes el dato sobre evaluación, di: 'Puedes consultarlo en detalle escribiendo: *siee*'\n"
-        "- NUNCA inventes artículos, cifras, nombres o normas. Solo usa lo que está en los datos.\n"
-        "- Las URLs las pones en texto plano, sin corchetes ni markdown.\n\n"
-        "CONOCIMIENTO BASE:\n"
+        "Eres ColBot, asistente institucional oficial del Colegio Integrado Simón Bolívar de Cúcuta.\n"
+        "Eres como un colega experto que conoce muy bien la institución — hablas con calidez,\n"
+        "de forma natural y cercana, pero siempre con propiedad y rigor académico.\n"
+        "Cuando respondas sobre temas de convivencia, normas o procesos, SIEMPRE cita la fuente:\n"
+        "por ejemplo 'Según el Manual de Convivencia GD-D02 (Art. 161)...' o\n"
+        "'El PEI 2024-2027 (GD-D1, Cap. 1, Sec. 1.7) establece que...' o\n"
+        "'De acuerdo con la Ley 1620/2013, Art. 2...'.\n"
+        "Máximo 3 párrafos. 1-2 emojis. URLs en texto plano. Sin formato Markdown con asteriscos.\n"
+        "Si ya te presentaste, NO te presentes de nuevo.\n"
+        "Si la pregunta es sobre convivencia y no tienes el dato exacto, dile al usuario\n"
+        "que puede consultar el Manual escribiendo: 'manual de convivencia'.\n"
+        "NUNCA inventes artículos, cifras ni normas que no estén en los datos.\n\n"
         + INFO_INSTITUCIONAL + extra + (ctx if ctx else "")
-        + "\nCONVERSACIÓN PREVIA:\n" + ("(primera vez que chateamos)\n" if primera else hist+"\n")
-        + ("\nEs la primera vez que nos habla. Preséntate brevemente en 1 línea y ayúdalo de inmediato.\n" if primera else "Responde directamente, sin saludos largos.\n")
-        + "\nPREGUNTA DEL USUARIO: " + pregunta
+        + "\nCONVERSACIÓN:\n" + ("(primera vez)\n" if primera else hist+"\n")
+        + ("Preséntate de forma breve y cálida, como un colega conocido.\n" if primera else "Responde directamente.\n")
+        + "\nPREGUNTA: " + pregunta
     )
     payload = {"contents":[{"parts":[{"text":prompt}]}],
-               "generationConfig":{"temperature":0.65,"maxOutputTokens":900,"topP":0.9}}
+               "generationConfig":{"temperature":0.6,"maxOutputTokens":800,"topP":0.9}}
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.post(url, json=payload); d = r.json()
     if "candidates" not in d:
@@ -1679,7 +1685,446 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
 
 
 # ══════════════════════════════════════════════
-#  PANEL DE ESTADISTICAS (solo admin)
+#  DETECCIÓN DE INTENCIÓN — REPORTE DE INCIDENTE/DAÑO (COPASST)
+# ══════════════════════════════════════════════
+def es_intencion_incidente(mensaje: str) -> bool:
+    s = norm(mensaje)  # normaliza: minúsculas, sin tildes, sin ñ
+    ACCION_INC = [
+        # SIN tildes ni ñ (igual que norm() los deja)
+        "reportar un dano", "reportar dano", "reportar un incidente",
+        "reportar incidente", "hay un dano", "hay un incidente",
+        "existe un dano", "tengo un dano que reportar",
+        "informar un dano", "informar dano", "informar un incidente",
+        "reporte de dano", "reporte de incidente", "reporte copasst",
+        "reportar averia", "reportar una averia", "dano en el colegio",
+        "incidente en el colegio", "dano en la sede", "dano en el salon",
+        "hay un problema en", "hay una falla en", "hay un desperfecto",
+        "teja caida", "teja que se cae", "dano electrico",
+        "puerta danada", "vidrio roto", "bano danado",
+        "fuga de agua", "corto electrico", "cortocircuito",
+        # variantes adicionales
+        "reportar averia", "reporte averia",
+        "reportar un problema", "problema en el colegio",
+        "hay un dano en", "encontre un dano", "encontre una averia",
+    ]
+    return any(p in s for p in ACCION_INC)
+
+
+# ══════════════════════════════════════════════
+#  COPASST — GOOGLE SHEETS OPERACIONES
+#  (Sheets separada para incidentes físicos)
+# ══════════════════════════════════════════════
+async def _sheets_append_inc(hoja, fila, token=None):
+    """Agrega una fila al final de la hoja en SHEETS_INCIDENTES_ID."""
+    if not token:
+        token = await obtener_token_sheets()
+    if not token:
+        return False
+    url = (f"https://sheets.googleapis.com/v4/spreadsheets/{SHEETS_INCIDENTES_ID}"
+           f"/values/{hoja}!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
+    headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+    fila_str = [str(v) if v is not None else "" for v in fila]
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(url, headers=headers, json={"values": [fila_str]})
+            ok = r.status_code == 200
+            print(f"SHEETS_INC append '{hoja}': {'OK' if ok else 'ERROR ' + str(r.status_code)}")
+            return ok
+    except Exception as e:
+        print(f"SHEETS_INC append excepcion: {e}")
+        return False
+
+async def _sheets_leer_rango_inc(rango, token=None):
+    if not token:
+        token = await obtener_token_sheets()
+    if not token:
+        return []
+    url = (f"https://sheets.googleapis.com/v4/spreadsheets/{SHEETS_INCIDENTES_ID}"
+           f"/values/{rango}?valueRenderOption=FORMATTED_VALUE")
+    headers = {"Authorization": "Bearer " + token}
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(url, headers=headers)
+            d = r.json()
+        return d.get("values", [])
+    except Exception as e:
+        print(f"SHEETS_INC leer error: {e}")
+        return []
+
+async def _sheets_escribir_rango_inc(rango, valores, token=None):
+    if not token:
+        token = await obtener_token_sheets()
+    if not token:
+        return False
+    url = (f"https://sheets.googleapis.com/v4/spreadsheets/{SHEETS_INCIDENTES_ID}"
+           f"/values/{rango}?valueInputOption=USER_ENTERED")
+    headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.put(url, headers=headers, json={"values": valores})
+            return r.status_code == 200
+    except Exception as e:
+        print(f"SHEETS_INC escribir error: {e}")
+        return False
+
+async def _sheets_borrar_fila_inc(fila_num, token=None):
+    if not token:
+        token = await obtener_token_sheets()
+    if not token:
+        return False
+    rango = f"{SHEET_BORRADORES_INC}!A{fila_num}:H{fila_num}"
+    url = (f"https://sheets.googleapis.com/v4/spreadsheets/{SHEETS_INCIDENTES_ID}"
+           f"/values/{rango}:clear")
+    headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(url, headers=headers, json={})
+            return r.status_code == 200
+    except Exception as e:
+        print(f"SHEETS_INC borrar error: {e}")
+        return False
+
+async def _borrador_inc_buscar_fila(telefono, token=None):
+    filas = await _sheets_leer_rango_inc(f"{SHEET_BORRADORES_INC}!A:H", token)
+    for i, fila in enumerate(filas, start=1):
+        if fila and limpiar_tel(fila[0]) == limpiar_tel(telefono):
+            return i, _borrador_inc_a_dict(fila)
+    return None, None
+
+async def borrador_inc_guardar(telefono, b: dict):
+    b["telefono"]  = limpiar_tel(telefono)
+    b["timestamp"] = datetime.now(COL_TZ).strftime("%d/%m/%Y %H:%M:%S")
+    borradores_inc_cache[limpiar_tel(telefono)] = b
+    try:
+        token = await obtener_token_sheets()
+        fila_num, _ = await _borrador_inc_buscar_fila(telefono, token)
+        fila_datos = _dict_a_borrador_inc(b)
+        if fila_num:
+            rango = f"{SHEET_BORRADORES_INC}!A{fila_num}:H{fila_num}"
+            await _sheets_escribir_rango_inc(rango, [fila_datos], token)
+        else:
+            await _sheets_append_inc(SHEET_BORRADORES_INC, fila_datos, token)
+    except Exception as e:
+        print(f"WARN borrador_inc_guardar: {e}")
+
+async def borrador_inc_eliminar(telefono):
+    tel = limpiar_tel(telefono)
+    borradores_inc_cache.pop(tel, None)
+    try:
+        token = await obtener_token_sheets()
+        fila_num, _ = await _borrador_inc_buscar_fila(telefono, token)
+        if fila_num:
+            await _sheets_borrar_fila_inc(fila_num, token)
+    except Exception as e:
+        print(f"WARN borrador_inc_eliminar: {e}")
+
+async def borrador_inc_cargar(telefono):
+    tel = limpiar_tel(telefono)
+    if tel in borradores_inc_cache:
+        return borradores_inc_cache[tel]
+    try:
+        _, b = await _borrador_inc_buscar_fila(telefono)
+        if b and b.get("estado"):
+            borradores_inc_cache[tel] = b
+            return b
+    except Exception as e:
+        print(f"WARN borrador_inc_cargar: {e}")
+    return None
+
+async def guardar_incidente_final(fila):
+    try:
+        token = await obtener_token_sheets()
+        return await _sheets_append_inc(SHEET_INCIDENTES, fila, token)
+    except Exception as e:
+        print(f"SHEETS_INC incidente final error: {e}")
+        return False
+
+# Contador de incidentes en memoria
+contador_incidentes = 0
+
+async def _redactar_incidente(descripcion_raw, sede, espacio, tipo_dano, reportante):
+    """Redacta formalmente el incidente usando Gemini."""
+    if not descripcion_raw or len(descripcion_raw.strip()) < 5:
+        return descripcion_raw
+    prompt = (
+        "Eres el secretario administrativo de la IE Simón Bolívar de Cúcuta (Colombia).\n"
+        "Redactas actas de reporte de daños e incidentes físicos según el proceso GAP2S1\n"
+        "(Mantenimiento de Infraestructura) del Mapa de Procesos Institucional 2024.\n\n"
+        "DATOS DEL INCIDENTE:\n"
+        f"- Sede: {sede}\n"
+        f"- Espacio/Ubicación: {espacio}\n"
+        f"- Tipo de daño: {tipo_dano}\n"
+        f"- Relato del docente: {descripcion_raw}\n"
+        f"- Reportante: {reportante}\n\n"
+        "TAREA — REDACCIÓN FORMAL (máximo 3 líneas, tercera persona, lenguaje institucional):\n"
+        "- Menciona: sede, espacio, tipo de daño, descripción precisa\n"
+        "- Cita el proceso GAP2S1 del Mapa de Procesos si aplica\n"
+        "- NO uses asteriscos ni comillas\n"
+        "- Describe la condición actual del daño y su posible impacto en la comunidad\n\n"
+        "Responde SOLO con la redacción formal, sin etiquetas ni encabezados."
+    )
+    try:
+        api_key = os.getenv("GEMINI_API_KEY", "")
+        modelo  = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 400}
+        }
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(url, json=payload)
+            d = r.json()
+        if "candidates" in d:
+            return d["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except Exception as e:
+        print(f"WARN _redactar_incidente: {e}")
+    return descripcion_raw
+
+def _campos_faltantes_inc(b):
+    faltantes = []
+    for campo in CAMPOS_INCIDENTE:
+        val = b.get(campo, "")
+        if not val or str(val).strip() in ("", "null"):
+            faltantes.append(campo)
+    return faltantes
+
+def _resolver_sede_inc(texto):
+    t = texto.strip()
+    for codigo, etiqueta in SEDES_INC_OPCIONES:
+        if t == codigo:
+            return etiqueta
+    s = norm(texto)
+    if "simon" in s or "bolivar" in s or "central" in s or "1" == t:
+        return "Simón Bolívar (Sede Central)"
+    if "san martin" in s or "2" == t:
+        return "San Martín"
+    if "hernando" in s or "acevedo" in s or "3" == t:
+        return "Hernando Acevedo"
+    return None
+
+async def _finalizar_incidente(telefono, b: dict):
+    global contador_incidentes
+    contador_incidentes += 1
+    ahora     = datetime.now(COL_TZ)
+    num_caso  = "INC-" + ahora.strftime("%Y%m%d") + "-" + str(contador_incidentes).zfill(3)
+    fecha_str = ahora.strftime("%d/%m/%Y")
+    hora_str  = ahora.strftime("%I:%M %p")
+
+    desc_original = (b.get("descripcion_inc") or "").strip()
+    sede          = b.get("sede_inc", "")
+    espacio       = b.get("espacio", "")
+    tipo_dano     = b.get("tipo_dano", "")
+    reportante    = b.get("reportante", limpiar_tel(telefono))
+
+    # Redacción formal
+    desc_formal = desc_original
+    try:
+        desc_formal = await asyncio.wait_for(
+            _redactar_incidente(desc_original, sede, espacio, tipo_dano, reportante),
+            timeout=20
+        )
+    except Exception as e:
+        print(f"WARN _finalizar_incidente redacción: {e}")
+
+    # Determinar urgencia básica
+    urgencia = "Media"
+    s_low = norm(desc_original + " " + tipo_dano)
+    if any(p in s_low for p in ["electrico","electrica","corto","cortocircuito","cable","teja","techo","piso","escalera","gas","fuga","incendio"]):
+        urgencia = "Alta"
+    elif any(p in s_low for p in ["vidrio","puerta","ventana","cerradura","mueble","silla","mesa","tablero"]):
+        urgencia = "Media"
+    else:
+        urgencia = "Baja"
+
+    # Guardar en Sheets de incidentes
+    fila_final = [
+        num_caso, fecha_str, hora_str,
+        sede, espacio, tipo_dano,
+        desc_original, desc_formal,
+        urgencia, reportante, limpiar_tel(telefono)
+    ]
+    asyncio.create_task(guardar_incidente_final(fila_final))
+    asyncio.create_task(borrador_inc_eliminar(telefono))
+
+    # Alerta admins si urgencia alta
+    if urgencia == "Alta":
+        alerta = (
+            "⚠️ *ALERTA — DAÑO/INCIDENTE URGENTE*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📌 *Caso:* {num_caso}\n"
+            f"📅 *Fecha:* {fecha_str}  {hora_str}\n"
+            f"🏫 *Sede:* {sede}\n"
+            f"📍 *Lugar:* {espacio}\n"
+            f"🔧 *Tipo:* {tipo_dano}\n"
+            f"👩‍🏫 *Reportante:* {reportante}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📝 {desc_formal[:300]}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔗 Ver registro:\nhttps://docs.google.com/spreadsheets/d/{SHEETS_INCIDENTES_ID}"
+        )
+        asyncio.create_task(enviar_a_todos_admins(alerta))
+
+    return (
+        "🔧 *Incidente Registrado Exitosamente*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📌 *N° Caso:* {num_caso}\n"
+        f"📅 *Fecha:* {fecha_str}  {hora_str}\n"
+        f"🏫 *Sede:* {sede}\n"
+        f"📍 *Lugar:* {espacio}\n"
+        f"🔧 *Tipo de daño:* {tipo_dano}\n"
+        f"⚡ *Urgencia estimada:* {urgencia}\n\n"
+        f"📝 *Descripción registrada:*\n{desc_formal}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "✅ El incidente ha sido registrado según el proceso GAP2S1\n"
+        "(Mantenimiento de Infraestructura — Mapa de Procesos 2024).\n"
+        "La coordinación correspondiente recibirá notificación.\n"
+        f"📎 *N° Caso: {num_caso}*"
+    )
+
+
+# ══════════════════════════════════════════════
+#  GESTOR DE REPORTE DE INCIDENTE (COPASST)
+# ══════════════════════════════════════════════
+async def gestionar_incidente(mensaje, telefono, nombre):
+    s = norm(mensaje)
+    tel = limpiar_tel(telefono)
+
+    if s in ["cancelar", "salir", "cancel", "0"]:
+        await borrador_inc_eliminar(telefono)
+        return "✅ Reporte de incidente cancelado. ¿En qué más te puedo ayudar? 😊"
+
+    b = await borrador_inc_cargar(telefono)
+
+    if b is None:
+        b = {c: "" for c in COL_INC}
+        b["reportante"] = nombre or telefono
+        b["estado"]     = "activo_inc"
+
+        if norm(mensaje) in [
+            "reportar un dano","reportar dano","reportar un incidente","reportar incidente",
+            "reporte de dano","reporte de incidente","reporte copasst","hay un dano",
+            "informar dano","informar un dano",
+        ]:
+            b["estado"] = "esperando_sede_inc"
+            await borrador_inc_guardar(telefono, b)
+            return (
+                "🔧 *Nuevo reporte de daño o incidente*\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                "Como docente o personal de la institución, puedes reportar\n"
+                "daños en la infraestructura del colegio para que sean atendidos\n"
+                "por el área administrativa (Proceso GAP2S1 — Mapa de Procesos 2024).\n\n"
+                + MENU_SEDES_INC
+            )
+
+    estado = b.get("estado", "activo_inc")
+
+    # ── Esperando sede ──────────────────────────────────────────────
+    if estado == "esperando_sede_inc":
+        sede = _resolver_sede_inc(mensaje)
+        if not sede:
+            return "No reconocí esa sede. Responde con el número del *1 al 3*:\n\n" + MENU_SEDES_INC
+        b["sede_inc"] = sede
+        b["estado"]   = "esperando_espacio_inc"
+        await borrador_inc_guardar(telefono, b)
+        return (
+            f"✅ Sede: *{sede}*\n\n"
+            "📍 *¿En qué lugar exacto está el daño?*\n"
+            "_Ej: salón 5°02, baño bloque A, portería, pasillo segundo piso,\n"
+            "sala de informática, escalera, techo cafetería..._\n\n"
+            "_(Escribe CANCELAR para salir)_"
+        )
+
+    # ── Esperando espacio ───────────────────────────────────────────
+    if estado == "esperando_espacio_inc":
+        if len(mensaje.strip()) < 3:
+            return "📍 Por favor describe mejor el lugar donde está el daño:"
+        b["espacio"] = mensaje.strip()
+        b["estado"]  = "esperando_tipo_inc"
+        await borrador_inc_guardar(telefono, b)
+        return (
+            f"✅ Lugar: *{mensaje.strip()}*\n\n"
+            "🔧 *¿Qué tipo de daño es?*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "1️⃣  Eléctrico (cables, tomacorrientes, luces, cortocircuito)\n"
+            "2️⃣  Estructura (techo, teja, pared, piso, escalera)\n"
+            "3️⃣  Mobiliario (silla, mesa, tablero, puerta, ventana, vidrio)\n"
+            "4️⃣  Sanitario (baño, grifo, tubería, fuga de agua)\n"
+            "5️⃣  Tecnológico (computador, proyector, cámara)\n"
+            "6️⃣  Otro\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Responde con el *número* o describe el tipo."
+        )
+
+    # ── Esperando tipo de daño ──────────────────────────────────────
+    if estado == "esperando_tipo_inc":
+        tipos = {
+            "1": "Eléctrico", "2": "Estructura", "3": "Mobiliario",
+            "4": "Sanitario", "5": "Tecnológico", "6": "Otro",
+            "electrico": "Eléctrico", "eléctrico": "Eléctrico",
+            "estructura": "Estructura", "mobiliario": "Mobiliario",
+            "sanitario": "Sanitario", "tecnologico": "Tecnológico",
+            "tecnológico": "Tecnológico", "otro": "Otro",
+        }
+        tipo = tipos.get(mensaje.strip().lower()) or tipos.get(norm(mensaje)) or mensaje.strip().capitalize()
+        b["tipo_dano"] = tipo
+        b["estado"]    = "esperando_desc_inc"
+        await borrador_inc_guardar(telefono, b)
+        return (
+            f"✅ Tipo: *{tipo}*\n\n"
+            "📝 *Ahora cuéntame qué ocurrió o qué observaste.*\n"
+            "Descríbelo con tus propias palabras — yo lo redactaré formalmente:\n\n"
+            "_Ejemplo: 'la puerta del salón 5°02 está rota y no cierra,\n"
+            "el cerrojo quedó torcido desde ayer'_\n\n"
+            "_(Escribe CANCELAR para salir)_"
+        )
+
+    # ── Esperando descripción ───────────────────────────────────────
+    if estado == "esperando_desc_inc":
+        if len(mensaje.strip()) < 8:
+            return "📝 Por favor cuéntame un poco más sobre el daño o incidente:"
+        b["descripcion_inc"] = mensaje.strip()
+        b["estado"]          = "completo_inc"
+        await borrador_inc_guardar(telefono, b)
+        return await _finalizar_incidente(telefono, b)
+
+    # ── Estado activo — primer mensaje con datos ────────────────────
+    # Intentar extraer campos del mensaje directamente
+    s_full = norm(mensaje)
+
+    sede = _resolver_sede_inc(s_full)
+    if sede:
+        b["sede_inc"] = sede
+
+    # Si no hay sede aún, pedir menú
+    if not b.get("sede_inc"):
+        b["estado"] = "esperando_sede_inc"
+        await borrador_inc_guardar(telefono, b)
+        return (
+            "🔧 *Reporte de daño o incidente*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Comencemos. " + MENU_SEDES_INC
+        )
+
+    # Si tienen sede pero falta espacio
+    if not b.get("espacio"):
+        b["estado"] = "esperando_espacio_inc"
+        await borrador_inc_guardar(telefono, b)
+        return (
+            f"✅ Sede: *{b['sede_inc']}*\n\n"
+            "📍 *¿En qué lugar exacto está el daño?*\n"
+            "_Ej: salón 5°02, baño bloque A, portería..._"
+        )
+
+    b["estado"] = "esperando_tipo_inc"
+    await borrador_inc_guardar(telefono, b)
+    return (
+        "🔧 *¿Qué tipo de daño es?*\n"
+        "1️⃣ Eléctrico  2️⃣ Estructura  3️⃣ Mobiliario\n"
+        "4️⃣ Sanitario  5️⃣ Tecnológico  6️⃣ Otro\n"
+        "Responde con el número."
+    )
+
+
 # ══════════════════════════════════════════════
 async def panel_estadisticas(periodo: str = "semana") -> str:
     """
@@ -1907,13 +2352,16 @@ def procesar_admin(mensaje):
             "━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "📊 *Estadísticas de convivencia*\n"
             "  @resumen  |  @hoy  |  @mes  |  @todo\n\n"
-            "📋 *Ver reportes de faltas*\n"
+            "📋 *Reportes de faltas (Manual GD-D02)*\n"
             "  @faltas hoy       → faltas de hoy\n"
             "  @faltas semana    → últimos 7 días\n"
             "  @faltas mes       → últimos 30 días\n"
             "  @ultimos          → los 10 más recientes\n"
             "  @borradores       → reportes en curso\n"
-            "  @sheets           → enlace a Google Sheets\n\n"
+            "  @sheets           → Google Sheets convivencia\n\n"
+            "🔧 *Daños e Incidentes (COPASST)*\n"
+            "  @incidentes       → ver últimos incidentes\n"
+            "  @sheets incidentes → Sheets de incidentes\n\n"
             "📅 *Calendario escolar*\n"
             "  @cal semana       → eventos esta semana\n"
             "  @cal mes          → eventos este mes\n"
@@ -1946,14 +2394,25 @@ def procesar_admin(mensaje):
         return ("__STATS__", "todo")
     if cmd in ["@reportes","@ver reportes","@sheets","@link reportes"]:
         return (
-            f"📋 *Reportes de convivencia*\n"
+            f"📋 *Reportes de convivencia (Manual GD-D02)*\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"Total en sistema: *{contador_reportes}*\n\n"
-            f"🔗 Ver hoja completa:\nhttps://docs.google.com/spreadsheets/d/{SHEETS_ID}\n\n"
+            f"🔗 Ver hoja de faltas:\nhttps://docs.google.com/spreadsheets/d/{SHEETS_ID}\n\n"
             f"💡 Comandos rápidos:\n"
             f"  @faltas hoy → faltas de hoy\n"
             f"  @faltas semana → últimos 7 días\n"
             f"  @ultimos → los 10 más recientes"
+        )
+
+    if cmd in ["@incidentes","@ver incidentes","@daños","@ver daños",
+               "@sheets incidentes","@link incidentes"]:
+        return (
+            f"🔧 *Reportes de daños e incidentes (COPASST)*\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"Total en sistema: *{contador_incidentes}*\n\n"
+            f"🔗 Ver hoja de incidentes:\nhttps://docs.google.com/spreadsheets/d/{SHEETS_INCIDENTES_ID}\n\n"
+            f"💡 Para reportar un daño cualquier docente puede escribir:\n"
+            f"  'reportar un daño' o 'reportar un incidente'"
         )
 
     # ── Faltas: ver listado de reportes por período ────────────────
@@ -2100,179 +2559,18 @@ def procesar_admin(mensaje):
 # ══════════════════════════════════════════════
 def respuesta_rapida(mensaje):
     s = norm(mensaje)
-
-    # ── RECTOR Y DIRECTIVOS ──────────────────────────────────────
-    if any(p in s for p in ["quien es el rector","rector del colegio","nombre del rector","como se llama el rector"]):
-        return "El rector del ColBolívar es el Mg. *Jesús Maldonado Serrano*. 👨‍💼\nEstá al frente de la institución desde el 20 de mayo de 2008."
-    if any(p in s for p in ["quien es la coordinadora","coordinadora del colegio","carolina bochaga","bochaga"]):
-        return "La Líder de Gestión Académica es *Carolina Bochagá Silva*. Coordina el POA 2025, proyectos transversales y acompaña a los docentes en sus planes de clase. 📚"
-    if any(p in s for p in ["marisol solarte","orientadora","psicóloga","psicologa","piar"]):
-        return "La orientadora escolar es *Marisol Solarte*, quien lidera el equipo de inclusión y el proyecto PIAR (Plan Individual de Ajustes Razonables) para estudiantes con NEE. 💙"
-
-    # ── CIFRAS Y DATOS GENERALES ─────────────────────────────────
-    if any(p in s for p in ["cuantos docentes","cuantos profesores","numero de docentes"]):
-        return "El ColBolívar cuenta con *96 docentes*, 5 directivos docentes y 10 administrativos. 👩‍🏫"
-    if any(p in s for p in ["cuantos estudiantes","cuantos alumnos","numero de estudiantes"]):
-        return "La institución tiene *2.133 estudiantes* distribuidos en las 3 sedes y 2 jornadas, desde Preescolar hasta grado 11. 🎒"
-    if any(p in s for p in ["cuantas sedes","sedes del colegio","que sedes tiene"]):
-        return ("El ColBolívar tiene *3 sedes*:\n"
-                "1️⃣ Sede Central Simón Bolívar – Calle 4 N°11A-26, Urb. San Martín\n"
-                "2️⃣ Sede San Martín N°65 – Calle 5N #7-20\n"
-                "3️⃣ Sede Hernando Acevedo Ortega – Calle 0 N°13-06, Urb. Torcoroma II")
-
-    # ── CONTACTO Y UBICACIÓN ─────────────────────────────────────
-    if any(p in s for p in ["telefono","correo","email","direccion","donde queda","contacto","como llegar"]):
-        return ("*Contacto ColBolívar:*\n"
-                "📍 Calle 4 N°11A-26, Urb. San Martín, Cúcuta\n"
-                "📞 5943344 / 5848539\n"
-                "✉️ colintsimonbolivar@semcucuta.gov.co\n"
-                "🌐 https://gestionacademicaco.wixsite.com/colbolivar1")
-
-    # ── NOTAS ────────────────────────────────────────────────────
-    if any(p in s for p in ["notas","ver notas","mis notas","consultar notas","donde ver notas","boletin","boletín","calificaciones"]):
-        return "Consulta las notas en el portal Web Colegios 📊\nhttps://www.webcolegios.com/simon/"
-
-    # ── PLANES DE ÁREA ───────────────────────────────────────────
-    if any(p in s for p in ["plan de area","planes de area","pensum 2026","malla curricular 2026"]):
-        return ("*Planes de Área 2026:* 📁\n"
-                "• Matemáticas: https://drive.google.com/drive/folders/13tJeJAoIWfS3t1ieF1tHgSf0nqO5yBny\n"
-                "• Humanidades: https://drive.google.com/drive/folders/1luMnzy2NcW5uIqHSWYUaQMuodppJ7sv\n"
-                "• Ciencias Naturales: https://drive.google.com/drive/folders/1WH5qeW4g61gM99BWlL4nBFfqZGr03HFr\n"
-                "También los encuentras en: https://gestionacademicaco.wixsite.com/colbolivar1/planesdearea2026")
-
-    # ── REDES SOCIALES ───────────────────────────────────────────
-    if any(p in s for p in ["facebook","face","redes sociales","instagram"]):
-        return "Síguenos en Facebook 👉 https://www.facebook.com/share/1NM1mkhhcc/"
-    if any(p in s for p in ["youtube","canal","videos"]):
-        return "Canal YouTube del ColBolívar 🎬\nhttps://www.youtube.com/@colbolivar"
-
-    # ── EVALUACIÓN Y NOTAS ───────────────────────────────────────
-    if any(p in s for p in ["con cuanto se aprueba","nota minima","nota para pasar","que nota necesito"]):
-        return "Para aprobar en el ColBolívar necesitas *3.0 o más* en cada área. 📝\nSi pierdes 3 o más áreas al final del año, el estudiante no es promovido.\nEscala: Bajo (1.0-2.9) | Básico (3.0-3.9) | Alto (4.0-4.5) | Superior (4.6-5.0)"
-    if any(p in s for p in ["cuantos periodos","cuantos bimestres","cuando son los periodos","periodos academicos"]):
-        return "El año escolar tiene *4 períodos académicos*. Al final de cada uno se entrega un boletín. Al cerrar el año se emite el boletín final en físico. 📋"
-    if any(p in s for p in ["escala de valoracion","escala de valoración","desempeño superior","desempeno superior","desempeno alto","desempeno basico","desempeno bajo"]):
-        return ("*Escala de Valoración ColBolívar:*\n"
-                "🌟 Superior: 4.6 – 5.0\n"
-                "✅ Alto:     4.0 – 4.5\n"
-                "📘 Básico:   3.0 – 3.9\n"
-                "⚠️ Bajo:     1.0 – 2.9\n"
-                "Para más detalles escribe: *siee*")
-    if any(p in s for p in ["cuantas materias para perder el ano","cuantas areas perdidas","con cuantas pierde","pierde el año con"]):
-        return "Un estudiante pierde el año si reprueba *3 o más áreas* al finalizar el año escolar. ⚠️\nPara más detalles sobre recuperaciones y promoción escribe: *siee*"
-
-    # ── CONVIVENCIA RÁPIDA ───────────────────────────────────────
-    if any(p in s for p in ["que es una falta leve","falta leve ejemplos","ejemplo de falta leve"]):
-        return ("*Faltas Leves:* 📋\nLlegar tarde, salir sin permiso, no usar uniforme correctamente, comer en clase, desaseo personal, inasistencia sin justificación.\n"
-                "Sanción: anotación en observador + acta de compromiso.\n⚠️ 3 faltas leves = 1 falta grave.\nPara más detalles: *manual de convivencia*")
-    if any(p in s for p in ["que es una falta grave","falta grave ejemplos","ejemplo de falta grave"]):
-        return ("*Faltas Graves:* ⚠️\nReincidencia de leves, no informar citaciones a padres, perturbar clases, uso de celular en clase, negocios dentro del colegio.\n"
-                "Sanción: citación inmediata a padres, posible matrícula en observación.\nPara más detalles: *manual de convivencia*")
-    if any(p in s for p in ["que es una falta gravisima","falta gravisima ejemplos","falta muy grave","gravísima"]):
-        return ("*Faltas Gravísimas:* 🚨\nAgresión física grave, acoso sexual, porte de armas o drogas, vandalismo, ciberbullying grave.\n"
-                "Sanción: activación Ruta de Atención Integral, cancelación de matrícula, remisión a ICBF/Policía/Fiscalía.\nPara más detalles: *manual de convivencia*")
-    if any(p in s for p in ["conducto regular","como poner una queja","como presentar una queja"]):
-        return ("*Conducto Regular ColBolívar:*\n"
-                "1️⃣ Docente / Director de grupo\n"
-                "2️⃣ Coordinación de sede\n"
-                "3️⃣ Rectoría\n"
-                "4️⃣ Consejo Directivo\n"
-                "5️⃣ Autoridades externas (solo si se agotan las instancias internas)\n"
-                "⚠️ No se puede saltarse el conducto regular sin razón justificada.")
-    if any(p in s for p in ["bullying","matoneo","acoso escolar","ciberacoso","cyberbullying"]):
-        return ("El ColBolívar tiene *CERO TOLERANCIA* con el bullying, matoneo y ciberbullying. 🚫\n"
-                "Es una falta Tipo III (Gravísima) según la Ley 1620 de 2013. Los padres del agresor deben indemnizar a la víctima.\n"
-                "Para más detalles sobre el protocolo: *manual de convivencia*")
-
-    # ── SERVICIOS ────────────────────────────────────────────────
-    if any(p in s for p in ["restaurante","almuerzo","refrigerio","pae","comida","alimentacion"]):
-        return "Sí, el ColBolívar tiene *restaurante escolar (PAE)* 🍽️ con refrigerios y almuerzos financiados por la Alcaldía de Cúcuta en las 3 sedes."
-    if any(p in s for p in ["transporte","ruta","bus","ureña","venezuela"]):
-        return "Existe *transporte humanitario* 🚌 para estudiantes que vienen de Ureña (Venezuela), en convenio con la Alcaldía de Cúcuta. Aproximadamente 186 estudiantes (9%) usan este servicio."
-    if any(p in s for p in ["smart place","smartplace","impresora 3d","robotica","arduino","3d"]):
-        return ("*Smart Place ColBolívar* 🖥️\n"
-                "Espacio tecnológico con impresoras 3D, robótica, Arduino, producción audiovisual y ofimática.\n"
-                "Cursos gratuitos para la comunidad.\n"
-                "🕐 Horario: Lunes a viernes, 8:00 am – 12:00 m y 2:00 – 6:00 pm")
-    if any(p in s for p in ["escuela de padres","escuela para padres","reunion de padres obligatoria"]):
-        return "Las *Escuelas de Padres* son obligatorias según la Ley 2025 de 2020. 👨‍👩‍👧 Se programan durante el año y son convocadas por la orientadora y coordinación. La inasistencia reiterada sin excusa puede afectar la renovación de matrícula."
-
-    # ── MATRÍCULA ────────────────────────────────────────────────
-    if any(p in s for p in ["cuando es la matricula","proceso de matricula","requisitos matricula","como matricular","inscripcion","cuando se matricula"]):
-        return ("*Proceso de Matrícula ColBolívar:*\n"
-                "📅 Proyección de cupos: agosto\n"
-                "📝 Inscripciones: septiembre – noviembre\n"
-                "📋 Entrevistas con orientadora: octubre – diciembre\n"
-                "✅ Matrícula: noviembre – diciembre\n"
-                "Las jornadas y sedes las asigna la Rectoría.\nPara requisitos completos escribe: *matricula*")
-
-    # ── GOBIERNO ESCOLAR ─────────────────────────────────────────
-    if any(p in s for p in ["personero estudiantil","como se elige el personero","personero","personera"]):
-        return ("El *Personero Estudiantil* se elige dentro de los *30 primeros días* del año escolar. 🗳️\n"
-                "Debe ser estudiante de grado 11, con matrícula vigente y sin otros cargos. Se elige por votación secreta y mayoría simple.")
-    if any(p in s for p in ["consejo directivo","consejo academico","gobierno escolar","organos de gobierno"]):
-        return ("*Gobierno Escolar ColBolívar:*\n"
-                "• Consejo Directivo: rector + 2 docentes + 2 padres + 1 estudiante + 1 egresado + 1 sector productivo\n"
-                "• Consejo Académico: lidera lo pedagógico y el currículo\n"
-                "• Personero Estudiantil: voz de los estudiantes (grado 11)\n"
-                "• Consejo Estudiantil: vocero de cada grado\n"
-                "• Consejo de Padres: voceros por grado\n"
-                "Para más detalles escribe: *pei*")
-
-    # ── CONVENIOS Y TÉCNICA ──────────────────────────────────────
-    if any(p in s for p in ["media tecnica","bachillerato tecnico","doble titulacion","convenio sena","que tecnicas hay"]):
-        return ("El ColBolívar ofrece *2 modalidades de Media Técnica* con el SENA (doble titulación):\n"
-                "🖥️ Mantenimiento de Equipos de Cómputo\n"
-                "💼 Asesoría Comercial\n"
-                "Ambas en la jornada de la tarde. Al graduarse obtienes título de Bachiller *y* Técnico SENA.")
-    if any(p in s for p in ["yukpa","indigena","comunidad indigena","propuesta intercultural"]):
-        return "El ColBolívar tiene la *Propuesta Educativa Intercultural YUKPA* en la Sede San Martín. 🌿 Integra la lengua materna Yukpa con el currículo nacional, promoviendo la identidad cultural de la comunidad indígena Yukpa."
-
-    # ── HISTORIA ─────────────────────────────────────────────────
-    if any(p in s for p in ["historia del colegio","cuando fue fundado","origen del colegio","reseña historica","cuando inicio","desde cuando existe"]):
-        return ("El ColBolívar inició el *18 de febrero de 1992* con 37 estudiantes en dos aulas del INURBE en la Ciudadela San Martín. 🏫\n"
-                "Se constituyó legalmente mediante el *Decreto 00780 del 30 de septiembre de 2002*.\n"
-                "En 2018 alcanzó Nivel A en las Pruebas Saber 11. Actualmente tiene 2.133 estudiantes en 3 sedes.")
-
-    # ── LEMA / VALORES / MISIÓN / VISIÓN ────────────────────────
-    if any(p in s for p in ["lema del colegio","cual es el lema","lema institucional"]):
-        return "El lema del ColBolívar es: *\"Educamos para construir proyectos de vida con Éxito\"* 🌟"
-    if any(p in s for p in ["valores del colegio","valores institucionales","estrella colbolivar"]):
-        return ("*Valores ColBolívar — La Estrella:*\n"
-                "❤️ Amor: paz, amistad, respeto, sana convivencia\n"
-                "✊ Esfuerzo: hábitos de estudio, responsabilidad, trabajo en equipo\n"
-                "🙏 Fe: espiritualidad, autoestima, autocontrol\n"
-                "✅ Honestidad: ética, verdad, puntualidad")
-    if any(p in s for p in ["mision del colegio","cual es la mision","mision institucional"]):
-        return "Misión: Somos una institución oficial que ofrece educación de calidad en Pre-escolar, Básica, Media académica y Técnica, formando integralmente al estudiante en el saber ser, saber hacer y saber saber, para construir Proyectos de Vida con Éxito. 🎯"
-    if any(p in s for p in ["vision del colegio","cual es la vision","vision institucional"]):
-        return "Visión: En 2025, ser reconocidos a nivel regional y nacional por procesos académicos y administrativos de alta calidad, apoyados en TICs, inclusión escolar y convivencia ciudadana. 🚀"
-
-    # ── MODELO PEDAGÓGICO ────────────────────────────────────────
-    if any(p in s for p in ["modelo pedagogico","como ensenan","metodologia de ensenanza","como aprenden","pedagogia activa"]):
-        return ("El modelo pedagógico del ColBolívar es la *Pedagogía Activa* 📖 (\"Escuelas que aprenden\").\n"
-                "El estudiante es el centro del proceso; el docente es facilitador e investigador.\n"
-                "Se aprende haciendo, explorando y colaborando.\n"
-                "Para más detalles: *pei*")
-
-    # ── POA Y GESTIÓN ACADÉMICA ──────────────────────────────────
-    if any(p in s for p in ["poa","plan operativo anual","actividades del poa","poa 2025"]):
-        return ("El *POA 2025 de Gestión Académica* tiene 18 actividades estratégicas. 📋\n"
-                "Liderado por Carolina Bochagá Silva.\n"
-                "Incluye: revisión del SIE, proyectos transversales, PIAR, seguimiento a egresados, formación docente.\n"
-                "Para detalle completo escribe: *documento maestro*")
-    if any(p in s for p in ["19 componentes","componentes academicos","nivel de los componentes","autoevaluacion academica"]):
-        return ("El ColBolívar evalúa *19 componentes* de Gestión Académica en 4 niveles. 📊\n"
-                "La mayoría está actualmente en Nivel 1 (Existencia).\n"
-                "Meta 2025: alcanzar Nivel 2 o 3 en todos los componentes.\n"
-                "Para detalle completo escribe: *documento maestro*")
-
-    # ── JORNADAS ─────────────────────────────────────────────────
-    if any(p in s for p in ["jornada manana","jornada de la manana","horario manana","a que hora entra"]):
-        return "Jornada mañana: *6:00 am a 12:00 pm* (hasta 13:00 en algunos grados) ☀️"
-    if any(p in s for p in ["jornada tarde","jornada de la tarde","horario tarde"]):
-        return "Jornada tarde: *12:15 pm a 6:15 pm* (hasta 19:15 en algunos grados) 🌅"
-
+    if any(p in s for p in ["quien es el rector","rector del colegio"]):
+        return "El rector del ColBolivar es el Mg. Jesus Maldonado Serrano."
+    if any(p in s for p in ["cuantos docentes","cuantos profesores"]):
+        return "El ColBolivar cuenta con 95 docentes.\nhttps://www.webcolegios.com/simon/"
+    if any(p in s for p in ["plan de area","planes de area","pensum 2026"]):
+        return f"Planes de Area 2026:\n{WEB_BASE}/planesdearea2026"
+    if any(p in s for p in ["telefono","correo","email","direccion","donde queda","contacto"]):
+        return "Calle 4 No.11A-26 San Martin, Cucuta\nTel: 5943344\nCorreo: colintsimonbolivar@semcucuta.gov.co"
+    if any(p in s for p in ["notas","ver notas","mis notas","consultar notas"]):
+        return "Consulta tus notas en:\nhttps://www.webcolegios.com/simon/"
+    if any(p in s for p in ["facebook","face","redes sociales"]):
+        return "Siguenos:\nhttps://www.facebook.com/share/1NM1mkhhcc/"
     return None
 
 
@@ -2382,6 +2680,20 @@ async def procesar(mensaje, telefono, nombre):
     tel = limpiar_tel(telefono)
 
     # ══════════════════════════════════════════════════════════════
+    # PRIORIDAD 0 — REPORTE DE INCIDENTE/DAÑO (COPASST)
+    # Va ANTES que todo — incluso antes del panel admin —
+    # para que un docente/admin que escriba "reportar un daño"
+    # entre directamente al flujo correcto.
+    # ══════════════════════════════════════════════════════════════
+    tiene_borrador_inc = tel in borradores_inc_cache
+    if not tiene_borrador_inc:
+        b_inc_check = await borrador_inc_cargar(telefono)
+        tiene_borrador_inc = b_inc_check is not None
+
+    if tiene_borrador_inc or es_intencion_incidente(mensaje):
+        return await gestionar_incidente(mensaje, telefono, nombre)
+
+    # ══════════════════════════════════════════════════════════════
     # ADMIN MASTER PRIORITY — comandos @ siempre tienen prioridad
     # absoluta para admins, incluso sobre reportes en curso.
     # Así el admin puede escribir @ en cualquier momento y ver menú.
@@ -2415,8 +2727,9 @@ async def procesar(mensaje, telefono, nombre):
                     return await gestionar_agregar_evento("agregar evento", telefono, nombre)
                 return resp_admin
 
-    # REPORTE — prioridad alta (pero después de comandos @ del admin)
-    # Activar si: hay borrador activo en cache O el mensaje contiene palabras de reporte
+    # REPORTE DE FALTA/CONVIVENCIA — prioridad alta (pero después de comandos @ del admin)
+    # Activado por: "reportar una falta", "reportar al manual de convivencia",
+    # "reporte manual de convivencia", narrativa de incidente disciplinario
     tiene_borrador = tel in borradores_cache
     if not tiene_borrador:
         # Verificar también en Sheets (por si el cache se perdió)
@@ -2449,20 +2762,25 @@ async def procesar(mensaje, telefono, nombre):
             return resp_admin
 
     # SALUDO — "menu" solo aplica a no-admins (los admins ya fueron interceptados arriba)
-    saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start","que puedo hacer","como te llamas","quien eres"]
+    saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start"]
     if s in saludos:
         tiene_hist = bool(historiales.get(telefono))
-        nombre_txt = (" " + nombre.split()[0]) if nombre else ""
+        nombre_txt = (" " + nombre) if nombre else ""
         if tiene_hist:
-            return f"¡Hola de nuevo{nombre_txt}! 😊 ¿En qué te puedo ayudar hoy?"
+            return f"¡Hola de nuevo{nombre_txt}! ¿En qué te ayudo? 😊"
         return (
-            f"¡Hola{nombre_txt}! 👋 Soy *ColBot*, el asistente virtual del *Colegio Simón Bolívar* de Cúcuta.\n\n"
-            "Puedo ayudarte con:\n"
-            "📚 Documentos e información institucional\n"
-            "📅 Calendario y eventos escolares\n"
-            "📋 Registro de reportes de convivencia\n"
-            "🎒 Notas, matrícula, planes de área y más\n\n"
-            "¿Qué necesitas? Escríbeme con confianza 😊"
+            f"¡Hola{nombre_txt}! Soy *ColBot* 🤖, asistente de la IE Simón Bolívar.\n\n"
+            "Puedo:\n"
+            "📚 Consultar documentos y manuales institucionales\n"
+            "📅 Revisar el calendario escolar\n"
+            "📋 Reportar faltas de convivencia (Manual GD-D02)\n"
+            "🔧 Reportar daños e incidentes en la institución\n"
+            "🔗 Darte enlaces, contactos e información\n\n"
+            "Para reportar una *falta disciplinaria* escribe:\n"
+            "  👉 _reportar una falta_\n\n"
+            "Para reportar un *daño o incidente físico* escribe:\n"
+            "  👉 _reportar un daño_\n\n"
+            "¿Qué necesitas?"
         )
 
     # RESPUESTA RAPIDA
@@ -2529,7 +2847,7 @@ async def procesar(mensaje, telefono, nombre):
     if clave_doc:
         solo_enlace = (any(p in s for p in PALABRAS_ENLACE) and not any(p in s for p in PALABRAS_LEER))
         if solo_enlace:
-            return f"Aquí tienes el enlace al *{nom_doc}* 📎\n\n{url_doc}"
+            return nom_doc + "\n\nDescarga:\n" + url_doc
         guardar_hist(telefono,"u",mensaje)
         try:
             pdf_b64 = await asyncio.wait_for(descargar_pdf_b64(url_doc), timeout=35)
@@ -2543,9 +2861,9 @@ async def procesar(mensaje, telefono, nombre):
             )
             resp = f"(Según el {nom_doc})\n\n" + resp
         except asyncio.TimeoutError:
-            resp = f"El documento tardó mucho en cargar 😅. Puedes descargarlo directamente aquí:\n{url_doc}"
+            resp = f"El documento tardó demasiado. Descárgalo:\n{url_doc}"
         except Exception as e:
-            print("ERROR PDF: "+str(e)); resp = f"Tuve un problema leyendo el documento. Descárgalo aquí:\n{url_doc}"
+            print("ERROR PDF: "+str(e)); resp = f"No pude leer el documento ahora. Descárgalo:\n{url_doc}"
         guardar_hist(telefono,"a",resp); return resp
 
     # ENLACE WEB
@@ -2559,20 +2877,12 @@ async def procesar(mensaje, telefono, nombre):
     # Es la fuente de verdad antes de responder con Gemini solo.
     if any(p in s for p in PALABRAS_DOC_CENTRAL):
         guardar_hist(telefono,"u",mensaje)
-        URL_CENTRAL  = CATALOGO["pei"][1]
-        URL_MAESTRO  = CATALOGO["documento maestro"][1]
+        URL_CENTRAL = CATALOGO["pei"][1]
         print(f"[DOC CENTRAL] activado para: {mensaje[:80]}")
         try:
             pdf_central = await asyncio.wait_for(descargar_pdf_b64(URL_CENTRAL), timeout=40)
-            # Intentar también cargar el documento maestro para máxima cobertura
-            pdf_maestro = None
-            try:
-                pdf_maestro = await asyncio.wait_for(descargar_pdf_b64(URL_MAESTRO), timeout=30)
-            except Exception as e2:
-                print(f"WARN doc maestro: {e2}")
             resp = await asyncio.wait_for(
-                llamar_gemini_pdf(mensaje, "PEI y Documentos Institucionales ColBolívar",
-                                  pdf_central, telefono, nombre, pdf_pei_b64=pdf_maestro),
+                llamar_gemini_pdf(mensaje, "PEI y Documentos Institucionales ColBolívar", pdf_central, telefono, nombre),
                 timeout=60
             )
             guardar_hist(telefono,"a",resp); return resp
@@ -2583,26 +2893,12 @@ async def procesar(mensaje, telefono, nombre):
 
     # GEMINI NORMAL
     guardar_hist(telefono,"u",mensaje)
-    # Intentar enriquecer con el sitio web del colegio si la pregunta parece institucional
-    ctx_web = ""
-    s_parece_institucional = any(p in s for p in [
-        "colegio","colbolivar","simon bolivar","sede","docente","rector",
-        "coordinador","estudiante","grado","area","proyecto","evento","actividad",
-        "matricula","nota","boletin","periodo","jornada","curso","clase",
-    ])
-    if s_parece_institucional and len(mensaje) > 10:
-        try:
-            web_resp = await asyncio.wait_for(buscar_en_web_colegio(mensaje), timeout=18)
-            if web_resp:
-                ctx_web = f"\nINFORMACIÓN ADICIONAL DEL SITIO WEB DEL COLEGIO:\n{web_resp}\n"
-        except Exception as e:
-            print(f"WARN web_colegio skip: {e}")
     try:
-        resp = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre, ctx=ctx_web), timeout=25)
+        resp = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre), timeout=25)
     except asyncio.TimeoutError:
-        resp = "Tardé más de lo normal en responder 😅. Intenta de nuevo en un momento."
+        resp = "La consulta tardó demasiado. Intentalo de nuevo."
     except Exception as e:
-        print("ERROR GEMINI: "+str(e)); resp = "Tuve un pequeño problema. Inténtalo de nuevo por favor 🙏"
+        print("ERROR GEMINI: "+str(e)); resp = "Tuve un problema. Intentalo de nuevo."
     guardar_hist(telefono,"a",resp)
     print("OK -> "+(nombre or telefono))
     return resp
