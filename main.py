@@ -23,21 +23,15 @@ ADMIN_PHONES_EXTRA = [
 # Todos los admins (maestro + directivos) para notificaciones push
 TODOS_ADMINS = [ADMIN_PHONE] + ADMIN_PHONES_EXTRA
 
-# URL de envío proactivo de AutoResponder.ai
-# Se configura en Render: AUTORESPONDER_SEND_URL
-# Formato: https://autoresponder.ai/api/v1/whatsapp/send  (revisar en tu panel)
 AUTORESPONDER_SEND_URL = os.getenv("AUTORESPONDER_SEND_URL", "")
 RENDER_URL     = os.getenv("RENDER_EXTERNAL_URL", "https://autoresponder-ai.onrender.com")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 CALENDAR_ID    = "f4ff65197ae712df6cd26ab18dc878dc5eac8248c178dc7a67f855cb89b0deea@group.calendar.google.com"
 SHEETS_ID            = "1VTImBJaeAYGRTIeEMawam9eaoyaReMwW1fMikbqilcs"
-# Google Sheets para reportes de daños e incidentes (COPASST)
 SHEETS_INCIDENTES_ID = "1BUsM1O8pXZ0G36R8d2BG2HbI4tre7ixIFrrop5qDriM"
 COL_TZ               = timezone(timedelta(hours=-5))
 
-# Hoja de borradores (estado del formulario persistido)
 SHEET_BORRADORES = "Borradores"
-# Hoja de reportes finales
 SHEET_REPORTES   = "Reportes"
 
 SHEETS_CREDS = {
@@ -202,7 +196,6 @@ MENU_SEDES = (
 # ══════════════════════════════════════════════
 #  CAMPOS DEL REPORTE
 # ══════════════════════════════════════════════
-# Campo renombrado a detalle_del_hecho
 CAMPOS_REPORTE = ["estudiante", "grado", "tipo_falta", "detalle_del_hecho"]
 
 ETIQUETAS_CAMPO = {
@@ -241,11 +234,6 @@ PROTOCOLOS = {
 
 # ══════════════════════════════════════════════
 #  MÓDULO COPASST — REPORTE DE INCIDENTES
-#  (Comité Paritario de Seguridad y Salud en el Trabajo)
-#  Hoja Google Sheets separada para daños e incidentes físicos
-#  Columnas: N°Caso | Fecha | Hora | Sede | Espacio | Tipo de Daño |
-#            Descripción Original | Descripción Formal | Urgencia |
-#            Reportante | Teléfono
 # ══════════════════════════════════════════════
 CAMPOS_INCIDENTE = ["sede_inc", "espacio", "tipo_dano", "descripcion_inc"]
 
@@ -287,34 +275,24 @@ def _borrador_inc_a_dict(fila):
 def _dict_a_borrador_inc(d):
     return [str(d.get(c, "") or "") for c in COL_INC]
 
-# Cache de borradores de incidentes
 borradores_inc_cache: dict = {}
 
 SHEET_BORRADORES_INC = "Borradores"
 SHEET_INCIDENTES     = "Incidentes"
 
 # ══════════════════════════════════════════════
-#  COLUMNAS BORRADOR (Hoja Borradores en Sheets)
-#  Se usa para persistir el estado del formulario
-#
-#  Columnas: telefono | reportante | estado |
-#            estudiante | grado | tipo_falta |
-#            sede | jornada | detalle_del_hecho |
-#            timestamp
-#  (10 columnas, índices 0-9)
+#  COLUMNAS BORRADOR
 # ══════════════════════════════════════════════
 COL_B = ["telefono","reportante","estado",
          "estudiante","grado","tipo_falta",
          "sede","jornada","detalle_del_hecho","timestamp"]
 
 def _borrador_a_dict(fila):
-    """Convierte una fila de Sheets (lista) a dict de borrador."""
     while len(fila) < len(COL_B):
         fila.append("")
     return {COL_B[i]: fila[i] for i in range(len(COL_B))}
 
 def _dict_a_borrador(d):
-    """Convierte dict de borrador a lista de columnas."""
     return [str(d.get(c, "") or "") for c in COL_B]
 
 
@@ -326,9 +304,6 @@ historiales         = {}
 conocimiento_extra  = []
 docentes_admin      = []
 contador_reportes   = 0
-
-# Cache en memoria del estado de borradores
-# { telefono: { dict con campos del borrador } }
 borradores_cache: dict = {}
 
 
@@ -407,7 +382,6 @@ def _resolver_sede_por_numero(texto):
     return None
 
 def _campos_faltantes(b):
-    """Retorna lista de campos obligatorios que aún están vacíos en el borrador."""
     faltantes = []
     for campo in CAMPOS_REPORTE:
         val = b.get(campo, "")
@@ -492,11 +466,8 @@ async def obtener_token_sheets():
 
 # ══════════════════════════════════════════════
 #  SHEETS — OPERACIONES SOBRE BORRADORES
-#  Hoja "Borradores": una fila por telefono
-#  Se busca por telefono en columna A
 # ══════════════════════════════════════════════
 async def _sheets_leer_rango(rango, token=None):
-    """Lee un rango de Sheets y retorna lista de filas."""
     if not token:
         token = await obtener_token_sheets()
     if not token:
@@ -514,7 +485,6 @@ async def _sheets_leer_rango(rango, token=None):
         return []
 
 async def _sheets_escribir_rango(rango, valores, token=None):
-    """Escribe valores en un rango."""
     if not token:
         token = await obtener_token_sheets()
     if not token:
@@ -531,7 +501,6 @@ async def _sheets_escribir_rango(rango, valores, token=None):
         return False
 
 async def _sheets_borrar_fila(fila_num, token=None):
-    """Borra una fila de la hoja Borradores (limpia el contenido)."""
     if not token:
         token = await obtener_token_sheets()
     if not token:
@@ -549,17 +518,14 @@ async def _sheets_borrar_fila(fila_num, token=None):
         return False
 
 async def _sheets_append(hoja, fila, token=None):
-    """Agrega una fila al final de la hoja especificada."""
     if not token:
         token = await obtener_token_sheets()
     if not token:
         print(f"SHEETS append '{hoja}': sin token")
         return False
-    # Sin comillas simples en la URL — causan ERROR 400 en algunos casos
     url = (f"https://sheets.googleapis.com/v4/spreadsheets/{SHEETS_ID}"
            f"/values/{hoja}!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
     headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
-    # Garantizar que todos los valores sean strings
     fila_str = [str(v) if v is not None else "" for v in fila]
     try:
         async with httpx.AsyncClient(timeout=15) as c:
@@ -579,10 +545,6 @@ async def _sheets_append(hoja, fila, token=None):
         return False
 
 async def _borrador_buscar_fila(telefono, token=None):
-    """
-    Busca en la hoja Borradores la fila correspondiente al telefono.
-    Retorna (numero_de_fila, dict_datos) o (None, None).
-    """
     filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:J", token)
     for i, fila in enumerate(filas, start=1):
         if fila and limpiar_tel(fila[0]) == limpiar_tel(telefono):
@@ -590,21 +552,13 @@ async def _borrador_buscar_fila(telefono, token=None):
     return None, None
 
 async def borrador_guardar(telefono, b: dict):
-    """
-    Guarda o actualiza el borrador del formulario en Sheets.
-    Si ya existe una fila para este telefono la sobreescribe;
-    si no, agrega una fila nueva.
-    Actualiza también el cache en memoria.
-    """
     b["telefono"]  = limpiar_tel(telefono)
     b["timestamp"] = datetime.now(COL_TZ).strftime("%d/%m/%Y %H:%M:%S")
     borradores_cache[limpiar_tel(telefono)] = b
-
     try:
         token = await obtener_token_sheets()
         fila_num, _ = await _borrador_buscar_fila(telefono, token)
         fila_datos = _dict_a_borrador(b)
-
         if fila_num:
             rango = f"{SHEET_BORRADORES}!A{fila_num}:J{fila_num}"
             await _sheets_escribir_rango(rango, [fila_datos], token)
@@ -614,7 +568,6 @@ async def borrador_guardar(telefono, b: dict):
         print(f"WARN borrador_guardar: {e}")
 
 async def borrador_eliminar(telefono):
-    """Elimina el borrador de Sheets y del cache en memoria."""
     tel = limpiar_tel(telefono)
     borradores_cache.pop(tel, None)
     try:
@@ -626,16 +579,9 @@ async def borrador_eliminar(telefono):
         print(f"WARN borrador_eliminar: {e}")
 
 async def borrador_cargar(telefono):
-    """
-    Carga el borrador desde cache en memoria.
-    Si no está en cache, lo busca en Sheets (recuperación tras reinicio).
-    Retorna dict o None.
-    """
     tel = limpiar_tel(telefono)
     if tel in borradores_cache:
         return borradores_cache[tel]
-
-    # No está en cache → buscar en Sheets (recuperación tras reinicio de Render)
     try:
         _, b = await _borrador_buscar_fila(telefono)
         if b and b.get("estado"):
@@ -647,10 +593,6 @@ async def borrador_cargar(telefono):
     return None
 
 async def cargar_todos_borradores():
-    """
-    Se ejecuta al arrancar el servidor.
-    Carga todos los borradores activos de Sheets al cache en memoria.
-    """
     try:
         filas = await _sheets_leer_rango(f"{SHEET_BORRADORES}!A:J")
         n = 0
@@ -671,13 +613,6 @@ async def cargar_todos_borradores():
 #  SHEETS — REPORTE FINAL
 # ══════════════════════════════════════════════
 async def guardar_reporte_final(fila):
-    """
-    Guarda la fila final en la hoja 'Reportes'.
-    13 columnas:
-    N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
-    Tipo | Detalle Original | Detalle Profesional | Accion Reparadora |
-    Reportante | Teléfono
-    """
     try:
         token = await obtener_token_sheets()
         return await _sheets_append(SHEET_REPORTES, fila, token)
@@ -687,7 +622,7 @@ async def guardar_reporte_final(fila):
 
 
 # ══════════════════════════════════════════════
-#  EXTRACCION LOCAL (regex — nunca falla)
+#  EXTRACCION LOCAL (regex)
 # ══════════════════════════════════════════════
 def _extraer_local(mensaje):
     s = norm(mensaje)
@@ -710,9 +645,6 @@ def _extraer_local(mensaje):
 
 # ══════════════════════════════════════════════
 #  EXTRACCION CON GEMINI
-#  Extrae TODOS los campos posibles del mensaje:
-#  estudiante, grado, tipo_falta, sede, jornada,
-#  detalle_del_hecho
 # ══════════════════════════════════════════════
 async def _extraer_con_gemini(mensaje):
     prompt = (
@@ -774,11 +706,6 @@ async def _extraer_con_gemini(mensaje):
 #  REDACCION PROFESIONAL + ACCION REPARADORA
 # ══════════════════════════════════════════════
 async def _procesar_detalle(detalle_raw, estudiante, grado, tipo_falta, sede, jornada):
-    """
-    Recibe el detalle tal como lo escribió el docente.
-    Retorna (detalle_profesional, accion_reparadora).
-    Nunca lanza excepción — retorna el original si falla.
-    """
     if not detalle_raw or len(detalle_raw.strip()) < 5:
         return detalle_raw, ""
 
@@ -834,7 +761,6 @@ async def _procesar_detalle(detalle_raw, estudiante, grado, tipo_falta, sede, jo
         detalle_prof = ""
         accion_rep   = ""
 
-        # Parser robusto: DETALLE y ACCION pueden ocupar múltiples líneas
         partes_det = re.split(r'(?i)^DETALLE\s*:', raw, maxsplit=1, flags=re.MULTILINE)
         if len(partes_det) > 1:
             resto = partes_det[1]
@@ -843,7 +769,6 @@ async def _procesar_detalle(detalle_raw, estudiante, grado, tipo_falta, sede, jo
             if len(partes_acc) > 1:
                 accion_rep = partes_acc[1].strip()
 
-        # Fallback: buscar sin ancla de inicio de línea
         if not detalle_prof:
             partes_det2 = re.split(r'(?i)DETALLE\s*:', raw, maxsplit=1)
             if len(partes_det2) > 1:
@@ -863,39 +788,23 @@ async def _procesar_detalle(detalle_raw, estudiante, grado, tipo_falta, sede, jo
 
 
 # ══════════════════════════════════════════════
-#  GESTOR DEL REPORTE (Opción C — estado en Sheets)
-#
-#  Estados posibles (campo "estado" en borrador):
-#    "esperando_detalle"  → el siguiente mensaje ES el detalle
-#    "esperando_sede"     → el siguiente mensaje es número 1-6 de sede
-#    "esperando_resto"    → faltan varios campos, se piden juntos
-#    "activo"             → formulario en curso (primer mensaje ya procesado)
-#
-#  Flujo:
-#  1. Primer mensaje: extracción completa → se guarda borrador → se pide lo que falta
-#  2. Si solo falta detalle → estado="esperando_detalle" → msg siguiente = detalle directo
-#  3. Si falta sede → estado="esperando_sede"
-#  4. Al completar todo → _finalizar_reporte
+#  GESTOR DEL REPORTE
 # ══════════════════════════════════════════════
 async def gestionar_reporte(mensaje, telefono, nombre):
     global contador_reportes
     s = norm(mensaje)
     tel = limpiar_tel(telefono)
 
-    # ── Cancelar en cualquier momento ─────────────────────────────
     if s in ["cancelar", "salir", "cancel", "menu", "0"]:
         await borrador_eliminar(telefono)
         return "✅ Reporte cancelado. ¿En qué más te puedo ayudar? 😊"
 
-    # ── Cargar borrador existente (memoria o Sheets) ───────────────
     b = await borrador_cargar(telefono)
 
-    # ── Si no hay borrador, es el primer mensaje ───────────────────
     if b is None:
         b = {c: "" for c in COL_B}
         b["reportante"] = nombre or telefono
         b["estado"]     = "activo"
-        # Si el docente escribió solo la intención sin datos, guiar de una vez
         if norm(mensaje) in [
             "reportar una falta","reportar falta","nuevo reporte",
             "registrar falta","registrar una falta","quiero reportar una falta",
@@ -919,42 +828,27 @@ async def gestionar_reporte(mensaje, telefono, nombre):
 
     estado = b.get("estado", "activo")
 
-    # ══════════════════════════════════════════════════════════════
-    # ESTADO: esperando_detalle
-    # El mensaje completo ES el detalle. Captura directa, sin Gemini.
-    # ══════════════════════════════════════════════════════════════
     if estado == "esperando_detalle":
         texto = mensaje.strip()
-
         if re.match(r'^[1-6]$', texto):
             return "📝 Por favor escribe el detalle de lo ocurrido (no un número):"
-
         if len(texto) < 8:
             return "📝 Por favor cuéntame un poco más sobre lo que ocurrió:"
-
-        # ✅ GUARDAR DETALLE DIRECTAMENTE EN BORRADOR
         b["detalle_del_hecho"] = texto
         print(f"[DETALLE CAPTURADO] tel={tel} | '{texto[:100]}'")
-
-        # ¿Falta la sede?
         if not b.get("sede"):
             b["estado"] = "esperando_sede"
             await borrador_guardar(telefono, b)
             return "✅ Detalle guardado.\n\n" + MENU_SEDES
-
         faltantes = _campos_faltantes(b)
         if faltantes:
             b["estado"] = "esperando_resto"
             await borrador_guardar(telefono, b)
             return "✅ Detalle guardado.\n\n" + _mensaje_pedir_faltantes(faltantes)
-
         b["estado"] = "completo"
         await borrador_guardar(telefono, b)
         return await _finalizar_reporte(telefono, b)
 
-    # ══════════════════════════════════════════════════════════════
-    # ESTADO: esperando_sede
-    # ══════════════════════════════════════════════════════════════
     if estado == "esperando_sede":
         sede_res = _resolver_sede_por_numero(mensaje)
         if not sede_res:
@@ -963,38 +857,29 @@ async def gestionar_reporte(mensaje, telefono, nombre):
                 sede_res = (sede_txt[0], sede_txt[1], f"{sede_txt[0]} – {sede_txt[1]}")
             else:
                 return "No reconocí esa sede. Responde con el número del *1 al 6*:\n\n" + MENU_SEDES
-
         b["sede"]    = sede_res[0]
         b["jornada"] = sede_res[1]
         confirmacion = f"✅ Sede: *{sede_res[2]}*\n\n"
-
         faltantes = _campos_faltantes(b)
         if not faltantes:
             b["estado"] = "completo"
             await borrador_guardar(telefono, b)
             return await _finalizar_reporte(telefono, b)
-
         if faltantes == ["detalle_del_hecho"]:
             b["estado"] = "esperando_detalle"
             await borrador_guardar(telefono, b)
             return (confirmacion +
                     "📝 *¿Qué ocurrió?* Escríbelo con tus palabras:\n"
                     "_(Puedes escribir todo lo que quieras)_")
-
         b["estado"] = "esperando_resto"
         await borrador_guardar(telefono, b)
         return confirmacion + _mensaje_pedir_faltantes(faltantes)
 
-    # ══════════════════════════════════════════════════════════════
-    # ESTADO: esperando_resto
-    # Respuesta a campos múltiples faltantes
-    # ══════════════════════════════════════════════════════════════
     if estado == "esperando_resto":
         local = _extraer_local(mensaje)
         for campo in ("grado", "tipo_falta"):
             if local.get(campo) and not b.get(campo):
                 b[campo] = local[campo]
-
         try:
             gext = await asyncio.wait_for(_extraer_con_gemini(mensaje), timeout=12)
             for campo in ("estudiante", "grado", "tipo_falta", "sede", "jornada", "detalle_del_hecho"):
@@ -1002,8 +887,6 @@ async def gestionar_reporte(mensaje, telefono, nombre):
                     b[campo] = gext[campo]
         except Exception as e:
             print(f"WARN gemini esperando_resto: {e}")
-
-        # Fallback sede en texto
         if not b.get("sede"):
             sede_txt = _detectar_sede_en_texto(s)
             if sede_txt:
@@ -1014,29 +897,20 @@ async def gestionar_reporte(mensaje, telefono, nombre):
             if sede_num:
                 b["sede"]    = sede_num[0]
                 b["jornada"] = sede_num[1]
-
         faltantes = _campos_faltantes(b)
         if not faltantes:
             b["estado"] = "completo"
             await borrador_guardar(telefono, b)
             return await _finalizar_reporte(telefono, b)
-
         if faltantes == ["detalle_del_hecho"]:
             b["estado"] = "esperando_detalle"
             await borrador_guardar(telefono, b)
             return ("📝 *¿Qué ocurrió?* Escríbelo con tus palabras:\n"
                     "_(Puedes escribir todo lo que quieras)_")
-
         await borrador_guardar(telefono, b)
         return _mensaje_pedir_faltantes(faltantes)
 
-    # ══════════════════════════════════════════════════════════════
-    # ESTADO: activo — Primer mensaje del reporte
-    # Gemini extrae TODOS los campos inteligentemente de una vez:
-    # estudiante, grado, tipo_falta, sede, jornada, detalle_del_hecho
-    # ══════════════════════════════════════════════════════════════
-
-    # Extracción local (regex rápida — nunca falla)
+    # Estado activo — primer mensaje
     local = _extraer_local(mensaje)
     if local.get("cancelar"):
         await borrador_eliminar(telefono)
@@ -1045,7 +919,6 @@ async def gestionar_reporte(mensaje, telefono, nombre):
         if local.get(campo):
             b[campo] = local[campo]
 
-    # Extracción Gemini — extrae TODOS los campos del mensaje de una vez
     try:
         gext = await asyncio.wait_for(_extraer_con_gemini(mensaje), timeout=14)
         for campo in ("estudiante", "grado", "tipo_falta", "sede", "jornada", "detalle_del_hecho"):
@@ -1054,21 +927,16 @@ async def gestionar_reporte(mensaje, telefono, nombre):
     except Exception as e:
         print(f"WARN gemini primer msg: {e}")
 
-    # Fallback sede: detectar por texto o número si Gemini no la encontró
     if not b.get("sede"):
         sede_txt = _detectar_sede_en_texto(s)
         if sede_txt:
             b["sede"]    = sede_txt[0]
             b["jornada"] = b.get("jornada") or sede_txt[1]
-
     if not b.get("sede"):
         sede_num = _resolver_sede_por_numero(mensaje)
         if sede_num:
             b["sede"]    = sede_num[0]
             b["jornada"] = sede_num[1]
-
-    # Fallback detalle: si el mensaje tiene suficiente contenido y Gemini
-    # no extrajo detalle, usar el mensaje completo
     if not b.get("detalle_del_hecho") and len(mensaje.strip()) > 30:
         b["detalle_del_hecho"] = mensaje.strip()
         print(f"[DETALLE FALLBACK mensaje completo] '{mensaje[:80]}'")
@@ -1077,16 +945,13 @@ async def gestionar_reporte(mensaje, telefono, nombre):
           f"tipo={b.get('tipo_falta')} | sede={b.get('sede')} | jornada={b.get('jornada')} | "
           f"detalle='{str(b.get('detalle_del_hecho',''))[:60]}'")
 
-    # Verificar campos faltantes
     faltantes = _campos_faltantes(b)
 
-    # ✅ Todo completo desde el primer mensaje → registrar directamente sin preguntar nada
     if not faltantes and b.get("sede"):
         b["estado"] = "completo"
         await borrador_guardar(telefono, b)
         return await _finalizar_reporte(telefono, b)
 
-    # Falta la sede
     if not b.get("sede"):
         b["estado"] = "esperando_sede"
         await borrador_guardar(telefono, b)
@@ -1100,7 +965,6 @@ async def gestionar_reporte(mensaje, telefono, nombre):
 
     resumen = _resumen_borrador(b)
 
-    # Solo falta el detalle
     if faltantes == ["detalle_del_hecho"]:
         b["estado"] = "esperando_detalle"
         await borrador_guardar(telefono, b)
@@ -1110,7 +974,6 @@ async def gestionar_reporte(mensaje, telefono, nombre):
             "_(Puedes escribir todo lo que quieras)_"
         )
 
-    # Varios campos faltantes
     b["estado"] = "esperando_resto"
     await borrador_guardar(telefono, b)
     return (
@@ -1121,10 +984,6 @@ async def gestionar_reporte(mensaje, telefono, nombre):
 
 # ══════════════════════════════════════════════
 #  FINALIZAR REPORTE
-#  1. Redactar detalle profesionalmente con Gemini
-#  2. Guardar fila final en hoja "Reportes"
-#  3. Eliminar borrador de hoja "Borradores"
-#  4. Devolver resumen al docente
 # ══════════════════════════════════════════════
 async def _finalizar_reporte(telefono, b: dict):
     global contador_reportes
@@ -1142,7 +1001,6 @@ async def _finalizar_reporte(telefono, b: dict):
     tipo       = b.get("tipo_falta", "")
     emoji_t    = EMOJIS_TIPO.get(tipo, "📋")
 
-    # ── Redacción profesional + acción reparadora ─────────────────
     detalle_prof = detalle_original
     accion_rep   = ""
     if detalle_original and len(detalle_original) > 5:
@@ -1164,11 +1022,6 @@ async def _finalizar_reporte(telefono, b: dict):
         except Exception as e:
             print(f"WARN _finalizar_reporte: {e}")
 
-    # ── Guardar en hoja Reportes ──────────────────────────────────
-    # 12 columnas:
-    # N°Caso | Fecha | Hora | Sede | Jornada | Estudiante | Grado |
-    # Tipo | Detalle Original | Detalle Profesional | Accion Reparadora |
-    # Reportante
     fila_final = [
         num_caso, fecha_str, hora_str,
         b.get("sede",""), b.get("jornada",""),
@@ -1181,19 +1034,16 @@ async def _finalizar_reporte(telefono, b: dict):
     ]
     asyncio.create_task(guardar_reporte_final(fila_final))
 
-    # 🚨 Alerta inmediata si la falta es gravísima
     if tipo == "Gravisima":
         reportante_nombre = b.get("reportante", limpiar_tel(telefono))
         asyncio.create_task(
             _alerta_gravisima(num_caso, b, detalle_prof, reportante_nombre)
         )
 
-    # ── Eliminar borrador ─────────────────────────────────────────
     asyncio.create_task(borrador_eliminar(telefono))
 
     protocolo = PROTOCOLOS.get(tipo, "")
 
-    # ── Respuesta al docente ──────────────────────────────────────
     resumen = (
         f"{emoji_t} *Reporte Registrado Exitosamente*\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -1271,182 +1121,91 @@ ALIAS_DOC = {
 }
 PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido","que habla","como funciona","cual es"]
 PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf"]
-PALABRAS_CALENDAR= ["calendario","eventos","evento","fechas","cuando","que hay","actividades","bimestral","receso","periodo","semana","mes","hoy","manana","mañana","proximo","próximo","vacaciones","boletin","boletín","dia civico","reunion","reunión","padres","clausura","graduacion","graduación","izado","izad","capacitacion","capacitación","prueba saber","matricula","matrícula","festivo","festivos","puente","semana santa","semana de receso","dias libres","suspensión","suspension","paro","sin clases"]
 
 # ══════════════════════════════════════════════
-#  DETECCIÓN SEMÁNTICA DE INTENCIÓN DE REPORTE
-#  Tres capas: bloqueo informativo → acción explícita → narrativa de hecho
+# CAMBIO 1 — PALABRAS_CALENDAR depurada
+# Se eliminaron palabras que colisionaban con documentos institucionales:
+# periodo, matricula, matrícula, reunion, reunión, padres, clausura,
+# graduacion, graduación, boletin, boletín, suspension, suspensión,
+# capacitacion, capacitación, prueba saber, cuando
+# Esas palabras deben activar el PDF/DOC_CENTRAL, NO el calendario.
 # ══════════════════════════════════════════════
-def es_intencion_reporte(mensaje: str) -> bool:
-    s = norm(mensaje)
-
-    # CAPA 0 — BLOQUEO ABSOLUTO: frases de reporte de DAÑO/INCIDENTE físico
-    # Estas deben ir al módulo COPASST, NUNCA al módulo de faltas
-    BLOQUEO_INCIDENTE = [
-        "reportar un dano", "reportar dano", "reportar un incidente",
-        "reportar incidente", "hay un dano", "hay un incidente",
-        "reporte de dano", "reporte de incidente", "reporte copasst",
-        "reportar averia", "dano en el colegio", "incidente en el colegio",
-        "informar un dano", "informar dano", "informar un incidente",
-        "hay un problema en", "hay una falla en", "hay un desperfecto",
-        "teja caida", "dano electrico", "puerta danada", "vidrio roto",
-        "fuga de agua", "corto electrico", "cortocircuito",
-    ]
-    if any(p in s for p in BLOQUEO_INCIDENTE):
-        return False
-
-    # CAPA 1 — BLOQUEO: consultas informativas tienen prioridad absoluta
-    BLOQUEO = [
-        "que dice","que establece","que indica","que habla","que contiene",
-        "cuales son","como se clasifica","que tipo","que son las",
-        "explica","explique","defin","describe","resume","segun el manual",
-        "segun la ley","segun el reglamento","en el manual","manual dice",
-        "articulo","capitulo","norma","reglamento","ley 1620",
-        "dame ejemplos","da ejemplo","ejemplo de","diferencia entre",
-        "informacion sobre","que es una falta","que es el bullying",
-        "protocolo de","como funciona","para que sirve",
-    ]
-    if any(p in s for p in BLOQUEO):
-        return False
-
-    # CAPA 2 — SEÑALES INEQUÍVOCAS DE ACCIÓN DE REPORTE DE FALTA
-    ACCION_DIRECTA = [
-        "quiero reportar una falta","quiero reportar falta",
-        "voy a reportar una falta","necesito reportar una falta",
-        "hacer un reporte de falta","hacer reporte de falta",
-        "registrar un reporte de falta","registrar una falta",
-        "levantar un acta","levantar acta",
-        "abrir un caso","abrir caso",
-        "reportar una falta","reportar al manual de convivencia",
-        "reportar falta de convivencia","reporte de convivencia",
-        "reporte disciplinario","reporte manual de convivencia",
-        "anotar una falta","anotar falta","subir una falta",
-        "iniciar reporte","nuevo reporte de falta",
-        "reportar a ",
-    ]
-    if any(p in s for p in ACCION_DIRECTA):
-        return True
-
-    # CAPA 3 — NARRATIVA DE INCIDENTE REAL
-    # Requiere: verbo de acción pasada + palabra de incidente + no es pregunta
-    VERBOS_INCIDENTE = [
-        "golpeo","golpeó","agredio","agredió","insulto","insultó",
-        "mordio","mordió","empujo","empujó","amenazo","amenazó",
-        "peleo","peleó","robo","robó","daño","dañó","vandali",
-        "acoso","acosar","hostig","maltrat","lesion","lesionó",
-    ]
-    PALABRAS_INCIDENTE = [
-        "incidente","agresion","agresión","bullying","conflicto",
-        "pelea","situacion","situación","caso","hecho",
-    ]
-    es_pregunta = s.endswith("?") or s.startswith(("que ","como ","cual ","cuando ","donde ","quien ","cuanto "))
-    tiene_verbo = any(v in s for v in VERBOS_INCIDENTE)
-    tiene_incidente = any(p in s for p in PALABRAS_INCIDENTE)
-
-    if tiene_verbo and tiene_incidente and not es_pregunta:
-        return True
-
-    return False
+PALABRAS_CALENDAR = [
+    "calendario","eventos","evento","fechas",
+    "que hay","actividades","bimestral","receso",
+    "semana","mes","hoy","manana","mañana",
+    "proximo","próximo","vacaciones",
+    "dia civico","izado","izad",
+    "festivo","festivos","puente",
+    "semana santa","semana de receso","dias libres",
+    "paro","sin clases",
+]
 
 PALABRAS_MANUAL_CONV = [
-    # Tipos de faltas
     "falta leve","falta grave","falta gravisima","falta gravísima",
     "tipos de faltas","clasificacion de faltas","clasificación de faltas",
     "que es una falta","cuales son las faltas",
-    # Convivencia y normas
     "manual de convivencia","manual convivencia","reglamento convivencia",
     "normas de convivencia","conducta","comportamiento","disciplina",
     "correctivo","sancion","sanción","acta de compromiso","compromiso de convivencia",
-    # Comités y rutas
     "comite de convivencia","comité de convivencia","comité",
     "ruta de atencion","ruta de atención","ruta integral","comite escolar",
     "protocolo disciplinario",
-    # Sanciones y procesos
     "suspension","suspensión","acudiente","citacion de padres","citación",
     "debido proceso","descargo","derecho de defensa",
-    # Leyes
     "ley 1620","decreto 1965","matoneo","acoso escolar","bullying","ciberacoso",
     "violencia escolar","agresion escolar","agresión escolar",
-    # Derechos y deberes
     "derechos del estudiante","deberes del estudiante","derechos y deberes",
     "derecho a la educacion","derecho a la educación",
-    # Uniforme y presentación
     "uso del uniforme","uniforme","presentacion personal","presentación personal",
     "higiene","aseo personal",
-    # Orientación y sexualidad
     "orientacion sexual","orientación sexual","educacion sexual","educación sexual",
-    # Matrícula
     "matricula","matrícula","inscripcion","inscripción","admision","admisión",
     "requisitos matricula","contrato de matricula","renovacion matricula",
-    # Servicios y bienestar
     "servicios de la institucion","servicios del colegio","psicoorientacion",
     "orientacion escolar","orientación escolar","bienestar estudiantil",
-    # Profesores y personal
     "derechos del docente","deberes del docente","funciones del docente",
     "personal administrativo","servicios generales","funciones del rector",
-    # Padres y familia
     "derechos de los padres","deberes de los padres","escuela de padres",
     "asociacion de padres","asamblea de padres","consejo de padres",
 ]
 PALABRAS_PEI_CTX = [
-    # Horizonte institucional
     "mision","vision","visión","filosofia","filosofía","horizonte institucional",
     "modelo pedagogico","modelo pedagógico","enfoque pedagogico","enfoque pedagógico",
     "principios institucionales","valores institucionales","politicas educativas",
     "políticas educativas","lema del colegio","lema institucional",
-    # Perfiles
     "perfil del estudiante","perfil del educando","perfil del docente",
     "perfil del educador","perfil del padre","perfil del rector",
     "perfiles institucionales","perfiles","competencias",
-    # Objetivos
     "objetivos institucionales","objetivos del colegio","objetivos generales",
     "objetivos especificos","objetivos específicos","proyecto educativo",
-    # Gobierno escolar
     "gobierno escolar","consejo directivo","consejo academico","consejo académico",
     "consejo estudiantil","asamblea general","personero","personera",
     "personero estudiantil","contralor","contralor escolar","contralor estudiantil",
     "comision de evaluacion","comisión de evaluación",
     "funciones del gobierno escolar","organos de gobierno",
-    # Reseña e historia
     "reseña historica","reseña histórica","historia del colegio",
     "fundacion del colegio","fundación del colegio","cuando fue fundado",
     "antecedentes institucionales",
-    # Símbolos
     "himno del colegio","escudo del colegio","bandera del colegio",
     "simbolos institucionales","símbolos institucionales",
-    # Estructura académica
     "plan de estudios","pensum","malla curricular","intensidad horaria",
     "areas fundamentales","áreas fundamentales","asignaturas","materias",
     "grados que ofrece","niveles educativos",
-    # Proyectos transversales
     "proyecto transversal","proyectos pedagogicos","prae","educacion ambiental",
     "educación ambiental","pescc","sexualidad","democracia y participacion",
     "tiempo libre","aprovechamiento del tiempo","pileo","lectura y escritura",
     "proyecto de vida","emprendimiento","ciudadania",
-    # Convenios
     "convenio sena","convenio con sena","modalidad tecnica","modalidad técnica",
     "bachillerato tecnico","bachillerato técnico","tecnico en","técnico en",
     "mantenimiento electronico","electronica","sistemas","convenio universidad",
     "universidad de pamplona","ufps","convenios institucionales",
     "media articulada","articulacion sena",
-    # Sedes
     "sede central","sede simon bolivar","sede san martin","sede hernando acevedo",
     "sedes del colegio","cuantas sedes",
 ]
 
-# ══════════════════════════════════════════════════════════════
-#  DOCUMENTO MAESTRO INSTITUCIONAL
-#  Compilado de 7 documentos:
-#  1. PEI  (Proyecto Educativo Institucional)
-#  2. Manual de Convivencia
-#  3. Manual de Normatividad
-#  4. Mapa de Procesos
-#  5. POA  (Plan Operativo Anual)
-#  6. PMI  (Plan de Mejoramiento Institucional)
-#  7. PED / Anexos
-# ══════════════════════════════════════════════════════════════
 PALABRAS_DOC_CENTRAL = [
-    # ── PEI ──────────────────────────────────────────────────
     "pei","proyecto educativo","resignificacion","horizonte institucional",
     "mision","vision","filosofia institucional","modelo pedagogico",
     "enfoque pedagogico","perfil del estudiante","perfil del docente",
@@ -1458,8 +1217,6 @@ PALABRAS_DOC_CENTRAL = [
     "proyecto transversal","proyecto de vida","escuela de padres",
     "convenio sena","universidad de pamplona","ufps",
     "competencias","perfiles","formacion integral",
-
-    # ── Mapa de Procesos ─────────────────────────────────────
     "mapa de procesos","proceso","procesos","subproceso","subprocesos",
     "gestion academica","gestion directiva","gestion administrativa",
     "gestion comunitaria","gestion de aula","gestion financiera",
@@ -1469,20 +1226,14 @@ PALABRAS_DOC_CENTRAL = [
     "seguimiento al aprendizaje","evaluacion de aula",
     "opciones didacticas","estrategias para las tareas",
     "GAP","codigo de proceso","indicador de proceso",
-
-    # ── POA (Plan Operativo Anual) ────────────────────────────
     "poa","plan operativo","plan operativo anual","actividad institucional",
     "meta institucional","indicador de gestion","cronograma institucional",
     "presupuesto","recursos institucionales","responsable","fecha de ejecucion",
-
-    # ── PMI (Plan de Mejoramiento Institucional) ──────────────
     "pmi","plan de mejoramiento","mejoramiento institucional",
     "indice sintetico","isce","siempre dia e","pruebas saber",
     "resultado saber","desempeno institucional","autoevaluacion",
     "area de mejora","estrategia de mejora","accion de mejora",
     "seguimiento pmi","evaluacion pmi",
-
-    # ── Manual de Convivencia ─────────────────────────────────
     "manual de convivencia","reglamento","normas de convivencia",
     "falta leve","falta grave","falta gravisima","falta gravísima",
     "tipos de faltas","clasificacion de faltas","conducta","comportamiento",
@@ -1493,44 +1244,38 @@ PALABRAS_DOC_CENTRAL = [
     "ley 1620","decreto 1965","matoneo","acoso escolar","bullying",
     "mediacion escolar","conciliacion","restaurativo",
     "acudiente","citacion","notificacion",
-
-    # ── Manual de Normatividad ────────────────────────────────
     "manual de normatividad","normatividad","norma","decreto","resolucion",
     "ley general de educacion","ley 115","decreto 1290","decreto 1860",
     "constitucion","articulo","capitulo","paragrafo",
     "regimen disciplinario","estatuto docente","codigo de infancia",
     "icbf","policia de infancia","comisaria de familia",
-
-    # ── PED / Anexos ─────────────────────────────────────────
     "ped","plan especial","plan de emergencias","gestion del riesgo",
     "simulacro","evacuacion","ruta de evacuacion","brigada",
     "manual de funciones","cargo","funciones del rector",
     "funciones del docente","funciones del coordinador",
     "matricula","admision","requisitos de ingreso","proceso de matricula",
     "certificado","paz y salvo","constancia","documento",
-
-    # ── Manual de Normatividad Académica (págs 288-344) ───────
     "normatividad academica","siee","sistema de evaluacion",
     "escala de valoracion","valoracion","desempeno superior","desempeno alto",
     "desempeno basico","desempeno bajo","periodo academico","nota","calificacion",
     "reprobado","reprueba","perdio el ano","perdio el año","promovido","no promovido",
     "nivelacion","recuperacion","prueba de","habilitacion",
     "comision de evaluacion","comision de promocion",
-    "GA-D1","GAP","codigo GAP",
-
-    # ── Mapa de Procesos (págs 345-370) ───────────────────────
-    "P1","P2","P3","P4","GAP1","GAP2","GAP3","GAP4",
-    "diseño pedagogico curricular","practicas pedagogicas",
-    "gestion de aula","seguimiento academico",
-    "ambiente de aprendizaje","interaccion en el aula",
-    "manejo de la disciplina en el aula","uso del tiempo libre",
-    "19 componentes","aplicativo","autoevaluacion institucional",
-
-    # ── POA (pág 371) ─────────────────────────────────────────
-    "plan operativo anual","poa","actividad del poa",
-    "formulacion de proyectos","meta del plan",
-
-    # ── SIEE — Evaluación y Promoción ────────────────────────
+    "mision","vision","filosofia","filosofía","horizonte institucional",
+    "modelo pedagogico","perfil del estudiante","perfil del docente",
+    "principios institucionales","objetivos institucionales",
+    "gobierno escolar","personero","contralor escolar",
+    "consejo directivo","consejo academico","consejo estudiantil",
+    "plan de estudios","area fundamental","area transversal",
+    "intensidad horaria","pensum","malla curricular",
+    "proyecto transversal","proyecto de vida","escuela de padres",
+    "convenio sena","universidad de pamplona","ufps",
+    "reseña historica","historia del colegio","himno","escudo","bandera",
+    "lema del colegio","sedes del colegio","prae","pescc","pileo",
+    "cuantos","cuanto","cuales son","como funciona","que dice",
+    "que establece","que indica","segun el colegio","en colbolivar",
+    "en la institucion","en el colegio","en simon bolivar",
+    "dime","explicame","que es","que son","como se","cuando se",
     "siee","sistema de evaluacion","sistema institucional",
     "escala de valoracion","escala de valoración","escala numerica",
     "desempeño superior","desempeño alto","desempeño basico","desempeño bajo",
@@ -1547,23 +1292,9 @@ PALABRAS_DOC_CENTRAL = [
     "ser saber hacer","componentes de evaluacion",
     "promocion anticipada","no promocion","no promoción","repitente","reprobacion",
     "media tecnica evaluacion","sena evaluacion","cap del sena",
-    # ── Horizonte y filosofía PEI ─────────────────────────
-    "mision","vision","filosofia","filosofía","horizonte institucional",
-    "modelo pedagogico","perfil del estudiante","perfil del docente",
-    "principios institucionales","objetivos institucionales",
-    "gobierno escolar","personero","contralor escolar",
-    "consejo directivo","consejo academico","consejo estudiantil",
-    "plan de estudios","area fundamental","area transversal",
-    "intensidad horaria","pensum","malla curricular",
-    "proyecto transversal","proyecto de vida","escuela de padres",
-    "convenio sena","universidad de pamplona","ufps",
-    "reseña historica","historia del colegio","himno","escudo","bandera",
-    "lema del colegio","sedes del colegio","prae","pescc","pileo",
-    # ── Preguntas generales sobre el colegio ─────────────────
-    "cuantos","cuanto","cuales son","como funciona","que dice",
-    "que establece","que indica","segun el colegio","en colbolivar",
-    "en la institucion","en el colegio","en simon bolivar",
-    "dime","explicame","que es","que son","como se","cuando se",
+    "reunion de padres","entrega de boletin","entrega boletines",
+    "clausura escolar","graduacion escolar","matricula escolar",
+    "suspension escolar","capacitacion docente","prueba saber",
 ]
 
 
@@ -1586,7 +1317,7 @@ def buscar_web(texto):
 
 
 # ══════════════════════════════════════════════
-#  DESCARGA PDF (con reintentos y cache)
+#  DESCARGA PDF
 # ══════════════════════════════════════════════
 async def descargar_pdf_b64(url):
     if url in pdf_cache:
@@ -1608,7 +1339,7 @@ async def descargar_pdf_b64(url):
 
 
 # ══════════════════════════════════════════════
-#  GEMINI — ANÁLISIS PDF (exhaustivo)
+#  GEMINI — ANÁLISIS PDF
 # ══════════════════════════════════════════════
 async def llamar_gemini_pdf(pregunta, nombre_doc, pdf_b64, telefono, nombre_usuario, pdf_pei_b64=None):
     api_key = os.getenv("GEMINI_API_KEY","")
@@ -1665,7 +1396,6 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
     primera = not bool(hist)
     extra   = "\nDATOS EXTRA:\n"+"\n".join(["- "+d for d in conocimiento_extra])+"\n" if conocimiento_extra else ""
 
-    # Resumen compacto del colegio para el prompt (evita truncar por tokens)
     info_compacta = (
         "IE Simón Bolívar — ColBolívar — Cúcuta. DANE: 154001008266. "
         "Rector: Mg. Jesús Maldonado Serrano. Sedes: Central (Calle 4 N°11A-26, tel 5943344), "
@@ -1679,7 +1409,6 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
         "Correo: colintsimonbolivar@semcucuta.gov.co | Web: gestionacademicaco.wixsite.com/colbolivar1"
     )
 
-    # Contexto detallado solo si la pregunta lo necesita
     s_preg = norm(pregunta)
     necesita_detalle = any(p in s_preg for p in [
         "manual","convivencia","falta","sancion","protocolo","ley","decreto",
@@ -1713,11 +1442,8 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
 
     candidato = d["candidates"][0]
     texto = candidato.get("content",{}).get("parts",[{}])[0].get("text","")
-
-    # Detectar si Gemini truncó la respuesta (finishReason MAX_TOKENS)
     finish = candidato.get("finishReason","")
     if finish == "MAX_TOKENS" and texto:
-        # Cortar en el último punto o signo de exclamación completo
         ultimo_punto = max(texto.rfind(". "), texto.rfind(".\n"), texto.rfind("! "), texto.rfind("? "))
         if ultimo_punto > len(texto) // 2:
             texto = texto[:ultimo_punto+1]
@@ -1727,12 +1453,80 @@ async def llamar_gemini(pregunta, telefono, nombre_usuario, ctx=""):
 
 
 # ══════════════════════════════════════════════
-#  DETECCIÓN DE INTENCIÓN — REPORTE DE INCIDENTE/DAÑO (COPASST)
+#  DETECCIÓN SEMÁNTICA DE INTENCIÓN DE REPORTE
+# ══════════════════════════════════════════════
+def es_intencion_reporte(mensaje: str) -> bool:
+    s = norm(mensaje)
+
+    BLOQUEO_INCIDENTE = [
+        "reportar un dano", "reportar dano", "reportar un incidente",
+        "reportar incidente", "hay un dano", "hay un incidente",
+        "reporte de dano", "reporte de incidente", "reporte copasst",
+        "reportar averia", "dano en el colegio", "incidente en el colegio",
+        "informar un dano", "informar dano", "informar un incidente",
+        "hay un problema en", "hay una falla en", "hay un desperfecto",
+        "teja caida", "dano electrico", "puerta danada", "vidrio roto",
+        "fuga de agua", "corto electrico", "cortocircuito",
+    ]
+    if any(p in s for p in BLOQUEO_INCIDENTE):
+        return False
+
+    BLOQUEO = [
+        "que dice","que establece","que indica","que habla","que contiene",
+        "cuales son","como se clasifica","que tipo","que son las",
+        "explica","explique","defin","describe","resume","segun el manual",
+        "segun la ley","segun el reglamento","en el manual","manual dice",
+        "articulo","capitulo","norma","reglamento","ley 1620",
+        "dame ejemplos","da ejemplo","ejemplo de","diferencia entre",
+        "informacion sobre","que es una falta","que es el bullying",
+        "protocolo de","como funciona","para que sirve",
+    ]
+    if any(p in s for p in BLOQUEO):
+        return False
+
+    ACCION_DIRECTA = [
+        "quiero reportar una falta","quiero reportar falta",
+        "voy a reportar una falta","necesito reportar una falta",
+        "hacer un reporte de falta","hacer reporte de falta",
+        "registrar un reporte de falta","registrar una falta",
+        "levantar un acta","levantar acta",
+        "abrir un caso","abrir caso",
+        "reportar una falta","reportar al manual de convivencia",
+        "reportar falta de convivencia","reporte de convivencia",
+        "reporte disciplinario","reporte manual de convivencia",
+        "anotar una falta","anotar falta","subir una falta",
+        "iniciar reporte","nuevo reporte de falta",
+        "reportar a ",
+    ]
+    if any(p in s for p in ACCION_DIRECTA):
+        return True
+
+    VERBOS_INCIDENTE = [
+        "golpeo","golpeó","agredio","agredió","insulto","insultó",
+        "mordio","mordió","empujo","empujó","amenazo","amenazó",
+        "peleo","peleó","robo","robó","daño","dañó","vandali",
+        "acoso","acosar","hostig","maltrat","lesion","lesionó",
+    ]
+    PALABRAS_INCIDENTE = [
+        "incidente","agresion","agresión","bullying","conflicto",
+        "pelea","situacion","situación","caso","hecho",
+    ]
+    es_pregunta = s.endswith("?") or s.startswith(("que ","como ","cual ","cuando ","donde ","quien ","cuanto "))
+    tiene_verbo = any(v in s for v in VERBOS_INCIDENTE)
+    tiene_incidente = any(p in s for p in PALABRAS_INCIDENTE)
+
+    if tiene_verbo and tiene_incidente and not es_pregunta:
+        return True
+
+    return False
+
+
+# ══════════════════════════════════════════════
+#  DETECCIÓN DE INTENCIÓN — INCIDENTE/DAÑO (COPASST)
 # ══════════════════════════════════════════════
 def es_intencion_incidente(mensaje: str) -> bool:
-    s = norm(mensaje)  # normaliza: minúsculas, sin tildes, sin ñ
+    s = norm(mensaje)
     ACCION_INC = [
-        # SIN tildes ni ñ (igual que norm() los deja)
         "reportar un dano", "reportar dano", "reportar un incidente",
         "reportar incidente", "hay un dano", "hay un incidente",
         "existe un dano", "tengo un dano que reportar",
@@ -1744,7 +1538,6 @@ def es_intencion_incidente(mensaje: str) -> bool:
         "teja caida", "teja que se cae", "dano electrico",
         "puerta danada", "vidrio roto", "bano danado",
         "fuga de agua", "corto electrico", "cortocircuito",
-        # variantes adicionales
         "reportar averia", "reporte averia",
         "reportar un problema", "problema en el colegio",
         "hay un dano en", "encontre un dano", "encontre una averia",
@@ -1754,10 +1547,8 @@ def es_intencion_incidente(mensaje: str) -> bool:
 
 # ══════════════════════════════════════════════
 #  COPASST — GOOGLE SHEETS OPERACIONES
-#  (Sheets separada para incidentes físicos)
 # ══════════════════════════════════════════════
 async def _sheets_append_inc(hoja, fila, token=None):
-    """Agrega una fila al final de la hoja en SHEETS_INCIDENTES_ID."""
     if not token:
         token = await obtener_token_sheets()
     if not token:
@@ -1881,11 +1672,9 @@ async def guardar_incidente_final(fila):
         print(f"SHEETS_INC incidente final error: {e}")
         return False
 
-# Contador de incidentes en memoria
 contador_incidentes = 0
 
 async def _redactar_incidente(descripcion_raw, sede, espacio, tipo_dano, reportante):
-    """Redacta formalmente el incidente usando Gemini."""
     if not descripcion_raw or len(descripcion_raw.strip()) < 5:
         return descripcion_raw
     prompt = (
@@ -1958,7 +1747,6 @@ async def _finalizar_incidente(telefono, b: dict):
     tipo_dano     = b.get("tipo_dano", "")
     reportante    = b.get("reportante", limpiar_tel(telefono))
 
-    # Redacción formal
     desc_formal = desc_original
     try:
         desc_formal = await asyncio.wait_for(
@@ -1968,7 +1756,6 @@ async def _finalizar_incidente(telefono, b: dict):
     except Exception as e:
         print(f"WARN _finalizar_incidente redacción: {e}")
 
-    # Determinar urgencia básica
     urgencia = "Media"
     s_low = norm(desc_original + " " + tipo_dano)
     if any(p in s_low for p in ["electrico","electrica","corto","cortocircuito","cable","teja","techo","piso","escalera","gas","fuga","incendio"]):
@@ -1978,7 +1765,6 @@ async def _finalizar_incidente(telefono, b: dict):
     else:
         urgencia = "Baja"
 
-    # Guardar en Sheets de incidentes
     fila_final = [
         num_caso, fecha_str, hora_str,
         sede, espacio, tipo_dano,
@@ -1988,7 +1774,6 @@ async def _finalizar_incidente(telefono, b: dict):
     asyncio.create_task(guardar_incidente_final(fila_final))
     asyncio.create_task(borrador_inc_eliminar(telefono))
 
-    # Alerta admins si urgencia alta
     if urgencia == "Alta":
         alerta = (
             "⚠️ *ALERTA — DAÑO/INCIDENTE URGENTE*\n"
@@ -2060,7 +1845,6 @@ async def gestionar_incidente(mensaje, telefono, nombre):
 
     estado = b.get("estado", "activo_inc")
 
-    # ── Esperando sede ──────────────────────────────────────────────
     if estado == "esperando_sede_inc":
         sede = _resolver_sede_inc(mensaje)
         if not sede:
@@ -2076,7 +1860,6 @@ async def gestionar_incidente(mensaje, telefono, nombre):
             "_(Escribe CANCELAR para salir)_"
         )
 
-    # ── Esperando espacio ───────────────────────────────────────────
     if estado == "esperando_espacio_inc":
         if len(mensaje.strip()) < 3:
             return "📍 Por favor describe mejor el lugar donde está el daño:"
@@ -2097,7 +1880,6 @@ async def gestionar_incidente(mensaje, telefono, nombre):
             "Responde con el *número* o describe el tipo."
         )
 
-    # ── Esperando tipo de daño ──────────────────────────────────────
     if estado == "esperando_tipo_inc":
         tipos = {
             "1": "Eléctrico", "2": "Estructura", "3": "Mobiliario",
@@ -2120,7 +1902,6 @@ async def gestionar_incidente(mensaje, telefono, nombre):
             "_(Escribe CANCELAR para salir)_"
         )
 
-    # ── Esperando descripción ───────────────────────────────────────
     if estado == "esperando_desc_inc":
         if len(mensaje.strip()) < 8:
             return "📝 Por favor cuéntame un poco más sobre el daño o incidente:"
@@ -2129,15 +1910,11 @@ async def gestionar_incidente(mensaje, telefono, nombre):
         await borrador_inc_guardar(telefono, b)
         return await _finalizar_incidente(telefono, b)
 
-    # ── Estado activo — primer mensaje con datos ────────────────────
-    # Intentar extraer campos del mensaje directamente
     s_full = norm(mensaje)
-
     sede = _resolver_sede_inc(s_full)
     if sede:
         b["sede_inc"] = sede
 
-    # Si no hay sede aún, pedir menú
     if not b.get("sede_inc"):
         b["estado"] = "esperando_sede_inc"
         await borrador_inc_guardar(telefono, b)
@@ -2147,7 +1924,6 @@ async def gestionar_incidente(mensaje, telefono, nombre):
             "Comencemos. " + MENU_SEDES_INC
         )
 
-    # Si tienen sede pero falta espacio
     if not b.get("espacio"):
         b["estado"] = "esperando_espacio_inc"
         await borrador_inc_guardar(telefono, b)
@@ -2168,15 +1944,9 @@ async def gestionar_incidente(mensaje, telefono, nombre):
 
 
 # ══════════════════════════════════════════════
+#  PANEL ESTADÍSTICAS
+# ══════════════════════════════════════════════
 async def panel_estadisticas(periodo: str = "semana") -> str:
-    """
-    Lee la hoja Reportes y devuelve un resumen de faltas.
-    periodo: 'hoy' | 'semana' | 'mes' | 'todo'
-    Columnas Reportes: N°Caso | Fecha | Hora | Sede | Jornada |
-                       Estudiante | Grado | Tipo | Detalle Original |
-                       Detalle Profesional | Accion Reparadora |
-                       Reportante | Teléfono
-    """
     try:
         filas = await _sheets_leer_rango(f"{SHEET_REPORTES}!A2:M")
     except Exception as e:
@@ -2209,16 +1979,14 @@ async def panel_estadisticas(periodo: str = "semana") -> str:
     for fila in filas:
         while len(fila) < 13:
             fila.append("")
-        # Columna B = Fecha  (índice 1)
         fecha_str = fila[1].strip()
         if desde and fecha_str:
             try:
-                # Formato guardado: DD/MM/YYYY HH:MM:SS  o  DD/MM/YYYY
                 fecha_fila = datetime.strptime(fecha_str[:10], "%d/%m/%Y").replace(tzinfo=COL_TZ)
                 if fecha_fila < desde:
                     continue
             except:
-                pass  # si no parsea la fecha, la incluimos igual
+                pass
 
         total += 1
         tipo      = fila[7].strip().capitalize() if fila[7] else "Sin tipo"
@@ -2238,18 +2006,12 @@ async def panel_estadisticas(periodo: str = "semana") -> str:
     if total == 0:
         return f"📊 No hay reportes en el período: {label_periodo}."
 
-    # Top 3 grados
     top_grados = sorted(por_grado.items(), key=lambda x: x[1], reverse=True)[:3]
     top_grados_txt = " | ".join([f"{g}({n})" for g, n in top_grados])
-
-    # Top 3 docentes que más reportan
     top_docs = sorted(por_doc.items(), key=lambda x: x[1], reverse=True)[:3]
     top_docs_txt = "\n".join([f"   {i+1}. {d} — {n} reporte(s)" for i, (d, n) in enumerate(top_docs)])
-
-    # Sedes
     sedes_txt = "\n".join([f"   • {s}: {n}" for s, n in sorted(por_sede.items(), key=lambda x: x[1], reverse=True)])
 
-    # Construir mensaje
     lineas = [
         f"📊 *Panel de Convivencia — {label_periodo}*",
         "━━━━━━━━━━━━━━━━━━━━━━━━",
@@ -2274,17 +2036,10 @@ async def panel_estadisticas(periodo: str = "semana") -> str:
     return "\n".join(lineas)
 
 
-
 # ══════════════════════════════════════════════
-#  VER FALTAS DETALLADAS (listado real de filas)
-#  Muestra los reportes individuales con datos
-#  de cada falta, no solo estadísticas agregadas.
+#  VER FALTAS DETALLADAS
 # ══════════════════════════════════════════════
 async def ver_faltas_detalle(periodo: str = "semana") -> str:
-    """
-    Lee la hoja Reportes y devuelve un listado de faltas individuales.
-    periodo: 'hoy' | 'semana' | 'mes' | 'ultimos'
-    """
     try:
         filas = await _sheets_leer_rango(f"{SHEET_REPORTES}!A2:M")
     except Exception as e:
@@ -2297,7 +2052,6 @@ async def ver_faltas_detalle(periodo: str = "semana") -> str:
     EMOJIS_T = {"Leve": "📋", "Grave": "⚠️", "Gravisima": "🚨", "Gravísima": "🚨"}
 
     if periodo == "ultimos":
-        # Los 10 más recientes sin filtro de fecha
         filas_filtradas = [f for f in filas if f and len(f) >= 8][-10:]
         label = "últimos 10 reportes"
         desde = None
@@ -2308,7 +2062,7 @@ async def ver_faltas_detalle(periodo: str = "semana") -> str:
         elif periodo == "semana":
             desde = now - timedelta(days=7)
             label = "últimos 7 días"
-        else:  # mes
+        else:
             desde = now - timedelta(days=30)
             label = "últimos 30 días"
 
@@ -2363,13 +2117,9 @@ async def ver_faltas_detalle(periodo: str = "semana") -> str:
 
 def procesar_admin(mensaje):
     global conocimiento_extra, docentes_admin
-    # Usar mensaje original en minúsculas SIN norm() para no perder @
     s_raw = mensaje.strip().lower()
     s = norm(mensaje)
 
-    # ── MENÚ ADMIN: @ es el trigger principal ─────────────────────
-    # Se detecta con el mensaje raw (norm() no afecta @, pero por seguridad
-    # verificamos ambas versiones)
     TRIGGERS_MENU_DIRECTO = [
         "@", "@admin", "@menu", "@bot", "@colbot",
         "@ayuda", "@comandos", "@opciones", "@help",
@@ -2423,8 +2173,8 @@ def procesar_admin(mensaje):
             "💡 Escribe *@* en cualquier momento\n"
             "   para ver este menú."
         )
-    # ── Comandos con @ — comparar con s_raw para máxima fiabilidad ──
-    cmd = s_raw  # alias para legibilidad
+
+    cmd = s_raw
 
     if cmd in ["@resumen","@semana","@resumen semana"]:
         return ("__STATS__", "semana")
@@ -2445,7 +2195,6 @@ def procesar_admin(mensaje):
             f"  @faltas semana → últimos 7 días\n"
             f"  @ultimos → los 10 más recientes"
         )
-
     if cmd in ["@incidentes","@ver incidentes","@daños","@ver daños",
                "@sheets incidentes","@link incidentes"]:
         return (
@@ -2456,8 +2205,6 @@ def procesar_admin(mensaje):
             f"💡 Para reportar un daño cualquier docente puede escribir:\n"
             f"  'reportar un daño' o 'reportar un incidente'"
         )
-
-    # ── Faltas: ver listado de reportes por período ────────────────
     if cmd in ["@faltas hoy","@reportes hoy","@faltas de hoy"]:
         return ("__FALTAS__", "hoy")
     if cmd in ["@faltas semana","@reportes semana","@faltas esta semana"]:
@@ -2466,8 +2213,6 @@ def procesar_admin(mensaje):
         return ("__FALTAS__", "mes")
     if cmd in ["@ultimos","@últimos","@ultimos reportes","@últimos reportes","@ver ultimos"]:
         return ("__FALTAS__", "ultimos")
-
-    # ── Calendario desde @ ─────────────────────────────────────────
     if cmd in ["@cal hoy","@calendario hoy","@eventos hoy"]:
         return ("__CAL__", "hoy")
     if cmd in ["@cal semana","@calendario semana","@eventos semana","@eventos esta semana"]:
@@ -2478,7 +2223,6 @@ def procesar_admin(mensaje):
         return f"🔗 Calendario escolar ColBolívar:\n{URL_CALENDAR_PUBLIC}"
     if cmd in ["@agregar evento","@nuevo evento","@crear evento"]:
         return ("__AGREGAR_EVENTO__", "")
-
     if cmd in ["@borradores","@pendientes","@ver borradores"]:
         if not borradores_cache:
             return "No hay borradores activos."
@@ -2491,7 +2235,6 @@ def procesar_admin(mensaje):
     if cmd in ["@cache","@limpiar","@limpiar cache"]:
         n = len(pdf_cache); pdf_cache.clear(); return f"Cache limpiado: {n} PDF(s) eliminados."
 
-    # ── Comandos clásicos (sin @) ──────────────────────────────────
     if s.startswith("aprende:"):
         dato = mensaje[8:].strip()
         if dato:
@@ -2528,7 +2271,7 @@ def procesar_admin(mensaje):
         for tel, b in borradores_cache.items():
             lineas.append(f"• {tel} → estado={b.get('estado','')} estudiante={b.get('estudiante','?')}")
         return "\n".join(lineas)
-    # ── Menú admin — detección robusta (mayúsculas, tildes, espacios extra) ──
+
     TRIGGERS_MENU = [
         "menu admin","admin menu","menuadmin","adminmenu",
         "menu de admin","menu administrador","admin ayuda",
@@ -2566,7 +2309,7 @@ def procesar_admin(mensaje):
             "━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "💡 Escribe *@* para ver el menú rápido."
         )
-    # Panel de estadísticas — sentinel tuple para resolver async en procesar()
+
     TRIGGERS_STATS = [
         "resumen","panel","estadisticas","estadísticas",
         "resumen hoy","resumen semana","resumen mes","resumen todo",
@@ -2616,19 +2359,436 @@ def respuesta_rapida(mensaje):
     return None
 
 
+# ══════════════════════════════════════════════
+#  GOOGLE CALENDAR — MÓDULO
+# ══════════════════════════════════════════════
+EMOJI_EVENTO = {
+    "reunion":    "🤝", "reunión":    "🤝",
+    "entrega":    "📝", "informe":    "📋", "boletin":    "📋", "boletín": "📋",
+    "izad":       "🇨🇴", "izado":      "🇨🇴", "civico":     "🇨🇴", "cívico": "🇨🇴",
+    "vacacion":   "🏖️", "vacaciones": "🏖️", "receso":     "🏖️",
+    "clausura":   "🎓", "graduacion": "🎓", "graduación": "🎓",
+    "matricula":  "📒", "matrícula":  "📒", "inscripcion":"📒",
+    "capacitacion":"📚","formacion":  "📚", "taller":     "📚",
+    "prueba":     "✏️", "saber":      "✏️", "evaluacion": "✏️", "examen": "✏️",
+    "padres":     "👨‍👩‍👧", "acudientes":  "👨‍👩‍👧", "familia":    "👨‍👩‍👧",
+    "deportivo":  "⚽", "deporte":    "⚽", "juego":      "⚽",
+    "cultural":   "🎭", "festival":   "🎭", "muestra":    "🎭",
+    "salida":     "🚌", "visita":     "🚌", "excursion":  "🚌",
+    "paro":       "⚠️", "suspension": "⚠️", "suspensión": "⚠️",
+}
+
+EMOJI_SEDE = {
+    "[SB]":    "🏫 Simón Bolívar",
+    "[SM]":    "🏫 San Martín",
+    "[HA]":    "🏫 Hernando Acevedo",
+    "[TODAS]": "🏫 Todas las sedes",
+    "":        "🏫 General",
+}
+
+URL_CALENDAR_PUBLIC = "https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t"
+
+def _emoji_evento(titulo: str) -> str:
+    t = titulo.lower()
+    for clave, emoji in EMOJI_EVENTO.items():
+        if clave in t:
+            return emoji
+    return "📅"
+
+def _extraer_sede_titulo(titulo: str):
+    m = re.match(r"^(\[(?:SB|SM|HA|TODAS)\])\s*", titulo.strip(), re.IGNORECASE)
+    if m:
+        tag = m.group(1).upper()
+        titulo_limpio = titulo[m.end():].strip()
+        return tag, titulo_limpio
+    return "", titulo.strip()
+
+def _detectar_sede_filtro(s: str):
+    if any(p in s for p in ["simon bolivar","sede central","[sb]","sede sb"]):
+        return "[SB]"
+    if any(p in s for p in ["san martin","san martín","[sm]","sede sm"]):
+        return "[SM]"
+    if any(p in s for p in ["hernando acevedo","[ha]","sede ha"]):
+        return "[HA]"
+    return None
+
+async def obtener_eventos(dias=60, max_results=30):
+    key = os.getenv("GOOGLE_API_KEY","")
+    if not key: return None, "sin clave"
+    ahora    = datetime.now(COL_TZ)
+    time_min = ahora.isoformat().replace("+","%2B")
+    time_max = (ahora+timedelta(days=dias)).isoformat().replace("+","%2B")
+    url = ("https://www.googleapis.com/calendar/v3/calendars/"
+           + CALENDAR_ID.replace("@","%40")
+           + "/events?key=" + key
+           + "&timeMin=" + time_min + "&timeMax=" + time_max
+           + f"&maxResults={max_results}&singleEvents=true&orderBy=startTime")
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(url); d = r.json()
+        if "error" in d: return None, d["error"].get("message","error")
+        return d.get("items",[]), None
+    except Exception as e:
+        return None, str(e)
+
+async def crear_evento_calendar(titulo: str, fecha_str: str, descripcion: str = "",
+                                 hora_inicio: str = "", hora_fin: str = "") -> tuple:
+    try:
+        token = await obtener_token_sheets()
+        if not token:
+            return False, "No se pudo obtener autorización"
+        cal_id_enc = CALENDAR_ID.replace("@", "%40")
+        url = f"https://www.googleapis.com/calendar/v3/calendars/{cal_id_enc}/events"
+        headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+        if hora_inicio:
+            tz = "America/Bogota"
+            start = {"dateTime": f"{fecha_str}T{hora_inicio}:00", "timeZone": tz}
+            end_t = hora_fin if hora_fin else _sumar_hora(hora_inicio, 1)
+            end   = {"dateTime": f"{fecha_str}T{end_t}:00",   "timeZone": tz}
+        else:
+            start = {"date": fecha_str}
+            end   = {"date": fecha_str}
+        body = {"summary": titulo, "description": descripcion, "start": start, "end": end}
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(url, headers=headers, json=body)
+            d = r.json()
+        if r.status_code in (200, 201):
+            return True, d.get("id","")
+        else:
+            msg = d.get("error",{}).get("message","error desconocido")
+            print(f"CALENDAR CREATE ERROR {r.status_code}: {msg}")
+            return False, msg
+    except Exception as e:
+        print(f"CALENDAR CREATE excepcion: {e}")
+        return False, str(e)
+
+def _sumar_hora(hora_str: str, horas: int) -> str:
+    h, m = map(int, hora_str.split(":"))
+    h = (h + horas) % 24
+    return f"{h:02d}:{m:02d}"
+
+def _dias_para(fecha_str: str) -> int:
+    try:
+        d = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+        hoy = datetime.now(COL_TZ).date()
+        return (d - hoy).days
+    except:
+        return 999
+
+def formatear_eventos(eventos, filtro_sede: str = None) -> str:
+    if not eventos:
+        return "No hay eventos programados por ahora. 📭"
+
+    if filtro_sede:
+        eventos = [e for e in eventos
+                   if filtro_sede.upper() in (e.get("summary","")).upper()
+                   or "[TODAS]" in (e.get("summary","")).upper()]
+    if not eventos:
+        sede_label = EMOJI_SEDE.get(filtro_sede, filtro_sede)
+        return f"No hay eventos para {sede_label} en este período. 📭"
+
+    from collections import defaultdict
+    por_mes = defaultdict(list)
+    MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio",
+             "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+    MESES_C = ["","ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"]
+
+    for ev in eventos:
+        inicio = ev.get("start",{})
+        fi = inicio.get("date") or inicio.get("dateTime","")
+        mes = int(fi[5:7]) if fi and len(fi) >= 7 else 0
+        por_mes[mes].append(ev)
+
+    lines = []
+    for mes in sorted(por_mes.keys()):
+        lines.append(f"\n📆 *{MESES[mes] if mes else 'Sin fecha'}*")
+        for ev in por_mes[mes]:
+            titulo_raw = ev.get("summary","Sin título")
+            sede_tag, titulo = _extraer_sede_titulo(titulo_raw)
+            emoji = _emoji_evento(titulo)
+
+            inicio = ev.get("start",{})
+            fin    = ev.get("end",{})
+            fi = inicio.get("date") or inicio.get("dateTime","")
+            ff = fin.get("date")    or fin.get("dateTime","")
+
+            def fecha_corta(f_str):
+                if not f_str: return ""
+                try:
+                    if "T" in f_str:
+                        dt = datetime.fromisoformat(f_str.replace("Z","+00:00")).astimezone(COL_TZ)
+                        return f"{dt.day} de {MESES_C[dt.month]}"
+                    else:
+                        d = datetime.strptime(f_str, "%Y-%m-%d")
+                        return f"{d.day} de {MESES_C[d.month]}"
+                except:
+                    return f_str
+
+            fecha_ini = fecha_corta(fi)
+            mostrar_rango = False
+            if ff and ff != fi:
+                try:
+                    d_ini = datetime.strptime(fi[:10], "%Y-%m-%d")
+                    d_fin = datetime.strptime(ff[:10], "%Y-%m-%d")
+                    if (d_fin - d_ini).days > 1:
+                        mostrar_rango = True
+                except:
+                    pass
+
+            if mostrar_rango:
+                fecha_fin = fecha_corta(ff)
+                fecha_txt = f"{fecha_ini} → {fecha_fin}"
+            else:
+                fecha_txt = fecha_ini
+
+            hora_txt = ""
+            if fi and "T" in fi:
+                try:
+                    dt = datetime.fromisoformat(fi.replace("Z","+00:00")).astimezone(COL_TZ)
+                    hora_txt = f" · {dt.strftime('%I:%M %p').lstrip('0')}"
+                except:
+                    pass
+
+            SEDE_CORTA = {
+                "[SB]": "Bolívar", "[SM]": "San Martín",
+                "[HA]": "H. Acevedo", "[TODAS]": "Todas", "": "",
+            }
+            sede_corta = SEDE_CORTA.get(sede_tag, "")
+            linea = f"{emoji} *{titulo}* — {fecha_txt}{hora_txt}"
+            if sede_corta and not filtro_sede:
+                linea += f" _{sede_corta}_"
+            lines.append(linea)
+
+    lines.append(f"\n🔗 {URL_CALENDAR_PUBLIC}")
+    return "\n".join(lines)
+
+
+# ══════════════════════════════════════════════
+#  GESTIÓN DE CREACIÓN DE EVENTOS
+# ══════════════════════════════════════════════
+CAL_CAMPOS = ["titulo","sede","fecha","hora","descripcion"]
+
+CAL_PREGUNTAS = {
+    "titulo":      "📝 ¿Cuál es el *título* del evento?\n_(ej: Reunión de padres, Izado de bandera, Entrega de boletines)_",
+    "sede":        ("🏫 ¿A qué sede(s) aplica?\n"
+                    "━━━━━━━━━━━━━━━━\n"
+                    "1️⃣  Simón Bolívar\n"
+                    "2️⃣  San Martín\n"
+                    "3️⃣  Hernando Acevedo\n"
+                    "4️⃣  Todas las sedes\n"
+                    "━━━━━━━━━━━━━━━━\n"
+                    "Responde con el número."),
+    "fecha":       "📅 ¿Qué fecha? Escríbela así: *DD/MM/AAAA*\n_(ej: 15/04/2026)_",
+    "hora":        "⏰ ¿Tiene hora específica?\n• Escribe la hora en formato 24h (ej: *14:30*)\n• O escribe *no* si es evento de todo el día",
+    "descripcion": "💬 ¿Algún detalle adicional? (opcional)\n_Escribe la descripción o *no* para omitir_",
+}
+
+SEDES_CAL = {
+    "1": ("[SB]",    "Simón Bolívar"),
+    "2": ("[SM]",    "San Martín"),
+    "3": ("[HA]",    "Hernando Acevedo"),
+    "4": ("[TODAS]", "Todas las sedes"),
+    "simon bolivar": ("[SB]", "Simón Bolívar"),
+    "san martin":    ("[SM]", "San Martín"),
+    "hernando acevedo": ("[HA]", "Hernando Acevedo"),
+    "todas":         ("[TODAS]", "Todas las sedes"),
+}
+
+def _cal_clave(telefono): return "cal_" + limpiar_tel(telefono)
+
+async def gestionar_agregar_evento(mensaje: str, telefono: str, nombre: str) -> str:
+    s = norm(mensaje)
+    clave = _cal_clave(telefono)
+
+    if s in ["cancelar","salir","cancel","0"]:
+        borradores_cache.pop(clave, None)
+        return "✅ Creación de evento cancelada."
+
+    b = borradores_cache.get(clave, {})
+
+    if not b:
+        b = {"paso": 0}
+        borradores_cache[clave] = b
+
+    paso = b.get("paso", 0)
+    campo_actual = CAL_CAMPOS[paso] if paso < len(CAL_CAMPOS) else None
+
+    if campo_actual == "titulo":
+        if len(mensaje.strip()) < 3:
+            return "El título debe tener al menos 3 caracteres. ¿Cómo se llama el evento?"
+        b["titulo"] = mensaje.strip()
+        b["paso"] = 1
+        borradores_cache[clave] = b
+        return CAL_PREGUNTAS["sede"]
+
+    elif campo_actual == "sede":
+        res = SEDES_CAL.get(s) or SEDES_CAL.get(mensaje.strip())
+        if not res:
+            return "No reconocí la sede. Responde con el número del *1 al 4*:\n\n" + CAL_PREGUNTAS["sede"]
+        b["sede_tag"], b["sede_label"] = res
+        b["paso"] = 2
+        borradores_cache[clave] = b
+        return CAL_PREGUNTAS["fecha"]
+
+    elif campo_actual == "fecha":
+        m = re.search(r"(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{4})", mensaje)
+        if not m:
+            return "No entendí la fecha. Escríbela así: *DD/MM/AAAA* (ej: 15/04/2026)"
+        dia, mes, anio = m.group(1), m.group(2), m.group(3)
+        try:
+            from datetime import date as _date
+            _date(int(anio), int(mes), int(dia))
+        except:
+            return "Fecha inválida. Verifica el día y mes (ej: 15/04/2026)"
+        b["fecha_iso"] = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
+        b["fecha_display"] = f"{dia.zfill(2)}/{mes.zfill(2)}/{anio}"
+        b["paso"] = 3
+        borradores_cache[clave] = b
+        return CAL_PREGUNTAS["hora"]
+
+    elif campo_actual == "hora":
+        if s in ["no","n","sin hora","todo el dia","todo el día","no tiene"]:
+            b["hora"] = ""
+        else:
+            m = re.search(r"(\d{1,2})[:\.](\d{2})", mensaje)
+            if m:
+                h, mi = int(m.group(1)), int(m.group(2))
+                if 0 <= h <= 23 and 0 <= mi <= 59:
+                    b["hora"] = f"{h:02d}:{mi:02d}"
+                else:
+                    return "Hora inválida. Escríbela en formato 24h (ej: 14:30) o escribe *no*"
+            else:
+                return "No entendí la hora. Escríbela en formato 24h (ej: *08:00*, *14:30*) o escribe *no*"
+        b["paso"] = 4
+        borradores_cache[clave] = b
+        return CAL_PREGUNTAS["descripcion"]
+
+    elif campo_actual == "descripcion":
+        b["descripcion"] = "" if s in ["no","n","ninguna","omitir","-"] else mensaje.strip()
+        b["paso"] = 5
+        borradores_cache[clave] = b
+        hora_txt = b.get("hora","") or "Todo el día"
+        resumen = (
+            "📋 *Resumen del evento:*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"📝 *Título:*  {b['titulo']}\n"
+            f"🏫 *Sede:*   {b['sede_label']}\n"
+            f"📅 *Fecha:*  {b['fecha_display']}\n"
+            f"⏰ *Hora:*   {hora_txt}\n"
+        )
+        if b.get("descripcion"):
+            resumen += f"💬 *Detalle:* {b['descripcion']}\n"
+        resumen += "━━━━━━━━━━━━━━━━━━━━\n"
+        resumen += "¿Confirmas? Responde *sí* para guardar o *no* para cancelar."
+        return resumen
+
+    elif paso == 5:
+        if s in ["si","sí","s","yes","confirmar","ok","correcto","guardar"]:
+            titulo_final = f"{b['sede_tag']} {b['titulo']}"
+            ok, resultado = await crear_evento_calendar(
+                titulo_final,
+                b["fecha_iso"],
+                b.get("descripcion",""),
+                b.get("hora",""),
+            )
+            borradores_cache.pop(clave, None)
+            if ok:
+                hora_txt = b.get("hora","") or "Todo el día"
+                return (
+                    f"✅ *¡Evento agregado al calendario!*\n\n"
+                    f"📝 *{b['titulo']}*\n"
+                    f"🏫 {b['sede_label']}\n"
+                    f"📅 {b['fecha_display']} — {hora_txt}\n\n"
+                    f"🔗 Ver en el calendario:\n{URL_CALENDAR_PUBLIC}"
+                )
+            else:
+                return (
+                    f"❌ No pude crear el evento: {resultado}\n"
+                    "Verifica que el bot tenga permisos de escritura en el calendario."
+                )
+        else:
+            borradores_cache.pop(clave, None)
+            return "Evento cancelado. ¿En qué más te puedo ayudar? 😊"
+
+    b = {"paso": 0}
+    borradores_cache[clave] = b
+    return CAL_PREGUNTAS["titulo"]
+
+
+def es_intencion_agregar_evento(s: str) -> bool:
+    TRIGGERS = [
+        "agregar evento","añadir evento","crear evento","nuevo evento",
+        "programar evento","agendar","agrega al calendario","añade al calendario",
+        "agrega una fecha","añade una fecha","crear una fecha","programar una fecha",
+        "agregar al calendario","agregar fecha","nueva fecha en el calendario",
+        "registrar evento","poner en el calendario","anota en el calendario",
+    ]
+    return any(p in s for p in TRIGGERS)
+
+
+# ══════════════════════════════════════════════
+# CAMBIO 2 — NUEVA FUNCIÓN es_pregunta_documental()
+# Guard que detecta si el mensaje busca información
+# de un documento institucional. Usado en procesar()
+# y en _responder_pregunta_calendar() para evitar
+# que el calendario intercepte preguntas del PDF/PEI.
+# ══════════════════════════════════════════════
+def es_pregunta_documental(s: str) -> bool:
+    """
+    Retorna True si el mensaje claramente busca información
+    de un documento institucional (manual, PEI, SIEE, etc.)
+    y NO es una consulta de calendario/fechas de eventos.
+    """
+    SEÑALES_DOC = [
+        "que dice","que establece","que indica","que habla","que contiene",
+        "segun el manual","segun la ley","segun el reglamento",
+        "articulo","capitulo","norma","reglamento",
+        "manual de convivencia","manual convivencia",
+        "falta leve","falta grave","falta gravisima","falta gravísima",
+        "tipo de falta","tipos de faltas",
+        "sancion","sanción","correctivo","suspension escolar",
+        "debido proceso","acta de compromiso",
+        "ley 1620","decreto 1965","decreto 1290","decreto 1860",
+        "pei","proyecto educativo","horizonte institucional",
+        "mision","vision","filosofia institucional",
+        "gobierno escolar","consejo directivo","consejo academico",
+        "personero","contralor escolar",
+        "siee","sistema de evaluacion","escala de valoracion",
+        "desempeno superior","desempeno alto","desempeno basico","desempeno bajo",
+        "nota minima","aprueba con","pierde el año","pierde el ano",
+        "nivelacion","actividades de superacion",
+        "mapa de procesos","proceso gap","gestion academica",
+        "matricula requisitos","requisitos de matricula","proceso de matricula",
+        "manual de funciones","funciones del rector","funciones del docente",
+        "derechos del estudiante","deberes del estudiante",
+        "ruta de atencion","comite de convivencia","protocolo disciplinario",
+        "acoso escolar","bullying","matoneo",
+        "perfil del estudiante","perfil del docente",
+        "plan de estudios","malla curricular","intensidad horaria",
+        "convenio sena","media tecnica","bachillerato tecnico",
+        "reunion de padres","entrega de boletin","entrega boletines",
+        "clausura escolar","graduacion escolar","matricula escolar",
+        "suspension escolar","capacitacion docente","prueba saber institucion",
+    ]
+    return any(p in s for p in SEÑALES_DOC)
+
 
 # ══════════════════════════════════════════════
 #  CALENDAR — RESPUESTA PUNTUAL INTELIGENTE
-#  Si la pregunta pide un dato específico (cuándo inicia X,
-#  cuándo son las bimestrales, etc.) Gemini responde con
-#  los eventos reales como contexto en lugar de listar todo.
+# CAMBIO 4 aplicado: guard documental al inicio
 # ══════════════════════════════════════════════
 async def _responder_pregunta_calendar(pregunta: str, telefono: str) -> str:
     """
     Detecta preguntas puntuales del calendario y responde directo con Gemini.
-    Retorna None si es consulta general (para listar eventos normalmente).
+    Retorna None si es consulta general o si la pregunta es documental.
     """
     s = norm(pregunta)
+
+    # CAMBIO 4 — Guard: si la pregunta es documental, no usar el calendario
+    if es_pregunta_documental(s):
+        print(f"[CAL GUARD] pregunta documental bloqueada del calendario: '{pregunta[:60]}'")
+        return None
+
     PUNTUAL = [
         "cuando inicia","cuando empieza","cuando comienza","cuando es",
         "en que fecha","que fecha","cual es la fecha","que dia",
@@ -2645,9 +2805,8 @@ async def _responder_pregunta_calendar(pregunta: str, telefono: str) -> str:
         "entrega de boletin","entrega de notas","entrega boletin",
     ]
     if not any(p in s for p in PUNTUAL):
-        return None  # consulta general → listar eventos
+        return None
 
-    # Traer 120 días de eventos como contexto
     try:
         eventos, err = await asyncio.wait_for(obtener_eventos(120, max_results=80), timeout=12)
         if err or eventos is None or not eventos:
@@ -2712,7 +2871,206 @@ async def _responder_pregunta_calendar(pregunta: str, telefono: str) -> str:
 
 
 # ══════════════════════════════════════════════
+#  ENVÍO PROACTIVO DE MENSAJES WHATSAPP
+# ══════════════════════════════════════════════
+async def enviar_whatsapp(telefono: str, mensaje: str) -> bool:
+    url = AUTORESPONDER_SEND_URL.strip()
+    if not url:
+        print(f"[PUSH-SIM] → {telefono}: {mensaje[:80]}")
+        return False
+    tel = limpiar_tel(telefono)
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(url, json={"phone": tel, "message": mensaje})
+        ok = r.status_code in (200, 201)
+        print(f"[PUSH {'OK' if ok else 'FAIL'}] → {tel} (HTTP {r.status_code})")
+        return ok
+    except Exception as e:
+        print(f"[PUSH ERROR] → {tel}: {e}")
+        return False
+
+async def enviar_a_todos_admins(mensaje: str):
+    tasks = [enviar_whatsapp(tel, mensaje) for tel in TODOS_ADMINS]
+    resultados = await asyncio.gather(*tasks, return_exceptions=True)
+    enviados = sum(1 for r in resultados if r is True)
+    print(f"[PUSH MASIVO] {enviados}/{len(TODOS_ADMINS)} enviados")
+
+
+# ══════════════════════════════════════════════
+#  ALERTA FALTA GRAVÍSIMA
+# ══════════════════════════════════════════════
+async def _alerta_gravisima(num_caso: str, b: dict, detalle_prof: str, reportante: str):
+    ahora     = datetime.now(COL_TZ)
+    fecha_str = ahora.strftime("%d/%m/%Y")
+    hora_str  = ahora.strftime("%I:%M %p")
+    mensaje = (
+        "🚨 *ALERTA — FALTA GRAVÍSIMA*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📌 *Caso:*       {num_caso}\n"
+        f"📅 *Fecha:*      {fecha_str}  {hora_str}\n"
+        f"🏫 *Sede:*       {b.get('sede','')} – {b.get('jornada','')}\n"
+        f"👤 *Estudiante:* {b.get('estudiante','')}\n"
+        f"🎒 *Grado:*      {b.get('grado','')}\n"
+        f"👩‍🏫 *Reportante:* {reportante}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📝 *Descripción:*\n{detalle_prof[:400]}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "⚠️ *Protocolo Art. 163 / Ley 1620:*\n"
+        "• Activar Ruta de Atención Integral\n"
+        "• Notificar Comité de Convivencia\n"
+        "• Posible remisión a autoridades\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔗 Ver caso completo:\n"
+        f"https://docs.google.com/spreadsheets/d/{SHEETS_ID}"
+    )
+    await enviar_a_todos_admins(mensaje)
+
+
+# ══════════════════════════════════════════════
+#  RECORDATORIOS AUTOMÁTICOS
+# ══════════════════════════════════════════════
+eventos_notificados: set = set()
+
+async def _loop_recordatorios():
+    await asyncio.sleep(120)
+    while True:
+        try:
+            await _verificar_y_notificar_eventos()
+        except Exception as e:
+            print(f"[RECORDATORIO ERROR] {e}")
+        await asyncio.sleep(3600)
+
+async def _verificar_y_notificar_eventos():
+    ahora    = datetime.now(COL_TZ)
+    manana   = ahora + timedelta(hours=24)
+    eventos, err = await obtener_eventos(dias=2, max_results=20)
+    if err or not eventos:
+        return
+
+    MESES_N = ["","enero","febrero","marzo","abril","mayo","junio",
+               "julio","agosto","septiembre","octubre","noviembre","diciembre"]
+
+    for ev in eventos:
+        ev_id = ev.get("id","")
+        if not ev_id or ev_id in eventos_notificados:
+            continue
+        titulo = ev.get("summary","Sin título")
+        fi_raw = (ev.get("start",{}).get("dateTime") or ev.get("start",{}).get("date",""))
+        try:
+            if "T" in fi_raw:
+                ev_dt = datetime.fromisoformat(fi_raw.replace("Z","+00:00")).astimezone(COL_TZ)
+            else:
+                ev_dt = datetime.strptime(fi_raw, "%Y-%m-%d").replace(hour=0, minute=0, tzinfo=COL_TZ)
+        except:
+            continue
+        if not (ahora <= ev_dt <= manana):
+            continue
+
+        dia_semana = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"][ev_dt.weekday()]
+        fecha_txt  = f"{dia_semana} {ev_dt.day} de {MESES_N[ev_dt.month]}"
+        hora_txt = ev_dt.strftime("%I:%M %p") if "T" in fi_raw else "Todo el día"
+        tag, titulo_limpio = _extraer_sede_titulo(titulo)
+        sede_txt = EMOJI_SEDE.get(tag, "🏫 General")
+        descripcion = (ev.get("description") or "").strip()[:200]
+        emoji_ev    = _emoji_evento(titulo_limpio)
+        horas_para = int((ev_dt - ahora).total_seconds() // 3600)
+        if horas_para < 1:
+            tiempo_txt = "en menos de 1 hora"
+        elif horas_para == 1:
+            tiempo_txt = "en 1 hora"
+        else:
+            tiempo_txt = f"en aproximadamente {horas_para} horas"
+
+        mensaje = (
+            f"📅 *RECORDATORIO — Evento Mañana*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"{emoji_ev} *{titulo_limpio}*\n"
+            f"🏫 *Sede:*   {sede_txt}\n"
+            f"📆 *Fecha:*  {fecha_txt}\n"
+            f"⏰ *Hora:*   {hora_txt}\n"
+            f"⏳ *Falta:*  {tiempo_txt}\n"
+        )
+        if descripcion:
+            mensaje += f"💬 *Detalle:* {descripcion}\n"
+        mensaje += (
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔗 Ver calendario completo:\n{URL_CALENDAR_PUBLIC}"
+        )
+        await enviar_a_todos_admins(mensaje)
+        eventos_notificados.add(ev_id)
+        print(f"[RECORDATORIO ENVIADO] {titulo_limpio} → {fecha_txt} {hora_txt}")
+        if len(eventos_notificados) > 500:
+            eventos_notificados.clear()
+
+
+# ══════════════════════════════════════════════
+#  REPORTE SEMANAL AUTOMÁTICO
+# ══════════════════════════════════════════════
+_reporte_semanal_enviado_semana: int = -1
+
+async def _loop_reporte_semanal():
+    await asyncio.sleep(180)
+    while True:
+        try:
+            await _verificar_y_enviar_reporte_semanal()
+        except Exception as e:
+            print(f"[REPORTE SEMANAL ERROR] {e}")
+        await asyncio.sleep(1800)
+
+async def _verificar_y_enviar_reporte_semanal():
+    global _reporte_semanal_enviado_semana
+    ahora = datetime.now(COL_TZ)
+    if ahora.weekday() != 0 or ahora.hour != 7:
+        return
+    semana_actual = ahora.isocalendar()[1]
+    if semana_actual == _reporte_semanal_enviado_semana:
+        return
+    print(f"[REPORTE SEMANAL] Generando para semana {semana_actual}...")
+    resumen = await panel_estadisticas("semana")
+    lunes_pasado = (ahora - timedelta(days=7)).strftime("%d/%m/%Y")
+    domingo      = (ahora - timedelta(days=1)).strftime("%d/%m/%Y")
+    encabezado   = (
+        f"📊 *Reporte Semanal Automático*\n"
+        f"IE Simón Bolívar — ColBolívar\n"
+        f"📆 Período: {lunes_pasado} al {domingo}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    )
+    await enviar_a_todos_admins(encabezado + resumen)
+    _reporte_semanal_enviado_semana = semana_actual
+    print(f"[REPORTE SEMANAL OK] Semana {semana_actual} enviada")
+
+
+# ══════════════════════════════════════════════
+#  KEEP-ALIVE
+# ══════════════════════════════════════════════
+async def keep_alive():
+    await asyncio.sleep(60)
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                await c.get(RENDER_URL+"/ping"); print("keep-alive ok")
+        except Exception as e:
+            print("keep-alive error: "+str(e))
+        await asyncio.sleep(540)
+
+
+# ══════════════════════════════════════════════
 #  PROCESADOR PRINCIPAL
+#
+#  CAMBIO 3 — Nuevo orden de prioridades:
+#  1. Reporte incidente (COPASST)
+#  2. Admin @ comandos (prioridad máxima)
+#  3. Reporte falta (Manual GD-D02)
+#  4. Admin comandos normales
+#  5. Saludo
+#  6. Respuesta rápida
+#  7. Lista documentos
+#  8. Agregar evento al calendario (flujo admin)
+#  9. ✅ DOCUMENTOS PDF (por nombre)        ← ANTES del calendario
+# 10. ✅ CALENDARIO (con guard documental)  ← DESPUÉS de PDF
+# 11. ENLACE WEB
+# 12. DOCUMENTO CENTRAL (PEI 497 págs)
+# 13. GEMINI NORMAL
 # ══════════════════════════════════════════════
 async def procesar(mensaje, telefono, nombre):
     s = norm(mensaje)
@@ -2721,12 +3079,7 @@ async def procesar(mensaje, telefono, nombre):
 
     tel = limpiar_tel(telefono)
 
-    # ══════════════════════════════════════════════════════════════
-    # PRIORIDAD 0 — REPORTE DE INCIDENTE/DAÑO (COPASST)
-    # Va ANTES que todo — incluso antes del panel admin —
-    # para que un docente/admin que escriba "reportar un daño"
-    # entre directamente al flujo correcto.
-    # ══════════════════════════════════════════════════════════════
+    # ── PRIORIDAD 0: Reporte de incidente/daño (COPASST) ──────────
     tiene_borrador_inc = tel in borradores_inc_cache
     if not tiene_borrador_inc:
         b_inc_check = await borrador_inc_cargar(telefono)
@@ -2735,13 +3088,8 @@ async def procesar(mensaje, telefono, nombre):
     if tiene_borrador_inc or es_intencion_incidente(mensaje):
         return await gestionar_incidente(mensaje, telefono, nombre)
 
-    # ══════════════════════════════════════════════════════════════
-    # ADMIN MASTER PRIORITY — comandos @ siempre tienen prioridad
-    # absoluta para admins, incluso sobre reportes en curso.
-    # Así el admin puede escribir @ en cualquier momento y ver menú.
-    # ══════════════════════════════════════════════════════════════
+    # ── PRIORIDAD 1: Admin @ comandos (prioridad absoluta) ────────
     if es_admin(telefono):
-        # Comandos @ y menú tienen prioridad absoluta
         es_cmd_admin = (
             s_raw.startswith("@") or
             s_raw in ["menu","hola","inicio","ayuda","help","start","admin","comandos",
@@ -2769,19 +3117,16 @@ async def procesar(mensaje, telefono, nombre):
                     return await gestionar_agregar_evento("agregar evento", telefono, nombre)
                 return resp_admin
 
-    # REPORTE DE FALTA/CONVIVENCIA — prioridad alta (pero después de comandos @ del admin)
-    # Activado por: "reportar una falta", "reportar al manual de convivencia",
-    # "reporte manual de convivencia", narrativa de incidente disciplinario
+    # ── PRIORIDAD 2: Reporte de falta (Manual GD-D02) ─────────────
     tiene_borrador = tel in borradores_cache
     if not tiene_borrador:
-        # Verificar también en Sheets (por si el cache se perdió)
         b_check = await borrador_cargar(telefono)
         tiene_borrador = b_check is not None
 
     if tiene_borrador or es_intencion_reporte(mensaje):
         return await gestionar_reporte(mensaje, telefono, nombre)
 
-    # ADMIN — comandos no-@ que no requieren prioridad máxima
+    # ── PRIORIDAD 3: Admin comandos normales (no @) ───────────────
     if es_admin(telefono):
         resp_admin = procesar_admin(mensaje)
         if resp_admin is not None:
@@ -2803,7 +3148,7 @@ async def procesar(mensaje, telefono, nombre):
                 return await gestionar_agregar_evento("agregar evento", telefono, nombre)
             return resp_admin
 
-    # SALUDO — "menu" solo aplica a no-admins (los admins ya fueron interceptados arriba)
+    # ── PRIORIDAD 4: Saludo ───────────────────────────────────────
     saludos = ["menu","hola","inicio","ayuda","help","hello","buenas","buenos dias","buenas tardes","buenas noches","start"]
     if s in saludos:
         tiene_hist = bool(historiales.get(telefono))
@@ -2825,12 +3170,12 @@ async def procesar(mensaje, telefono, nombre):
             "¿Qué necesitas?"
         )
 
-    # RESPUESTA RAPIDA
+    # ── PRIORIDAD 5: Respuesta rápida ─────────────────────────────
     rapida = respuesta_rapida(mensaje)
     if rapida:
         guardar_hist(telefono,"u",mensaje); guardar_hist(telefono,"a",rapida); return rapida
 
-    # LISTA DOCUMENTOS
+    # ── PRIORIDAD 6: Lista documentos ─────────────────────────────
     if any(p in s for p in ["que documentos","lista documentos","que manuales"]):
         lines = ["Documentos oficiales:\n"]
         for i,(k,(n,_)) in enumerate(CATALOGO.items(),1):
@@ -2838,7 +3183,7 @@ async def procesar(mensaje, telefono, nombre):
         lines.append("\nPídeme cualquiera por nombre.")
         return "\n".join(lines)
 
-    # CALENDARIO — AGREGAR EVENTO (docentes autorizados)
+    # ── PRIORIDAD 7: Agregar evento al calendario (flujo admin) ───
     clave_cal = _cal_clave(telefono)
     hay_flujo_cal = clave_cal in borradores_cache
     if hay_flujo_cal or (es_intencion_agregar_evento(s) and es_admin(telefono)):
@@ -2846,45 +3191,9 @@ async def procesar(mensaje, telefono, nombre):
             return "⚠️ Solo los docentes autorizados pueden agregar eventos al calendario.\nPide al administrador que te autorice."
         return await gestionar_agregar_evento(mensaje, telefono, nombre)
 
-    # CALENDARIO — CONSULTA
-    if any(p in s for p in PALABRAS_CALENDAR):
-        guardar_hist(telefono,"u",mensaje)
-        filtro_sede = _detectar_sede_filtro(s)
-
-        # Intento 1: respuesta puntual con IA si la pregunta es específica
-        try:
-            resp_puntual = await asyncio.wait_for(
-                _responder_pregunta_calendar(mensaje, telefono), timeout=20
-            )
-            if resp_puntual:
-                guardar_hist(telefono,"a",resp_puntual)
-                return resp_puntual
-        except Exception as e:
-            print(f"WARN calendar puntual: {e}")
-
-        # Intento 2: listar eventos del rango solicitado
-        if any(p in s for p in ["hoy","manana","mañana"]):
-            dias = 2
-        elif any(p in s for p in ["semana","proximos dias","próximos días"]):
-            dias = 7
-        elif any(p in s for p in ["mes","este mes","proximo mes","próximo mes"]):
-            dias = 31
-        elif any(p in s for p in ["trimestre","periodo","período"]):
-            dias = 90
-        else:
-            dias = 60
-
-        try:
-            eventos, err = await asyncio.wait_for(obtener_eventos(dias, max_results=50), timeout=12)
-            if not err and eventos is not None:
-                resp = formatear_eventos(eventos, filtro_sede)
-                guardar_hist(telefono,"a",resp)
-                return resp
-        except Exception as e:
-            print("ERROR CALENDAR: "+str(e))
-        return "No pude consultar el calendario. Intentalo de nuevo. 😔"
-
-    # DOCUMENTOS PDF
+    # ── PRIORIDAD 8: DOCUMENTOS PDF (por nombre) ──────────────────
+    # Va ANTES del calendario para evitar que palabras como
+    # "matricula", "siee", "manual" activen el calendario.
     clave_doc, nom_doc, url_doc = buscar_doc(mensaje)
     if clave_doc:
         solo_enlace = (any(p in s for p in PALABRAS_ENLACE) and not any(p in s for p in PALABRAS_LEER))
@@ -2908,15 +3217,53 @@ async def procesar(mensaje, telefono, nombre):
             print("ERROR PDF: "+str(e)); resp = f"No pude leer el documento ahora. Descárgalo:\n{url_doc}"
         guardar_hist(telefono,"a",resp); return resp
 
-    # ENLACE WEB
+    # ── PRIORIDAD 9: CALENDARIO ───────────────────────────────────
+    # Guard documental: si la pregunta es sobre documentos, NO usar calendario.
+    # Esto evita que palabras compartidas (periodo, matricula, reunion, etc.)
+    # activen el calendario cuando la pregunta es claramente documental.
+    if any(p in s for p in PALABRAS_CALENDAR) and not es_pregunta_documental(s):
+        guardar_hist(telefono,"u",mensaje)
+        filtro_sede = _detectar_sede_filtro(s)
+
+        # Intento 1: respuesta puntual con IA
+        try:
+            resp_puntual = await asyncio.wait_for(
+                _responder_pregunta_calendar(mensaje, telefono), timeout=20
+            )
+            if resp_puntual:
+                guardar_hist(telefono,"a",resp_puntual)
+                return resp_puntual
+        except Exception as e:
+            print(f"WARN calendar puntual: {e}")
+
+        # Intento 2: listar eventos del rango
+        if any(p in s for p in ["hoy","manana","mañana"]):
+            dias = 2
+        elif any(p in s for p in ["semana","proximos dias","próximos días"]):
+            dias = 7
+        elif any(p in s for p in ["mes","este mes","proximo mes","próximo mes"]):
+            dias = 31
+        elif any(p in s for p in ["trimestre","periodo","período"]):
+            dias = 90
+        else:
+            dias = 60
+
+        try:
+            eventos, err = await asyncio.wait_for(obtener_eventos(dias, max_results=50), timeout=12)
+            if not err and eventos is not None:
+                resp = formatear_eventos(eventos, filtro_sede)
+                guardar_hist(telefono,"a",resp)
+                return resp
+        except Exception as e:
+            print("ERROR CALENDAR: "+str(e))
+        return "No pude consultar el calendario. Intentalo de nuevo. 😔"
+
+    # ── PRIORIDAD 10: ENLACE WEB ──────────────────────────────────
     if any(p in s for p in PALABRAS_ENLACE):
         url_w, desc_w = buscar_web(mensaje)
         if url_w: return desc_w + ":\n" + url_w
 
-    # DOCUMENTO CENTRAL (PEI completo, 497 págs)
-    # Se consulta para CUALQUIER pregunta sobre temas institucionales:
-    # procesos, gestión, convivencia, disciplina, faltas, filosofía, etc.
-    # Es la fuente de verdad antes de responder con Gemini solo.
+    # ── PRIORIDAD 11: DOCUMENTO CENTRAL (PEI completo, 497 págs) ──
     if any(p in s for p in PALABRAS_DOC_CENTRAL):
         guardar_hist(telefono,"u",mensaje)
         URL_CENTRAL = CATALOGO["pei"][1]
@@ -2933,7 +3280,7 @@ async def procesar(mensaje, telefono, nombre):
         except Exception as e:
             print(f"ERROR DOC CENTRAL: {e}")
 
-    # GEMINI NORMAL
+    # ── PRIORIDAD 12: GEMINI NORMAL ───────────────────────────────
     guardar_hist(telefono,"u",mensaje)
     try:
         resp = await asyncio.wait_for(llamar_gemini(mensaje, telefono, nombre), timeout=25)
@@ -2947,678 +3294,14 @@ async def procesar(mensaje, telefono, nombre):
 
 
 # ══════════════════════════════════════════════
-#  GOOGLE CALENDAR — MÓDULO POTENCIADO
-#  • Lectura con filtro de sede / tipo
-#  • Formato visual rico para WhatsApp
-#  • Creación de eventos desde WhatsApp (docentes autorizados)
-#  • Convención de títulos: "[SEDE] Título | descripción"
-#    Sedes válidas: [SB]=Simón Bolívar, [SM]=San Martín,
-#                  [HA]=Hernando Acevedo, [TODAS]=todas las sedes
-# ══════════════════════════════════════════════
-
-# Emojis por tipo de evento (se detecta por palabras clave en el título)
-EMOJI_EVENTO = {
-    "reunion":    "🤝", "reunión":    "🤝",
-    "entrega":    "📝", "informe":    "📋", "boletin":    "📋", "boletín": "📋",
-    "izad":       "🇨🇴", "izado":      "🇨🇴", "civico":     "🇨🇴", "cívico": "🇨🇴",
-    "vacacion":   "🏖️", "vacaciones": "🏖️", "receso":     "🏖️",
-    "clausura":   "🎓", "graduacion": "🎓", "graduación": "🎓",
-    "matricula":  "📒", "matrícula":  "📒", "inscripcion":"📒",
-    "capacitacion":"📚","formacion":  "📚", "taller":     "📚",
-    "prueba":     "✏️", "saber":      "✏️", "evaluacion": "✏️", "examen": "✏️",
-    "padres":     "👨‍👩‍👧", "acudientes":  "👨‍👩‍👧", "familia":    "👨‍👩‍👧",
-    "deportivo":  "⚽", "deporte":    "⚽", "juego":      "⚽",
-    "cultural":   "🎭", "festival":   "🎭", "muestra":    "🎭",
-    "salida":     "🚌", "visita":     "🚌", "excursion":  "🚌",
-    "paro":       "⚠️", "suspension": "⚠️", "suspensión": "⚠️",
-}
-
-EMOJI_SEDE = {
-    "[SB]":    "🏫 Simón Bolívar",
-    "[SM]":    "🏫 San Martín",
-    "[HA]":    "🏫 Hernando Acevedo",
-    "[TODAS]": "🏫 Todas las sedes",
-    "":        "🏫 General",
-}
-
-URL_CALENDAR_PUBLIC = "https://calendar.google.com/calendar/u/0?cid=ZjRmZjY1MTk3YWU3MTJkZjZjZDI2YWIxOGRjODc4ZGM1ZWFjODI0OGMxNzhkYzdhNjdmODU1Y2I4OWIwZGVlYUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t"
-
-def _emoji_evento(titulo: str) -> str:
-    t = titulo.lower()
-    for clave, emoji in EMOJI_EVENTO.items():
-        if clave in t:
-            return emoji
-    return "📅"
-
-def _extraer_sede_titulo(titulo: str):
-    """Extrae tag de sede del título. Retorna (sede_label, titulo_limpio)."""
-    import re
-    m = re.match(r"^(\[(?:SB|SM|HA|TODAS)\])\s*", titulo.strip(), re.IGNORECASE)
-    if m:
-        tag = m.group(1).upper()
-        titulo_limpio = titulo[m.end():].strip()
-        return tag, titulo_limpio
-    return "", titulo.strip()
-
-def _detectar_sede_filtro(s: str):
-    """Detecta si el usuario quiere filtrar por sede."""
-    if any(p in s for p in ["simon bolivar","sede central","[sb]","sede sb"]):
-        return "[SB]"
-    if any(p in s for p in ["san martin","san martín","[sm]","sede sm"]):
-        return "[SM]"
-    if any(p in s for p in ["hernando acevedo","[ha]","sede ha"]):
-        return "[HA]"
-    return None  # sin filtro = mostrar todas
-
-async def obtener_eventos(dias=60, max_results=30):
-    key = os.getenv("GOOGLE_API_KEY","")
-    if not key: return None, "sin clave"
-    ahora    = datetime.now(COL_TZ)
-    time_min = ahora.isoformat().replace("+","%2B")
-    time_max = (ahora+timedelta(days=dias)).isoformat().replace("+","%2B")
-    url = ("https://www.googleapis.com/calendar/v3/calendars/"
-           + CALENDAR_ID.replace("@","%40")
-           + "/events?key=" + key
-           + "&timeMin=" + time_min + "&timeMax=" + time_max
-           + f"&maxResults={max_results}&singleEvents=true&orderBy=startTime")
-    try:
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(url); d = r.json()
-        if "error" in d: return None, d["error"].get("message","error")
-        return d.get("items",[]), None
-    except Exception as e:
-        return None, str(e)
-
-async def crear_evento_calendar(titulo: str, fecha_str: str, descripcion: str = "",
-                                 hora_inicio: str = "", hora_fin: str = "") -> tuple:
-    """
-    Crea un evento en Google Calendar usando Service Account.
-    fecha_str: "2026-04-15"
-    hora_inicio/fin: "08:00" (opcional; si vacío → evento de todo el día)
-    Retorna (True, id_evento) o (False, mensaje_error)
-    """
-    try:
-        token = await obtener_token_sheets()  # mismo SA, mismo token
-        if not token:
-            return False, "No se pudo obtener autorización"
-
-        cal_id_enc = CALENDAR_ID.replace("@", "%40")
-        url = f"https://www.googleapis.com/calendar/v3/calendars/{cal_id_enc}/events"
-        headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
-
-        if hora_inicio:
-            # Evento con hora
-            tz = "America/Bogota"
-            start = {"dateTime": f"{fecha_str}T{hora_inicio}:00", "timeZone": tz}
-            end_t = hora_fin if hora_fin else _sumar_hora(hora_inicio, 1)
-            end   = {"dateTime": f"{fecha_str}T{end_t}:00",   "timeZone": tz}
-        else:
-            # Evento de todo el día
-            start = {"date": fecha_str}
-            end   = {"date": fecha_str}
-
-        body = {"summary": titulo, "description": descripcion, "start": start, "end": end}
-
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.post(url, headers=headers, json=body)
-            d = r.json()
-
-        if r.status_code in (200, 201):
-            return True, d.get("id","")
-        else:
-            msg = d.get("error",{}).get("message","error desconocido")
-            print(f"CALENDAR CREATE ERROR {r.status_code}: {msg}")
-            return False, msg
-    except Exception as e:
-        print(f"CALENDAR CREATE excepcion: {e}")
-        return False, str(e)
-
-def _sumar_hora(hora_str: str, horas: int) -> str:
-    h, m = map(int, hora_str.split(":"))
-    h = (h + horas) % 24
-    return f"{h:02d}:{m:02d}"
-
-def _dias_para(fecha_str: str) -> int:
-    """Días que faltan para una fecha ISO."""
-    try:
-        d = datetime.strptime(fecha_str, "%Y-%m-%d").date()
-        hoy = datetime.now(COL_TZ).date()
-        return (d - hoy).days
-    except:
-        return 999
-
-def formatear_eventos(eventos, filtro_sede: str = None) -> str:
-    """Formato limpio y natural para WhatsApp. Sin urgencias, sin ruido."""
-    if not eventos:
-        return "No hay eventos programados por ahora. 📭"
-
-    # Filtrar por sede si se pidió
-    if filtro_sede:
-        eventos = [e for e in eventos
-                   if filtro_sede.upper() in (e.get("summary","")).upper()
-                   or "[TODAS]" in (e.get("summary","")).upper()]
-    if not eventos:
-        sede_label = EMOJI_SEDE.get(filtro_sede, filtro_sede)
-        return f"No hay eventos para {sede_label} en este período. 📭"
-
-    from collections import defaultdict
-    por_mes = defaultdict(list)
-    MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio",
-             "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-    MESES_C = ["","ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"]
-
-    for ev in eventos:
-        inicio = ev.get("start",{})
-        fi = inicio.get("date") or inicio.get("dateTime","")
-        mes = int(fi[5:7]) if fi and len(fi) >= 7 else 0
-        por_mes[mes].append(ev)
-
-    lines = []
-    for mes in sorted(por_mes.keys()):
-        lines.append(f"\n📆 *{MESES[mes] if mes else 'Sin fecha'}*")
-        for ev in por_mes[mes]:
-            titulo_raw = ev.get("summary","Sin título")
-            sede_tag, titulo = _extraer_sede_titulo(titulo_raw)
-            emoji = _emoji_evento(titulo)
-
-            inicio = ev.get("start",{})
-            fin    = ev.get("end",{})
-            fi = inicio.get("date") or inicio.get("dateTime","")
-            ff = fin.get("date")    or fin.get("dateTime","")
-
-            def fecha_corta(f_str):
-                if not f_str: return ""
-                try:
-                    if "T" in f_str:
-                        dt = datetime.fromisoformat(f_str.replace("Z","+00:00")).astimezone(COL_TZ)
-                        return f"{dt.day} de {MESES_C[dt.month]}"
-                    else:
-                        d = datetime.strptime(f_str, "%Y-%m-%d")
-                        return f"{d.day} de {MESES_C[d.month]}"
-                except:
-                    return f_str
-
-            fecha_ini = fecha_corta(fi)
-
-            # Solo mostrar rango si dura más de 1 día
-            mostrar_rango = False
-            if ff and ff != fi:
-                try:
-                    d_ini = datetime.strptime(fi[:10], "%Y-%m-%d")
-                    d_fin = datetime.strptime(ff[:10], "%Y-%m-%d")
-                    if (d_fin - d_ini).days > 1:
-                        mostrar_rango = True
-                except:
-                    pass
-
-            if mostrar_rango:
-                fecha_fin = fecha_corta(ff)
-                fecha_txt = f"{fecha_ini} → {fecha_fin}"
-            else:
-                fecha_txt = fecha_ini
-
-            # Hora si la tiene
-            hora_txt = ""
-            if fi and "T" in fi:
-                try:
-                    dt = datetime.fromisoformat(fi.replace("Z","+00:00")).astimezone(COL_TZ)
-                    hora_txt = f" · {dt.strftime('%I:%M %p').lstrip('0')}"
-                except:
-                    pass
-
-            # Sede compacta
-            SEDE_CORTA = {
-                "[SB]": "Bolívar", "[SM]": "San Martín",
-                "[HA]": "H. Acevedo", "[TODAS]": "Todas", "": "",
-            }
-            sede_corta = SEDE_CORTA.get(sede_tag, "")
-
-            linea = f"{emoji} *{titulo}* — {fecha_txt}{hora_txt}"
-            if sede_corta and not filtro_sede:
-                linea += f" _{sede_corta}_"
-            lines.append(linea)
-
-    lines.append(f"\n🔗 {URL_CALENDAR_PUBLIC}")
-    return "\n".join(lines)
-
-
-# ══════════════════════════════════════════════
-#  GESTIÓN DE CREACIÓN DE EVENTOS (docentes autorizados)
-#  Flujo conversacional para agregar eventos al calendario
-#  Estado en borradores_cache con prefijo "cal_"
-# ══════════════════════════════════════════════
-
-# Estados del flujo
-CAL_CAMPOS = ["titulo","sede","fecha","hora","descripcion"]
-
-CAL_PREGUNTAS = {
-    "titulo":      "📝 ¿Cuál es el *título* del evento?\n_(ej: Reunión de padres, Izado de bandera, Entrega de boletines)_",
-    "sede":        ("🏫 ¿A qué sede(s) aplica?\n"
-                    "━━━━━━━━━━━━━━━━\n"
-                    "1️⃣  Simón Bolívar\n"
-                    "2️⃣  San Martín\n"
-                    "3️⃣  Hernando Acevedo\n"
-                    "4️⃣  Todas las sedes\n"
-                    "━━━━━━━━━━━━━━━━\n"
-                    "Responde con el número."),
-    "fecha":       "📅 ¿Qué fecha? Escríbela así: *DD/MM/AAAA*\n_(ej: 15/04/2026)_",
-    "hora":        "⏰ ¿Tiene hora específica?\n• Escribe la hora en formato 24h (ej: *14:30*)\n• O escribe *no* si es evento de todo el día",
-    "descripcion": "💬 ¿Algún detalle adicional? (opcional)\n_Escribe la descripción o *no* para omitir_",
-}
-
-SEDES_CAL = {
-    "1": ("[SB]",    "Simón Bolívar"),
-    "2": ("[SM]",    "San Martín"),
-    "3": ("[HA]",    "Hernando Acevedo"),
-    "4": ("[TODAS]", "Todas las sedes"),
-    "simon bolivar": ("[SB]", "Simón Bolívar"),
-    "san martin":    ("[SM]", "San Martín"),
-    "hernando acevedo": ("[HA]", "Hernando Acevedo"),
-    "todas":         ("[TODAS]", "Todas las sedes"),
-}
-
-def _cal_clave(telefono): return "cal_" + limpiar_tel(telefono)
-
-async def gestionar_agregar_evento(mensaje: str, telefono: str, nombre: str) -> str:
-    """Flujo conversacional para crear un evento en Google Calendar."""
-    s = norm(mensaje)
-    clave = _cal_clave(telefono)
-
-    # Cancelar
-    if s in ["cancelar","salir","cancel","0"]:
-        borradores_cache.pop(clave, None)
-        return "✅ Creación de evento cancelada."
-
-    b = borradores_cache.get(clave, {})
-
-    # ── Si no hay estado, iniciar flujo ───────────────────────
-    if not b:
-        b = {"paso": 0}
-        borradores_cache[clave] = b
-
-    paso = b.get("paso", 0)
-    campo_actual = CAL_CAMPOS[paso] if paso < len(CAL_CAMPOS) else None
-
-    # ── Procesar respuesta del paso actual ────────────────────
-    if campo_actual == "titulo":
-        if len(mensaje.strip()) < 3:
-            return "El título debe tener al menos 3 caracteres. ¿Cómo se llama el evento?"
-        b["titulo"] = mensaje.strip()
-        b["paso"] = 1
-        borradores_cache[clave] = b
-        return CAL_PREGUNTAS["sede"]
-
-    elif campo_actual == "sede":
-        res = SEDES_CAL.get(s) or SEDES_CAL.get(mensaje.strip())
-        if not res:
-            return "No reconocí la sede. Responde con el número del *1 al 4*:\n\n" + CAL_PREGUNTAS["sede"]
-        b["sede_tag"], b["sede_label"] = res
-        b["paso"] = 2
-        borradores_cache[clave] = b
-        return CAL_PREGUNTAS["fecha"]
-
-    elif campo_actual == "fecha":
-        # Parsear DD/MM/AAAA
-        import re as _re
-        m = _re.search(r"(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{4})", mensaje)
-        if not m:
-            return "No entendí la fecha. Escríbela así: *DD/MM/AAAA* (ej: 15/04/2026)"
-        dia, mes, anio = m.group(1), m.group(2), m.group(3)
-        try:
-            from datetime import date as _date
-            _date(int(anio), int(mes), int(dia))  # validar
-        except:
-            return "Fecha inválida. Verifica el día y mes (ej: 15/04/2026)"
-        b["fecha_iso"] = f"{anio}-{mes.zfill(2)}-{dia.zfill(2)}"
-        b["fecha_display"] = f"{dia.zfill(2)}/{mes.zfill(2)}/{anio}"
-        b["paso"] = 3
-        borradores_cache[clave] = b
-        return CAL_PREGUNTAS["hora"]
-
-    elif campo_actual == "hora":
-        import re as _re
-        if s in ["no","n","sin hora","todo el dia","todo el día","no tiene"]:
-            b["hora"] = ""
-        else:
-            m = _re.search(r"(\d{1,2})[:\.](\d{2})", mensaje)
-            if m:
-                h, mi = int(m.group(1)), int(m.group(2))
-                if 0 <= h <= 23 and 0 <= mi <= 59:
-                    b["hora"] = f"{h:02d}:{mi:02d}"
-                else:
-                    return "Hora inválida. Escríbela en formato 24h (ej: 14:30) o escribe *no*"
-            else:
-                return "No entendí la hora. Escríbela en formato 24h (ej: *08:00*, *14:30*) o escribe *no*"
-        b["paso"] = 4
-        borradores_cache[clave] = b
-        return CAL_PREGUNTAS["descripcion"]
-
-    elif campo_actual == "descripcion":
-        b["descripcion"] = "" if s in ["no","n","ninguna","omitir","-"] else mensaje.strip()
-        b["paso"] = 5
-        borradores_cache[clave] = b
-        # Mostrar resumen y confirmar
-        hora_txt = b.get("hora","") or "Todo el día"
-        resumen = (
-            "📋 *Resumen del evento:*\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            f"📝 *Título:*  {b['titulo']}\n"
-            f"🏫 *Sede:*   {b['sede_label']}\n"
-            f"📅 *Fecha:*  {b['fecha_display']}\n"
-            f"⏰ *Hora:*   {hora_txt}\n"
-        )
-        if b.get("descripcion"):
-            resumen += f"💬 *Detalle:* {b['descripcion']}\n"
-        resumen += "━━━━━━━━━━━━━━━━━━━━\n"
-        resumen += "¿Confirmas? Responde *sí* para guardar o *no* para cancelar."
-        return resumen
-
-    elif paso == 5:
-        # Confirmación
-        if s in ["si","sí","s","yes","confirmar","ok","correcto","guardar"]:
-            # Construir título con tag de sede
-            titulo_final = f"{b['sede_tag']} {b['titulo']}"
-            ok, resultado = await crear_evento_calendar(
-                titulo_final,
-                b["fecha_iso"],
-                b.get("descripcion",""),
-                b.get("hora",""),
-            )
-            borradores_cache.pop(clave, None)
-            if ok:
-                hora_txt = b.get("hora","") or "Todo el día"
-                return (
-                    f"✅ *¡Evento agregado al calendario!*\n\n"
-                    f"📝 *{b['titulo']}*\n"
-                    f"🏫 {b['sede_label']}\n"
-                    f"📅 {b['fecha_display']} — {hora_txt}\n\n"
-                    f"🔗 Ver en el calendario:\n{URL_CALENDAR_PUBLIC}"
-                )
-            else:
-                return (
-                    f"❌ No pude crear el evento: {resultado}\n"
-                    "Verifica que el bot tenga permisos de escritura en el calendario."
-                )
-        else:
-            borradores_cache.pop(clave, None)
-            return "Evento cancelado. ¿En qué más te puedo ayudar? 😊"
-
-    # Si llegamos aquí sin estado válido, reiniciar
-    b = {"paso": 0}
-    borradores_cache[clave] = b
-    return CAL_PREGUNTAS["titulo"]
-
-
-def es_intencion_agregar_evento(s: str) -> bool:
-    """Detecta si el docente quiere agregar un evento al calendario."""
-    TRIGGERS = [
-        "agregar evento","añadir evento","crear evento","nuevo evento",
-        "programar evento","agendar","agrega al calendario","añade al calendario",
-        "agrega una fecha","añade una fecha","crear una fecha","programar una fecha",
-        "agregar al calendario","agregar fecha","nueva fecha en el calendario",
-        "registrar evento","poner en el calendario","anota en el calendario",
-    ]
-    return any(p in s for p in TRIGGERS)
-
-
-# ══════════════════════════════════════════════
-#  ENVÍO PROACTIVO DE MENSAJES WHATSAPP
-#  Usa el endpoint HTTP de AutoResponder.ai
-#  Variable de entorno: AUTORESPONDER_SEND_URL
-#  Si no está configurada, los envíos se omiten
-#  silenciosamente (nunca lanza excepción).
-# ══════════════════════════════════════════════
-async def enviar_whatsapp(telefono: str, mensaje: str) -> bool:
-    """
-    Envía un mensaje proactivo a un número vía AutoResponder.ai.
-    Retorna True si el envío fue exitoso.
-    """
-    url = AUTORESPONDER_SEND_URL.strip()
-    if not url:
-        # Sin URL configurada: simular log para depuración
-        print(f"[PUSH-SIM] → {telefono}: {mensaje[:80]}")
-        return False
-    tel = limpiar_tel(telefono)
-    try:
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.post(url, json={"phone": tel, "message": mensaje})
-        ok = r.status_code in (200, 201)
-        print(f"[PUSH {'OK' if ok else 'FAIL'}] → {tel} (HTTP {r.status_code})")
-        return ok
-    except Exception as e:
-        print(f"[PUSH ERROR] → {tel}: {e}")
-        return False
-
-async def enviar_a_todos_admins(mensaje: str):
-    """Envía el mismo mensaje a todos los admins en paralelo."""
-    tasks = [enviar_whatsapp(tel, mensaje) for tel in TODOS_ADMINS]
-    resultados = await asyncio.gather(*tasks, return_exceptions=True)
-    enviados = sum(1 for r in resultados if r is True)
-    print(f"[PUSH MASIVO] {enviados}/{len(TODOS_ADMINS)} enviados")
-
-
-# ══════════════════════════════════════════════
-#  MÓDULO 1 — ALERTA INMEDIATA FALTA GRAVÍSIMA
-#  Se llama desde _finalizar_reporte() cuando
-#  tipo_falta == "Gravisima".
-#  Envía resumen completo al rector y coordinadores.
-# ══════════════════════════════════════════════
-async def _alerta_gravisima(num_caso: str, b: dict, detalle_prof: str, reportante: str):
-    """Notifica inmediatamente a todos los admins sobre una falta gravísima."""
-    ahora     = datetime.now(COL_TZ)
-    fecha_str = ahora.strftime("%d/%m/%Y")
-    hora_str  = ahora.strftime("%I:%M %p")
-
-    mensaje = (
-        "🚨 *ALERTA — FALTA GRAVÍSIMA*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📌 *Caso:*       {num_caso}\n"
-        f"📅 *Fecha:*      {fecha_str}  {hora_str}\n"
-        f"🏫 *Sede:*       {b.get('sede','')} – {b.get('jornada','')}\n"
-        f"👤 *Estudiante:* {b.get('estudiante','')}\n"
-        f"🎒 *Grado:*      {b.get('grado','')}\n"
-        f"👩‍🏫 *Reportante:* {reportante}\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📝 *Descripción:*\n{detalle_prof[:400]}\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "⚠️ *Protocolo Art. 163 / Ley 1620:*\n"
-        "• Activar Ruta de Atención Integral\n"
-        "• Notificar Comité de Convivencia\n"
-        "• Posible remisión a autoridades\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🔗 Ver caso completo:\n"
-        f"https://docs.google.com/spreadsheets/d/{SHEETS_ID}"
-    )
-    await enviar_a_todos_admins(mensaje)
-
-
-# ══════════════════════════════════════════════
-#  MÓDULO 2 — RECORDATORIOS AUTOMÁTICOS
-#  Corre cada hora. Verifica si hay eventos
-#  en las próximas 24 horas que aún no se
-#  hayan notificado. Usa un set en memoria
-#  para no repetir la misma alerta.
-# ══════════════════════════════════════════════
-eventos_notificados: set = set()   # IDs de eventos ya notificados hoy
-
-async def _loop_recordatorios():
-    """
-    Tarea de fondo: revisa el calendario cada hora.
-    Si hay un evento en las próximas 24 horas que no se
-    ha notificado todavía, envía el recordatorio a todos
-    los admins.
-    """
-    await asyncio.sleep(120)  # Esperar 2 min tras arranque
-    while True:
-        try:
-            await _verificar_y_notificar_eventos()
-        except Exception as e:
-            print(f"[RECORDATORIO ERROR] {e}")
-        await asyncio.sleep(3600)  # revisar cada hora
-
-async def _verificar_y_notificar_eventos():
-    """Busca eventos en las próximas 24 horas y notifica los nuevos."""
-    ahora    = datetime.now(COL_TZ)
-    manana   = ahora + timedelta(hours=24)
-
-    eventos, err = await obtener_eventos(dias=2, max_results=20)
-    if err or not eventos:
-        return
-
-    MESES_N = ["","enero","febrero","marzo","abril","mayo","junio",
-               "julio","agosto","septiembre","octubre","noviembre","diciembre"]
-
-    for ev in eventos:
-        ev_id = ev.get("id","")
-        if not ev_id or ev_id in eventos_notificados:
-            continue
-
-        titulo = ev.get("summary","Sin título")
-        fi_raw = (ev.get("start",{}).get("dateTime")
-                  or ev.get("start",{}).get("date",""))
-
-        # Parsear fecha/hora del evento
-        try:
-            if "T" in fi_raw:
-                ev_dt = datetime.fromisoformat(fi_raw.replace("Z","+00:00")).astimezone(COL_TZ)
-            else:
-                ev_dt = datetime.strptime(fi_raw, "%Y-%m-%d").replace(
-                    hour=0, minute=0, tzinfo=COL_TZ
-                )
-        except:
-            continue
-
-        # ¿Está dentro de las próximas 24 horas?
-        if not (ahora <= ev_dt <= manana):
-            continue
-
-        # Formatear fecha y hora para el mensaje
-        dia_semana = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"][ev_dt.weekday()]
-        fecha_txt  = f"{dia_semana} {ev_dt.day} de {MESES_N[ev_dt.month]}"
-        if "T" in fi_raw:
-            hora_txt = ev_dt.strftime("%I:%M %p")
-        else:
-            hora_txt = "Todo el día"
-
-        # Detectar sede en el título
-        tag, titulo_limpio = _extraer_sede_titulo(titulo)
-        sede_txt = EMOJI_SEDE.get(tag, "🏫 General")
-
-        descripcion = (ev.get("description") or "").strip()[:200]
-        emoji_ev    = _emoji_evento(titulo_limpio)
-
-        horas_para = int((ev_dt - ahora).total_seconds() // 3600)
-        if horas_para < 1:
-            tiempo_txt = "en menos de 1 hora"
-        elif horas_para == 1:
-            tiempo_txt = "en 1 hora"
-        else:
-            tiempo_txt = f"en aproximadamente {horas_para} horas"
-
-        mensaje = (
-            f"📅 *RECORDATORIO — Evento Mañana*\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"{emoji_ev} *{titulo_limpio}*\n"
-            f"🏫 *Sede:*   {sede_txt}\n"
-            f"📆 *Fecha:*  {fecha_txt}\n"
-            f"⏰ *Hora:*   {hora_txt}\n"
-            f"⏳ *Falta:*  {tiempo_txt}\n"
-        )
-        if descripcion:
-            mensaje += f"💬 *Detalle:* {descripcion}\n"
-        mensaje += (
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔗 Ver calendario completo:\n{URL_CALENDAR_PUBLIC}"
-        )
-
-        await enviar_a_todos_admins(mensaje)
-        eventos_notificados.add(ev_id)
-        print(f"[RECORDATORIO ENVIADO] {titulo_limpio} → {fecha_txt} {hora_txt}")
-
-        # Limpiar IDs viejos cada día (evitar crecimiento infinito del set)
-        if len(eventos_notificados) > 500:
-            eventos_notificados.clear()
-
-
-# ══════════════════════════════════════════════
-#  MÓDULO 3 — REPORTE SEMANAL AUTOMÁTICO
-#  Se ejecuta cada lunes entre 7:00 y 7:59 am.
-#  Envía el resumen de los últimos 7 días
-#  al rector y coordinadores sin que nadie
-#  tenga que escribir nada.
-# ══════════════════════════════════════════════
-_reporte_semanal_enviado_semana: int = -1  # número de semana ISO ya enviado
-
-async def _loop_reporte_semanal():
-    """
-    Tarea de fondo: cada 30 minutos verifica si es lunes
-    entre 7:00 y 7:59 am y si aún no se envió el reporte
-    de esta semana.
-    """
-    await asyncio.sleep(180)  # Esperar 3 min tras arranque
-    while True:
-        try:
-            await _verificar_y_enviar_reporte_semanal()
-        except Exception as e:
-            print(f"[REPORTE SEMANAL ERROR] {e}")
-        await asyncio.sleep(1800)  # revisar cada 30 min
-
-async def _verificar_y_enviar_reporte_semanal():
-    global _reporte_semanal_enviado_semana
-    ahora = datetime.now(COL_TZ)
-
-    # Solo lunes (weekday=0) entre 7:00 y 7:59 am
-    if ahora.weekday() != 0 or ahora.hour != 7:
-        return
-
-    # Número de semana ISO para no repetir en la misma semana
-    semana_actual = ahora.isocalendar()[1]
-    if semana_actual == _reporte_semanal_enviado_semana:
-        return
-
-    print(f"[REPORTE SEMANAL] Generando para semana {semana_actual}...")
-    resumen = await panel_estadisticas("semana")
-
-    # Encabezado especial para el envío automático
-    lunes_pasado = (ahora - timedelta(days=7)).strftime("%d/%m/%Y")
-    domingo      = (ahora - timedelta(days=1)).strftime("%d/%m/%Y")
-    encabezado   = (
-        f"📊 *Reporte Semanal Automático*\n"
-        f"IE Simón Bolívar — ColBolívar\n"
-        f"📆 Período: {lunes_pasado} al {domingo}\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    )
-    mensaje_final = encabezado + resumen
-
-    await enviar_a_todos_admins(mensaje_final)
-    _reporte_semanal_enviado_semana = semana_actual
-    print(f"[REPORTE SEMANAL OK] Semana {semana_actual} enviada a {len(TODOS_ADMINS)} directivos")
-
-
-# ══════════════════════════════════════════════
-#  KEEP-ALIVE
-# ══════════════════════════════════════════════
-async def keep_alive():
-    await asyncio.sleep(60)
-    while True:
-        try:
-            async with httpx.AsyncClient(timeout=10) as c:
-                await c.get(RENDER_URL+"/ping"); print("keep-alive ok")
-        except Exception as e:
-            print("keep-alive error: "+str(e))
-        await asyncio.sleep(540)
-
-
-# ══════════════════════════════════════════════
 #  APP
 # ══════════════════════════════════════════════
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Al arrancar: recuperar borradores activos de Sheets
     await cargar_todos_borradores()
     asyncio.create_task(keep_alive())
-    asyncio.create_task(_loop_recordatorios())       # 📅 Recordatorios 24h antes
-    asyncio.create_task(_loop_reporte_semanal())     # 📊 Reporte semanal lunes 7am
+    asyncio.create_task(_loop_recordatorios())
+    asyncio.create_task(_loop_reporte_semanal())
     yield
 
 app = FastAPI(lifespan=lifespan)
