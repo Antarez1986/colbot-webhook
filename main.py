@@ -1079,9 +1079,10 @@ async def _finalizar_reporte(telefono, b: dict):
 WEB_BASE = "https://gestionacademicaco.wixsite.com/colbolivar1"
 WEB_LINKS = {
     "inicio":                    (WEB_BASE, "Pagina principal"),
-    "planes de area":            (WEB_BASE + "/planesdearea2026", "Planes de Area 2026"),
+    "planes de area":            (WEB_BASE + "/planes-de-area", "Planes de Area 2026"),
     "recursos academicos":       (WEB_BASE + "/documentosdocentes2026", "Recursos Academicos"),
-    "proyectos transversales":   (WEB_BASE + "/proyectostransversales", "Proyectos Transversales"),
+    "proyectos transversales":   (WEB_BASE + "/copia-de-planes-de-%C3%A1rea-2026", "Proyectos Transversales"),
+    "circulares":                (WEB_BASE + "/circulares", "Circulares Institucionales"),
     "documentos institucionales":(WEB_BASE + "/documentosinstitucionales2026", "Documentos Institucionales"),
     "gestiones":                 (WEB_BASE + "/calidad", "Gestion de Calidad"),
     "san martin":                (WEB_BASE + "/sanmart%C3%ADn", "Sede San Martin"),
@@ -1097,27 +1098,77 @@ WEB_LINKS = {
 # ══════════════════════════════════════════════
 BASE_PDF = "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_"
 CATALOGO = {
-    "pei":                     ("Compilado Institucional ColBolívar 2024 (Manual de Convivencia págs.1-287 | Manual de Normatividad Académica págs.288-344 | Mapa de Procesos págs.345-370 | POA págs.371 | PEI págs.372-497)",   "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
-    "siee":                    ("SIEE - Sistema de Evaluacion",             BASE_PDF + "f245afe526dd49d097d9417251ec1adc.pdf"),
-    "manual de convivencia":   ("Documento Maestro Institucional ColBolívar",  "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
-    "manual de funciones":     ("Manual de Funciones",                      BASE_PDF + "711c1ffb30334ea9b10163d87aaed4ba.pdf"),
-    "propuesta intercultural": ("Propuesta Intercultural Yukpa",            BASE_PDF + "a29820f94ee5437abff3787c8f77a79b.pdf"),
-    "salas de informatica":    ("Manual Salas de Informatica",              BASE_PDF + "e6e7265c3d7c4132925b62267253521d.pdf"),
-    "matricula":               ("Manual de Matricula",                      BASE_PDF + "122543af3a0e474eab079ec1038e7c63.pdf"),
-    "contratacion":            ("Manual de Contratacion",                   BASE_PDF + "a9a9bececa6044d4a69978f81484735b.pdf"),
-    "practicas empresariales": ("Manual Practicas Empresariales SENA",     BASE_PDF + "7e73596b192e47f2bbd0b1ea0ad2c049.pdf"),
-    "practicas de laboratorio":("Manual Practicas de Laboratorio",         BASE_PDF + "802a094d6ecd450891f62be4f10f7f01.pdf"),
-    "baterias sanitarias":     ("Manual Baterias Sanitarias",              BASE_PDF + "f30bc178fce5422a847addebb144f696.pdf"),
+    # ── Documentos con PDF individual propio ──────────────────────────────────
+    "pei":                     ("PEI — Proyecto Educativo Institucional ColBolívar",
+                                BASE_PDF + "a9f081d3d6da48eebcdbfde82e4ab0af.pdf"),
+    "siee":                    ("SIEE — Sistema Institucional de Evaluación",
+                                BASE_PDF + "f245afe526dd49d097d9417251ec1adc.pdf"),
+    "manual de convivencia":   ("Manual de Convivencia ColBolívar (GD-D02)",
+                                BASE_PDF + "793cfd61ebe14c7cade9feafd6828d3b.pdf"),
+    "manual de funciones":     ("Manual de Funciones",
+                                BASE_PDF + "711c1ffb30334ea9b10163d87aaed4ba.pdf"),
+    "propuesta intercultural": ("Propuesta Intercultural Yukpa",
+                                BASE_PDF + "a29820f94ee5437abff3787c8f77a79b.pdf"),
+    "salas de informatica":    ("Manual Salas de Tecnología e Informática",
+                                BASE_PDF + "e6e7265c3d7c4132925b62267253521d.pdf"),
+    "matricula":               ("Manual Proceso de Matrícula",
+                                BASE_PDF + "122543af3a0e474eab079ec1038e7c63.pdf"),
+    "contratacion":            ("Manual de Contratación",
+                                BASE_PDF + "a9a9bececa6044d4a69978f81484735b.pdf"),
+    "practicas empresariales": ("Manual de Práctica Empresarial SENA",
+                                BASE_PDF + "7e73596b192e47f2bbd0b1ea0ad2c049.pdf"),
+    "practicas de laboratorio":("Manual de Prácticas de Laboratorio",
+                                BASE_PDF + "802a094d6ecd450891f62be4f10f7f01.pdf"),
+    "baterias sanitarias":     ("Manual Baterías Sanitarias",
+                                BASE_PDF + "f30bc178fce5422a847addebb144f696.pdf"),
+    # ── Compilado maestro (solo cuando se pide explícitamente) ───────────────
+    "compilado institucional": ("Compilado Institucional ColBolívar 2024 (Manual de Convivencia págs.1-287 | Normatividad págs.288-344 | Mapa de Procesos págs.345-370 | POA pág.371 | PEI págs.372-497)",
+                                "https://0fa5a971-652e-4607-a1b4-cf4b07b9f616.filesusr.com/ugd/8891de_0fab9ff361254a148a3a5d3a0eafea98.pdf"),
 }
 ALIAS_DOC = {
-    "convivencia":"manual de convivencia", "reglamento":"manual de convivencia",
-    "proyecto educativo":"pei", "resignificacion":"pei",
-    "evaluacion":"siee", "calificaciones":"siee",
-    "yukpa":"propuesta intercultural", "intercultural":"propuesta intercultural",
-    "informatica":"salas de informatica", "tecnologia":"salas de informatica",
-    "inscripcion":"matricula", "contrato":"contratacion",
-    "sena":"practicas empresariales", "laboratorio":"practicas de laboratorio",
-    "sanitarias":"baterias sanitarias", "funciones":"manual de funciones",
+    # Manual de Convivencia
+    "convivencia":             "manual de convivencia",
+    "reglamento":              "manual de convivencia",
+    "manual gd":               "manual de convivencia",
+    "gd-d02":                  "manual de convivencia",
+    # PEI
+    "proyecto educativo":      "pei",
+    "resignificacion":         "pei",
+    "proyecto educativo institucional": "pei",
+    # SIEE
+    "evaluacion":              "siee",
+    "calificaciones":          "siee",
+    "sistema de evaluacion":   "siee",
+    "sistema institucional":   "siee",
+    # Intercultural
+    "yukpa":                   "propuesta intercultural",
+    "intercultural":           "propuesta intercultural",
+    # Salas de informática
+    "informatica":             "salas de informatica",
+    "tecnologia":              "salas de informatica",
+    "sala de computo":         "salas de informatica",
+    "sala de informatica":     "salas de informatica",
+    # Matrícula
+    "inscripcion":             "matricula",
+    "proceso de matricula":    "matricula",
+    # Contratación
+    "contrato":                "contratacion",
+    # Prácticas
+    "sena":                    "practicas empresariales",
+    "practica empresarial":    "practicas empresariales",
+    "laboratorio":             "practicas de laboratorio",
+    "practica de laboratorio": "practicas de laboratorio",
+    # Sanitarias
+    "sanitarias":              "baterias sanitarias",
+    "baterias":                "baterias sanitarias",
+    # Funciones
+    "funciones":               "manual de funciones",
+    "manual de funciones":     "manual de funciones",
+    # Compilado maestro (solo si se pide explícitamente)
+    "compilado":               "compilado institucional",
+    "documento maestro":       "compilado institucional",
+    "archivo maestro":         "compilado institucional",
+    "todos los documentos":    "compilado institucional",
 }
 PALABRAS_LEER    = ["que dice","que contiene","articulo","capitulo","segun el","segun la","explica","resume","cuales son","que establece","que indica","norma","regla","define","menciona","especifica","contenido","que habla","como funciona","cual es"]
 PALABRAS_ENLACE  = ["dame","descarga","descargar","enviame","enlace","link","quiero el","necesito el","pdf"]
@@ -3266,7 +3317,7 @@ async def procesar(mensaje, telefono, nombre):
     # ── PRIORIDAD 11: DOCUMENTO CENTRAL (PEI completo, 497 págs) ──
     if any(p in s for p in PALABRAS_DOC_CENTRAL):
         guardar_hist(telefono,"u",mensaje)
-        URL_CENTRAL = CATALOGO["pei"][1]
+        URL_CENTRAL = CATALOGO["compilado institucional"][1]
         print(f"[DOC CENTRAL] activado para: {mensaje[:80]}")
         try:
             pdf_central = await asyncio.wait_for(descargar_pdf_b64(URL_CENTRAL), timeout=40)
