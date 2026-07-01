@@ -63,7 +63,7 @@ Facebook: https://www.facebook.com/share/1NM1mkhhcc/
 YouTube: https://www.youtube.com/@colbolivar
 
 DATOS GENERALES (PEI 2024–2027):
-- Rector: Mg. Jesús Maldonado Serrano (nombrado el 20 de mayo de 2008)
+- Rector: Dr. Jesús Maldonado Serrano (nombrado el 20 de mayo de 2008)
 - Fundación legal: 30 de septiembre de 2002 (Decreto 00780); operaciones desde el 18 de febrero de 1992
 - Lema institucional: "Educamos para construir Proyectos de Vida con Éxito"
 - Valores — La Estrella ColBolívar: Honestidad, Amor, Esfuerzo, Fe
